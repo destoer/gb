@@ -1,8 +1,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-uint16_t load_word(int pc, char *mem) // <--- a word in this case is 16 bytes
+uint16_t load_word(uint16_t pc, char *mem) // <--- a word in this case is 16 bytes
 {
+	if(pc + 1 > 0xffff) { puts("invalid load_word"); return; }
 	uint16_t operand = mem[pc+1] & 0xff; // only get byte
 	operand =  (operand>>8) | (operand<<8); // swap lo and ho
 	operand += mem[pc] & 0xff; // only get byte

@@ -2,6 +2,7 @@
 #pragma once
 #include <stdbool.h>
 #include "lib.h"
+#include "rom.h"
 // flags
 		// first 4 bits are never set
 #define Z 7 // zero flag 7th bit of F register is set
@@ -32,6 +33,30 @@ static const int mcycles[] =
 	3,3,2,1,0,4,2,4,3,2,4,1,0,0,2,4
 };
 
+
+
+// for use when a conditional is taken
+// return mtcycles[opcode];
+static const int mtcycles[] =
+{
+     1,3,2,2,1,1,2,1,5,2,2,2,1,1,2,1,
+     0,3,2,2,1,1,2,1,3,2,2,2,1,1,2,1,
+     3,3,2,2,1,1,2,1,3,2,2,2,1,1,2,1,
+     3,3,2,2,3,3,3,1,3,2,2,2,1,1,2,1,
+     1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+     1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+     1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+     2,2,2,2,2,2,0,2,1,1,1,1,1,1,2,1,
+     1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+     1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+     1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+     1,1,1,1,1,1,2,1,1,1,1,1,1,1,2,1,
+     5,3,4,4,6,4,2,4,5,4,4,0,6,6,2,4,
+     5,3,4,0,6,4,2,4,5,4,4,0,6,0,2,4,
+     3,3,2,0,0,4,2,4,4,1,4,0,0,0,2,4,
+     3,3,2,1,0,4,2,4,3,2,4,1,0,0,2,4
+};
+	 
 static const int cbmcycles[] =
 {
 	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
@@ -73,14 +98,32 @@ typedef struct
 	Register bc;
 	Register de;
 	Register hl;
-	Register sp; // stack pointer	
+	uint16_t sp; // stack pointer	
 	uint16_t pc;
 	int tacfreq; // frequency at which tima increases
-	bool timerenable; // is tima enabled?
-	uint8_t *mem;
+	uint8_t *mem; // main cpu mem 
+	uint8_t *rom_mem; // rom 
 	bool interrupt_enable; // affected by di and ei instr
 	int scanline_counter;
-	uint8_t screen[X][Y][3];
+	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
+	uint8_t joypad_state; // has state of held down buttons
+	
+	// banking
+	
+	uint8_t *ram_banks; // 4 banks max
+	uint8_t currentram_bank; // currently selected ram bank
+	uint8_t currentrom_bank; // currently selected rom bank
+	bool rom_banking; // is rom banking enabled
+	bool enable_ram; // is ram banking enabled
+	
+	RomInfo rom_info;
+
+	// debugger vars
+	
+	int breakpoint;
+	int memw_breakpoint;
+	int memr_breakpoint;
+	bool step;
 } Cpu;
 
 // hb = high order byte
@@ -91,7 +134,6 @@ typedef struct
 
 
 Cpu init_cpu(void); // returns an initial cpu state
-inline int step_cpu(Cpu * cpu, uint8_t * rom); // perform a single cpu instr
 inline void update_timers(Cpu *cpu, int cycles); // update the cpu timers
 inline void do_interrupts(Cpu *cpu);
 inline void update_graphics(Cpu *cpu, int cycles);

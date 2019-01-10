@@ -40,6 +40,12 @@ RomInfo parse_rom(uint8_t *rom)
 	printf("Cart type: %d\n",romInfo.cartType);
 	
 	
+	switch(romInfo.cartType)
+	{
+		case 1 ... 3: romInfo.mbc1 = true; puts("mbc1"); break;
+		case 5 ... 6: romInfo.mbc2 = true; puts("mbc2"); break;
+	}
+	
 	
 	// get the number of rom banks
 	int banks = rom[0x148];

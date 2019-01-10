@@ -1,4 +1,6 @@
 #pragma once
+#include <stdint.h>
+#include <stdbool.h>
 
 // cpu clock speed
 #define CLOCKSPEED 419430
@@ -15,7 +17,7 @@
 
 // read a word from memory (bypasses the read_memory function)
 // only use when memory reads dont have side affects 
-uint16_t load_word(int pc, char *mem);
+uint16_t load_word(uint16_t pc, char *mem);
 
 
 // set a bit 

@@ -28,7 +28,7 @@ void render_sprites(Cpu *cpu);
 
 bool is_lcd_enabled(Cpu *cpu)
 {
-	return is_set(read_mem(0xff40,cpu->mem),7);	
+	return is_set(read_mem(0xff40,cpu),7);	
 }
 
 void update_graphics(Cpu *cpu, int cycles)
@@ -51,24 +51,24 @@ void update_graphics(Cpu *cpu, int cycles)
 		cpu->mem[0xff44]++;
 		
 		// read out of ly register to get current scanline
-		uint8_t currentline = read_mem(0xff44,cpu->mem);
+		uint8_t current_line = read_mem(0xff44,cpu);
 		
-		cpu->scanline_counter = 456;
+		cpu->scanline_counter = 114; // <- needs to be one foruth as we use m cycles
 		
 		// in the vblank period
-		if(currentline == 144)
+		if(current_line == 144)
 		{
 			request_interrupt(cpu,0);
 		}
 		
 		// if past scanline 153 reset to zero
-		else if(currentline > 153)
+		else if(current_line > 153)
 		{
 			cpu->mem[0xff44] = 0;
 		}
 		
 		// draw the current scanline
-		else if(currentline < 144)
+		else if(current_line < 144)
 		{
 			draw_scanline(cpu);
 		}
@@ -79,13 +79,13 @@ void update_graphics(Cpu *cpu, int cycles)
 void set_lcd_status(Cpu *cpu)
 {
 	// lcd status flag 
-	uint8_t status = read_mem(0xff41, cpu->mem);
+	uint8_t status = read_mem(0xff41, cpu);
 	
 	
 	// mode must be one if lcd is disabled
 	if(false == is_lcd_enabled(cpu))
 	{
-		cpu->scanline_counter = 456;
+		cpu->scanline_counter = 114;
 		cpu->mem[0xff44] = 0;
 		status &= 252;
 		status = set_bit(status,0);
@@ -93,7 +93,7 @@ void set_lcd_status(Cpu *cpu)
 		return;
 	}
 	
-	uint8_t currentline = read_mem(0xff44, cpu->mem);
+	uint8_t currentline = read_mem(0xff44, cpu);
 	uint8_t currentmode = status & 0x3;
 	
 	uint8_t mode = 0;
@@ -104,21 +104,21 @@ void set_lcd_status(Cpu *cpu)
 	if(currentline >= 144)
 	{
 		mode = 1;
-		status = set_bit(status,0);
-		status = deset_bit(status,1);
+		set_bit(status,0);
+		deset_bit(status,1);
 		req_int = is_set(status,4);
 	}
 	else
 	{
-		const int mode2bounds = 465-80;
-		const int mode3bounds = mode2bounds - 172;
+		const int mode2bounds = 114-20;
+		const int mode3bounds = mode2bounds - 43;
 		
 		// mode 2
 		if(cpu->scanline_counter >= mode2bounds)
 		{
 			mode = 2;
-			status = set_bit(status,1);
-			status = deset_bit(status,0);
+			set_bit(status,1);
+			deset_bit(status,0);
 			req_int = is_set(status,5);
 		}
 		
@@ -126,16 +126,16 @@ void set_lcd_status(Cpu *cpu)
 		else if(cpu->scanline_counter >= mode3bounds)
 		{
 			mode = 3;
-			status = set_bit(status,1);
-			status = set_bit(status,0);
+			set_bit(status,1);
+			set_bit(status,0);
 		}
 		
 		// mode 0
 		else
 		{
 			mode = 0;
-			status = deset_bit(status,1);
-			status = deset_bit(status,0);
+			deset_bit(status,1);
+			deset_bit(status,0);
 			req_int = is_set(status,3);
 		}
 	}
@@ -150,18 +150,18 @@ void set_lcd_status(Cpu *cpu)
 	// check conincidence flag
 	// needs verifying
 	// if ly == lyc
-	if(read_mem(0xff44,cpu->mem) == read_mem(0xff45,cpu->mem))
+	if(read_mem(0xff44,cpu) == read_mem(0xff45,cpu))
 	{
-		status = set_bit(status,2);
+		set_bit(status,2);
 		if(is_set(status,6))
 		{
-			request_interrupt(1);
+			request_interrupt(cpu,1);
 		}
 	}
 	
 	else
 	{
-		status = deset_bit(status,2);
+		deset_bit(status,2);
 	}
 	
 	// update the lcd status reg
@@ -170,8 +170,9 @@ void set_lcd_status(Cpu *cpu)
 
 void draw_scanline(Cpu *cpu)
 {
+	
 	// get lcd control reg
-	uint8_t  control = read_mem(0xff40,cpu->mem);
+	uint8_t  control = read_mem(0xff40,cpu);
 
 	if(is_set(control,0))
 	{
@@ -192,12 +193,12 @@ void render_tiles(Cpu *cpu)
 	bool unsig = true;
 	
 	// where to draw the visual area and window
-	uint8_t scroll_y = read_mem(0xff42,cpu->mem);
-	uint8_t scroll_x = read_mem(0xff43,cpu->mem);
-	uint8_t window_y = read_mem(0xff4a,cpu->mem);
-	uint8_t window_x = read_mem(0xff4b,cpu->mem) - 7; // 0,0 is at offset - 7 x for the window
+	uint8_t scroll_y = read_mem(0xff42,cpu);
+	uint8_t scroll_x = read_mem(0xff43,cpu);
+	uint8_t window_y = read_mem(0xff4a,cpu);
+	uint8_t window_x = read_mem(0xff4b,cpu) - 7; // 0,0 is at offset - 7 x for the window
 	
-	uint8_t lcd_control = read_mem(0xff40,cpu->mem); // get lcd control reg
+	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
 	
 	bool using_window = false;
 	
@@ -205,7 +206,7 @@ void render_tiles(Cpu *cpu)
 	if(is_set(lcd_control,5)) 
 	{
 		// is the current scanline the window pos?
-		if(window_y <= read_mem(0xff44,cpu->mem))
+		if(window_y <= read_mem(0xff44,cpu))
 		{
 			using_window = true;
 		}
@@ -257,12 +258,12 @@ void render_tiles(Cpu *cpu)
 	// the current scanline is drawing
 	if(!using_window)
 	{
-		y_pos = scroll_y + read_mem(0xff44,cpu->mem);
+		y_pos = scroll_y + read_mem(0xff44,cpu);
 	}
 	
 	else
 	{
-		y_pos = read_mem(0xff44,cpu->mem) - window_y;
+		y_pos = read_mem(0xff44,cpu) - window_y;
 	}
 	
 	// which of the 8 vertical pixels of the scanline are we on
@@ -295,11 +296,11 @@ void render_tiles(Cpu *cpu)
 		uint16_t tile_address = background_mem + tile_row+tile_col;
 		if(unsig)
 		{
-			tile_num = (uint8_t)read_mem(tile_address,cpu->mem);
+			tile_num = (uint8_t)read_mem(tile_address,cpu);
 		}
 		else
 		{
-			tile_num = (int8_t)read_mem(tile_address,cpu->mem);
+			tile_num = (int8_t)read_mem(tile_address,cpu);
 		}
 	
 		// deduce where this tile identifier is in memory
@@ -319,8 +320,8 @@ void render_tiles(Cpu *cpu)
 	
 		uint8_t line = y_pos % 8;
 		line *= 2; // each line takes up two bytes of mem
-		uint8_t data1 = read_mem(tile_location + line,cpu->mem);
-		uint8_t data2 = read_mem(tile_location + line+1,cpu->mem);
+		uint8_t data1 = read_mem(tile_location + line,cpu);
+		uint8_t data2 = read_mem(tile_location + line+1,cpu);
 	
 	
 		// pixel 0 in the tile is bit 7 of data1 and data2
@@ -354,26 +355,26 @@ void render_tiles(Cpu *cpu)
 			case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77; break;
 		}
 	
-		int final_y = read_mem(0xff44,cpu->mem);
+		int final_y = read_mem(0xff44,cpu);
 	
 	
 		// saftey check (not required?)
 		if ((final_y<0)||(final_y>143)||(pixel<0)||(pixel>159))
         {
 			continue;
+			//exit(1); {} continue;
 		}
 		
-		cpu->screen[pixel][final_y][0] = red;
-		cpu->screen[pixel][final_y][1] = green;
-		cpu->screen[pixel][final_y][2] = blue;
+		cpu->screen[final_y][pixel][0] = red;
+		cpu->screen[final_y][pixel][1] = green;
+		cpu->screen[final_y][pixel][2] = blue;
 	}
 }
-
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
 {
 	int res = WHITE;
-	uint8_t palette = read_mem(address,cpu->mem);
+	uint8_t palette = read_mem(address,cpu);
 	int hi = 0;
 	int lo = 0;
 	
@@ -403,34 +404,28 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
 
 
 
-void render_sprites(Cpu *cpu)
+void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 {
-	bool use8x16 = false;
-	uint8_t lcd_control = read_mem(0xff40,cpu->mem); // get lcd control reg
-	if(is_set(lcd_control,2))
-	{
-		use8x16 = true;
-	}
 	
-	for(int sprite = 0; sprite < 40; sprite++)
+	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
+
+	int y_size = is_set(lcd_control,2) ? 16 : 8;
+	
+	for(int sprite = 0; sprite < 40; sprite++) // more efficent to count loop down instead of up
 	{
 		// sprite takes 4 bytes in the sprite attributes table
-		uint8_t index = sprite*4;
-		uint8_t y_pos = read_mem(0xfe00+index,cpu->mem) - 16;
-		uint8_t x_pos = read_mem(0xfe00+index+1, cpu->mem)-8;
-		uint8_t tile_location = read_mem(0xfe00+index+2,cpu->mem);
-		uint8_t attributes = read_mem(0xfe00+index+3, cpu->mem);
+		uint8_t index = sprite*4; 
+		uint8_t y_pos = read_mem(0xfe00+index,cpu) - 16;
+		uint8_t x_pos = read_mem(0xfe00+index+1, cpu)-8;
+		uint8_t tile_location = read_mem(0xfe00+index+2,cpu);
+		uint8_t attributes = read_mem(0xfe00+index+3, cpu);
 		
 		bool y_flip = is_set(attributes,6);
 		bool x_flip = is_set(attributes,5);
 		
-		int scanline = read_mem(0xff44,cpu->mem);
+		int scanline = read_mem(0xff44,cpu);
 		
-		int y_size = 8;
-		if(use8x16)
-		{
-			y_size = 16;
-		}
+
 		
 		// does this sprite intercept with the scanline
 		if((scanline >= y_pos) && (scanline < (y_pos+y_size)))
@@ -445,9 +440,9 @@ void render_sprites(Cpu *cpu)
 			}
 			
 			line *= 2; // same as for tiles
-			uint16_t data_address = (0x8000+(tile_location*16)) + line;
-			uint8_t data1 = read_mem(data_address,cpu->mem);
-			uint8_t data2 = read_mem(data_address+1,cpu->mem);
+			uint16_t data_address = (0x8000 + (tile_location * 16 )) + line;
+			uint8_t data1 = read_mem(data_address,cpu);
+			uint8_t data2 = read_mem(data_address+1,cpu);
 			
 			// eaiser to read in from right to left as pixel 0
 			// is bit 7 in the color data pixel 1 is bit 6 etc 
@@ -494,14 +489,25 @@ void render_sprites(Cpu *cpu)
 				
 				if ((scanline<0)||(scanline>143)||(pixel<0)||(pixel>159))
 				{
-					continue ;
+					continue;
+					//exit(1); continue ;
 				}
 	
-				cpu->screen[pixel][scanline][0] = red;
-				cpu->screen[pixel][scanline][1] = green;
-				cpu->screen[pixel][scanline][2] = blue;
+				// if hidden behind the background layer
+				if(is_set(attributes,7))
+				{
+					if(cpu->screen[scanline][pixel][0] != 255 ||  cpu->screen[scanline][pixel][1] != 255 || cpu->screen[scanline][pixel][3] != 255)
+					{
+						continue;
+					}
+				}	
+	
+	
+				cpu->screen[scanline][pixel][0] = red;
+				cpu->screen[scanline][pixel][1] = green;
+				cpu->screen[scanline][pixel][2] = blue;
 			
 			}
 		}
-	}			
+	} 			
 }
