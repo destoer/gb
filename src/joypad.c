@@ -31,7 +31,7 @@ void key_pressed(int key, Cpu *cpu)
 	// is this a standard button or a directional one?
 	if(key > 3)
 	{
-		button = true;
+		button = true; // <--- kinda redundant
 	}
 	else
 	{

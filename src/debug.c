@@ -291,7 +291,7 @@ void info(char *token, char*input, Cpu *cpu)
 		printf("ly = %x\n",read_mem(0xff44,cpu));
 		printf("div = %x\n",cpu->mem[DIV]);
 		printf("tima = %x\n",cpu->mem[TIMA]);
-		printf("lcdc = %x\n",cpu->mem[0xff40]);
+		printf("lcdc = %x\n",cpu->mem[0xff41]);
 		printf("if = %x\n",cpu->mem[0xff0f]);
 		printf("ime = %x\n",cpu->interrupt_enable);
 		printf("ie = %x\n",cpu->mem[0xffff]);

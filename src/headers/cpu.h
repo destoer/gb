@@ -124,6 +124,16 @@ typedef struct
 	int memw_breakpoint;
 	int memr_breakpoint;
 	bool step;
+	
+	// bools used to inform cpu of special instrucitons occuring
+	bool ei;
+	bool di;
+	bool halt;
+	bool halt_bug;
+	// timers
+	int timer_counter;
+	int div_counter;
+	
 } Cpu;
 
 // hb = high order byte

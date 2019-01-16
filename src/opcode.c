@@ -53,6 +53,9 @@ int step_cpu(Cpu * cpu)
 	// instrucitons may need to be signed? eg ld a, (ff00 + n)
 	
 	// read an opcode and inc the program counter
+	
+	
+	
 	uint8_t opcode = read_mem(cpu->pc++,cpu); // <--- appears to attempt and extra read before even exiting the loop but cant pinpoint where...
 	int8_t operand;
 	uint8_t cbop;
@@ -60,7 +63,12 @@ int step_cpu(Cpu * cpu)
 	//cpu_state(cpu);
 	//disass_8080(opcode, cpu);
 	
-	
+	if(cpu->halt_bug)
+	{
+		cpu->pc -= 1; // correct the opcode
+		exit(1);
+		cpu->halt_bug = false;
+	}
 	
 	
 
@@ -154,6 +162,7 @@ int step_cpu(Cpu * cpu)
 			
 		case 0x10: // stop <-- FIX THIS LATER
 			puts("fix stop");
+			//exit(1);
 			break;
 			
 		case 0x11: // ld de, nn
@@ -661,6 +670,7 @@ int step_cpu(Cpu * cpu)
 		case 0x76: // halt <-- todo
 			// caller will handle
 			//puts("Implement halt");
+			cpu->halt = true;
 			break;
 		
 		case 0x77: // ld (hl), a 
@@ -1071,6 +1081,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
+				return  mtcycles[opcode];
 			}
 			
 			else
@@ -1123,6 +1134,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
+				return  mtcycles[opcode];
 			}
 			
 			else 
@@ -1258,6 +1270,7 @@ int step_cpu(Cpu * cpu)
 		case 0xf3: // disable interrupt
 			// needs to be executed after the next instr
 			// main routine will handle
+			cpu->di = true;
 			break;
 		
 		case 0xf5: // push af
@@ -1289,6 +1302,7 @@ int step_cpu(Cpu * cpu)
 		
 		case 0xfb: 
 			// caller will check opcode and handle it
+			cpu->ei = true;
 			break;
 		
 		case 0xFE: // cp a, n (do a sub and discard result)

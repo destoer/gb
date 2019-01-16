@@ -62,6 +62,27 @@ int main(int argc, char *argv[])
 	
 	memcpy(cpu.mem,cpu.rom_mem,0x8000); // memcpy the first 2 banks in
 	
+	
+	
+	
+	// check for a sav batt but for now we just copy the damb thing
+	char *savename = calloc(strlen(argv[1])+5,1);
+	strcpy(savename,argv[1]);
+	
+	strcat(savename,"sv");
+				
+	FILE *fp = fopen(savename,"r");
+	
+	// if file doesn't exist just ignore it
+	if(fp != NULL)
+	{
+		fread(&cpu.mem[0xa000],1,0x2000,fp);
+		fclose(fp);
+	}
+	
+	free(savename);
+	
+	
 /*//----------------------------------------------------------	
 	// memcpy our boot rom over this (we gonna find the bugs)
 	// read in the rom
@@ -120,6 +141,8 @@ int main(int argc, char *argv[])
 	for(;;)
 	{
 		
+
+		
 		const uint32_t fps = 60; // approximation <--- could use float at 59.73
 		const uint32_t screen_ticks_per_frame = 1000 / fps; // <-- no idea why it is the four times 
 		// what it should be but ok
@@ -130,7 +153,29 @@ int main(int argc, char *argv[])
 		
 		// handle input
 		while(SDL_PollEvent(&event))
-		{
+		{	
+			if(event.type == SDL_QUIT)
+			{
+				// save the ram and load it later
+				// should do detection on the save battery
+				char *savename = calloc(strlen(argv[1])+5,1);
+				strcpy(savename,argv[1]);
+				
+				strcat(savename,"sv");
+				
+				FILE *fp = fopen(savename,"w");
+				
+				fwrite(&cpu.mem[0xa000],1,0x2000,fp);
+				
+				free(savename);
+				fclose(fp);
+				
+				// should clean up our state here too 
+				
+				SDL_Quit();
+				return 0;
+			}	
+			
 			if(event.type == SDL_KEYDOWN)
 			{
 				int key = -1;
@@ -146,8 +191,7 @@ int main(int argc, char *argv[])
 					case SDLK_DOWN: key = 3; break;
 					
 					
-					// this should be used to enable a proper debug console but for now
-					// we will just dump info with it
+
 					case SDLK_p:
 					{
 						// enable the debug console by setting a breakpoint at this pc
@@ -174,7 +218,7 @@ int main(int argc, char *argv[])
 					case SDLK_UP: key = 2; break;
 					case SDLK_DOWN: key = 3; break;
 				}
-				if(key != 1)
+				if(key != -1)
 				{
 					key_released(key,&cpu);
 				}
@@ -206,27 +250,37 @@ int main(int argc, char *argv[])
 			
 			//luckily all the tricky opcodes are of length one
 			// so hardcoding the size if fine
-			uint8_t last_opcode = read_mem(cpu.pc-1,&cpu);
+			//uint8_t last_opcode = read_mem(cpu.pc-1,&cpu);
 			
-			if(last_opcode == 0xfb) // ei
+			if(cpu.ei) // ei
 			{
-				cycles += step_cpu(&cpu);
+				cpu.ei = false;
+				cycles = step_cpu(&cpu);
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
 				//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- verify it works
+				
+				// we have done an instruction now set ime
+				// may need to be just after the instruction service
+				// but before we service interrupts
+				
 				cpu.interrupt_enable = true;
 			}
 			
-			else if(last_opcode == 0xf3) // di
+			else if(cpu.di) // di
 			{
-				cycles += step_cpu(&cpu);
+				cpu.di = false;
+				cycles = step_cpu(&cpu);
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
 				//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- verify it works
+				
+				// we have executed another instruction now deset ime
+				
 				cpu.interrupt_enable = false;
 			}
 			
@@ -235,16 +289,17 @@ int main(int argc, char *argv[])
 			// this will make the cpu stop executing instr
 			// until an interrupt occurs and wakes it up 
 			
-			/*
-			else if(last_opcode == 0x76) // halt  <-- bugged as hell 
+			
+			else if(cpu.halt) // halt  <-- bugged as hell 
 			{
-				
-				puts("Cpu halted");
+				//exit(1);
+				cpu.halt = false;
+				/*puts("Cpu halted");
 				cpu_state(&cpu);
 				print_flags(&cpu);
 				printf("int flag %x : ie: %x\n",cpu.mem[0xff0f],cpu.mem[0xffff]);
 				printf("ime: %x\n",cpu.interrupt_enable);
-				
+				*/
 				//for(;;) { }
 				
 				
@@ -260,32 +315,15 @@ int main(int argc, char *argv[])
 				
 				// halt bug
 				// halt state not entered and the pc fails to increment for
-				// one instruction read this method is not sufficient to
-				// emulate the behavior of the bug 
+				// one instruction read 
 				
-				if(cpu.interrupt_enable == true &&  req != 0 && enabled != 0)
+				// appears to detect when it happens but does not emulate the behavior properly
+				
+				if( cpu.interrupt_enable == false &&  (req & enabled) != 0)
 				{
-					puts("HALT_BUG");
-					//exit(1);
-					// since we dont have proper cpu pipelining we will just have to hack memory
-					uint16_t address = cpu.pc;
-					uint8_t opcode = read_mem(cpu.pc,&cpu);
-					uint8_t opcode_backup = read_mem(cpu.pc+1,&cpu);
-					
-					
-					write_mem(&cpu,cpu.pc+1,opcode);
-					cycles += step_cpu(&cpu);
-					cycles_this_update += cycles;
-					update_timers(&cpu,cycles); // <--- update timers 
-					//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
-					update_graphics(&cpu,cycles); // handle the lcd emulation
-					do_interrupts(&cpu); // handle interrupts <-- verify it works
-					
-					
-					// fix memory
-					write_mem(&cpu,address,opcode_backup);
-					
-					printf("halt bug over");
+					puts("HALT BUG");
+					cpu.halt_bug = true;
+					//printf("halt bug over\n");
 				}
 				
 				// normal
@@ -327,8 +365,9 @@ int main(int argc, char *argv[])
 					}
 				}
 				
-			} */
-			
+			} 
+
+
 		}
 		
 		cycles_this_update = 0;

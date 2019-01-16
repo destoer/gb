@@ -299,33 +299,6 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		cpu->mem[address] = 0;
 	} 
 	
-	// vram can only be accesed at mode 0-2
-	else if(address >= 0x8000 && address <= 0x9fff)
-	{
-		uint8_t status = read_mem(0xff41,cpu);
-		status &= 3; // get just the mode
-		if(status <= 2)
-		{
-			return cpu->mem[address];
-		}
-		
-		return 0xff; // return ff if you cant read
-		
-	}
-
-	// oam is accesible during mode 0-1
-	else if(address >= 0xfe00 && address <= 0xfe9f)
-	{
-		uint8_t status = read_mem(0xff41,cpu);
-		status &= 3; // get just the mode
-		if(status <= 1)
-		{
-			return cpu->mem[address];
-		}
-		
-		return 0xff; // cant read so return ff
-	}
-	
 	else if(address == 0xff46) // dma reg perform a dma transfer
 	{
 		uint16_t address = data  << 8;
@@ -532,14 +505,12 @@ void update_timers(Cpu *cpu, int cycles)
 	// if timer is enabled <--- edge case with timer is failing the timing test
 	if(is_set(cpu->mem[TMC],2))
 	{	
-		cpu->timer_counter += cycles;
-		
-		int threshold = set_clock_freq(cpu);
+		cpu->timer_counter -= cycles;
 		
 		// update tima register cycles have elapsed
-		while(cpu->timer_counter >= threshold)
+		if(cpu->timer_counter <= 0)
 		{
-			cpu->timer_counter -= threshold;
+			cpu->timer_counter = set_clock_freq(cpu);
 			
 			// about to overflow
 			if(cpu->mem[TIMA] == 255)

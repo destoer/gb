@@ -13,7 +13,7 @@
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 
-// appears to just be constants so fuck it
+
 #define WHITE 1
 #define LIGHT_GRAY 2
 #define DARK_GRAY 3
@@ -83,12 +83,12 @@ void set_lcd_status(Cpu *cpu)
 	
 	
 	// mode must be one if lcd is disabled
-	if(false == is_lcd_enabled(cpu))
+	if(!is_lcd_enabled(cpu))
 	{
 		cpu->scanline_counter = 114;
 		cpu->mem[0xff44] = 0;
 		status &= 252;
-		status = set_bit(status,0);
+		set_bit(status,0);
 		write_mem(cpu,0xff41,status);
 		return;
 	}
@@ -150,7 +150,7 @@ void set_lcd_status(Cpu *cpu)
 	// check conincidence flag
 	// needs verifying
 	// if ly == lyc
-	if(read_mem(0xff44,cpu) == read_mem(0xff45,cpu))
+	if(currentline == read_mem(0xff45,cpu))
 	{
 		set_bit(status,2);
 		if(is_set(status,6))
@@ -403,7 +403,7 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
 }
 
 
-
+// should add code that lets it draw over the window 
 void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 {
 	
@@ -417,7 +417,7 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 		uint8_t index = sprite*4; 
 		uint8_t y_pos = read_mem(0xfe00+index,cpu) - 16;
 		uint8_t x_pos = read_mem(0xfe00+index+1, cpu)-8;
-		uint8_t tile_location = read_mem(0xfe00+index+2,cpu);
+		uint8_t sprite_location = read_mem(0xfe00+index+2,cpu);
 		uint8_t attributes = read_mem(0xfe00+index+3, cpu);
 		
 		bool y_flip = is_set(attributes,6);
@@ -440,15 +440,15 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 			}
 			
 			line *= 2; // same as for tiles
-			uint16_t data_address = (0x8000 + (tile_location * 16 )) + line;
+			uint16_t data_address = (0x8000 + (sprite_location * 16 )) + line;
 			uint8_t data1 = read_mem(data_address,cpu);
 			uint8_t data2 = read_mem(data_address+1,cpu);
 			
 			// eaiser to read in from right to left as pixel 0
 			// is bit 7 in the color data pixel 1 is bit 6 etc 
-			for(int tilepixel = 7; tilepixel >= 0; tilepixel--)
+			for(int sprite_pixel = 7; sprite_pixel >= 0; sprite_pixel--)
 			{
-				int colour_bit = tilepixel;
+				int colour_bit = sprite_pixel;
 				// red backwards for x axis
 				if(x_flip)
 				{
@@ -462,15 +462,20 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				colour_num |= val_bit(data1,colour_bit);
 				
 				
-				uint16_t colour_address = is_set(attributes,4)?0xff49 : 0xff48;
-				int col  = get_colour(cpu,colour_num,colour_address);
+				// dont display pixels with color id zero
+				// the color itself dosent matter we only care about the id
 				
-				// white transparent for sprites;
-				if(col == WHITE)
+				
+				if(colour_num == 0)
 				{
 					continue;
 				}
 				
+				uint16_t colour_address = is_set(attributes,4)?0xff49 : 0xff48;
+				int col  = get_colour(cpu,colour_num,colour_address);
+				
+
+				// black is default
 				int red = 0;
 				int green = 0;
 				int blue = 0;
@@ -482,7 +487,7 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 					case DARK_GRAY: red =0x77; green = 0x77; blue = 0x77; break;
 				}
 				
-				int x_pix = 0 - tilepixel;
+				int x_pix = 0 - sprite_pixel;
 				x_pix += 7;
 				
 				int pixel = x_pos + x_pix;
@@ -493,19 +498,27 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 					//exit(1); continue ;
 				}
 	
-				// if hidden behind the background layer
+	
+				// test if its hidden behind the background layer
+				// white is transparent even if the flag is set
+				
+				// may be incorrect
+				
 				if(is_set(attributes,7))
 				{
-					if(cpu->screen[scanline][pixel][0] != 255 ||  cpu->screen[scanline][pixel][1] != 255 || cpu->screen[scanline][pixel][3] != 255)
+					if( (cpu->screen[scanline][pixel][0] != 255) &&  (cpu->screen[scanline][pixel][1] != 255)  && (cpu->screen[scanline][pixel][2] != 255) )
 					{
-						continue;
+						//for(;;)
+						continue; 
 					}
-				}	
-	
-	
+				}
+				
 				cpu->screen[scanline][pixel][0] = red;
 				cpu->screen[scanline][pixel][1] = green;
 				cpu->screen[scanline][pixel][2] = blue;
+				
+				
+				
 			
 			}
 		}

@@ -949,6 +949,10 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 					puts("res 7, (hl)");
 					break;
 				
+				case 0xc6: // set 0, (hl)
+					puts("set 0, (hl)");
+					break;
+				
 				case 0xde: // set 3, (hl)
 					puts("set 3, (hl)");
 					break;
