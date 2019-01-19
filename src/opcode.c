@@ -8,6 +8,8 @@
 #include "headers/cpu.h"
 #include "headers/opcode_cb.h"
 #include "headers/disass.h"
+#include "headers/debug.h"
+#include "headers/instr.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -53,21 +55,24 @@ int step_cpu(Cpu * cpu)
 	// instrucitons may need to be signed? eg ld a, (ff00 + n)
 	
 	// read an opcode and inc the program counter
-	
-	
-	
-	uint8_t opcode = read_mem(cpu->pc++,cpu); // <--- appears to attempt and extra read before even exiting the loop but cant pinpoint where...
+	uint8_t opcode;
 	int8_t operand;
 	uint8_t cbop;
+	
+	// normal execution
+	
+	
+	opcode = read_mem(cpu->pc++,cpu);
 	//print cpu state and disassemble the opcode
 	//cpu_state(cpu);
-	//disass_8080(opcode, cpu);
+	//disass_8080(opcode, cpu);		
 	
+
+	// halt bug fail to inc pc
 	if(cpu->halt_bug)
 	{
-		cpu->pc -= 1; // correct the opcode
-		exit(1);
 		cpu->halt_bug = false;
+		cpu->pc -= 1;
 	}
 	
 	
@@ -194,7 +199,7 @@ int step_cpu(Cpu * cpu)
 		
 		
 		case 0x17: // rla (rotate left through carry flag) 
-			cpu->af.hb = rl(cpu,cpu->af.hb,1);
+			cpu->af.hb = rl(cpu,cpu->af.hb);
 			deset_bit(cpu->af.lb,Z);
 			break;
 		
@@ -1207,7 +1212,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xE0: // ld (ff00+n),a
-			write_mem(cpu,0xff00+read_mem(cpu->pc++,cpu),cpu->af.hb);
+			write_mem(cpu,(0xff00+read_mem(cpu->pc++,cpu)),cpu->af.hb);
 			break;
 
 		case 0xe1: // pop hl

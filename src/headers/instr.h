@@ -26,3 +26,4 @@ uint8_t sra(Cpu *cpu,uint8_t reg);
 uint8_t rr(Cpu *cpu, uint8_t reg);
 uint8_t rrc(Cpu *cpu,uint8_t reg);
 uint8_t rlc(Cpu *cpu, uint8_t reg);
+

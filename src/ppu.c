@@ -23,6 +23,7 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 void draw_scanline(Cpu *cpu);
 void render_tiles(Cpu *cpu);
 void render_sprites(Cpu *cpu);
+void set_lcd_status(Cpu *cpu);
 
 // probably the largest room for optimization
 
@@ -506,11 +507,166 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				
 				if(is_set(attributes,7))
 				{
-					if( (cpu->screen[scanline][pixel][0] != 255) &&  (cpu->screen[scanline][pixel][1] != 255)  && (cpu->screen[scanline][pixel][2] != 255) )
+					
+					// check what id the background had 
+					// only if its id zero can we draw over it
+					// else just continue
+					
+					// extreme overkill
+					// can either cache the value
+					// or remove alot of this duplication
+					// some of these calcs probably aernt even required 
+					
+					uint16_t tile_data = 0;
+					uint16_t background_mem = 0;
+					bool unsig = true;
+					
+					// where to draw the visual area and window
+					uint8_t scroll_y = read_mem(0xff42,cpu);
+					uint8_t scroll_x = read_mem(0xff43,cpu);
+					uint8_t window_y = read_mem(0xff4a,cpu);
+					uint8_t window_x = read_mem(0xff4b,cpu) - 7; // 0,0 is at offset - 7 x for the window
+					
+					uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
+					
+					bool using_window = false;
+					
+					// is the window enabled check in lcd control
+					if(is_set(lcd_control,5)) 
 					{
-						//for(;;)
-						continue; 
+						// is the current scanline the window pos?
+						if(window_y <= read_mem(0xff44,cpu))
+						{
+							using_window = true;
+						}
 					}
+					
+					// which tile data are we using
+					if(is_set(lcd_control,4))
+					{
+						tile_data = 0x8000;
+					}
+					else
+					{
+						// this mem region uses signed bytes
+						// for tile identifiers 
+						tile_data = 0x8800;
+						unsig = false;
+					}
+					
+					
+					// which background mem?
+					if(!using_window)
+					{
+						if(is_set(lcd_control,3))
+						{
+							background_mem = 0x9c00;
+						}
+						else
+						{
+							background_mem = 0x9800;
+						}
+					}
+					
+					else
+					{
+						// which window mem?
+						if(is_set(lcd_control,6))
+						{
+							background_mem = 0x9c00;
+						}
+						else
+						{
+							background_mem = 0x9800;
+						}
+					}
+					
+					uint8_t y_pos = 0;
+					
+					// ypos is used to calc which of the 32 vertical tiles 
+					// the current scanline is drawing
+					if(!using_window)
+					{
+						y_pos = scroll_y + read_mem(0xff44,cpu);
+					}
+					
+					else
+					{
+						y_pos = read_mem(0xff44,cpu) - window_y;
+					}
+					
+					// which of the 8 vertical pixels of the scanline are we on
+					uint16_t tile_row = (((uint8_t)(y_pos/8))*32);
+									
+					uint8_t x_pos = pixel + scroll_x;
+					
+							// translate the current x pos to window space
+					// if needed
+					if(using_window)
+					{
+						if(pixel >= window_x)
+						{
+							x_pos = pixel - window_x;
+						}
+					}
+				
+				
+					// which of the 32 horizontal tiles does x_pos fall in
+					uint16_t tile_col = (x_pos/8);
+					int16_t tile_num;
+				
+				
+					// get the tile identity num it can be signed or unsigned
+					uint16_t tile_address = background_mem + tile_row+tile_col;
+					if(unsig)
+					{
+						tile_num = (uint8_t)read_mem(tile_address,cpu);
+					}
+					else
+					{
+						tile_num = (int8_t)read_mem(tile_address,cpu);
+					}
+				
+					// deduce where this tile identifier is in memory
+					uint16_t tile_location = tile_data;
+					
+					if(unsig)
+					{
+						tile_location += (tile_num *16);
+					}
+					else
+					{
+						tile_location += ((tile_num+128)*16);
+					}
+				
+					// find the correct vertical line we are on of the
+					// tile to get the tile data
+				
+					uint8_t line = y_pos % 8;
+					line *= 2; // each line takes up two bytes of mem
+					uint8_t data1 = read_mem(tile_location + line,cpu);
+					uint8_t data2 = read_mem(tile_location + line+1,cpu);
+				
+				
+					// pixel 0 in the tile is bit 7 of data1 and data2
+					// pixel 1 is bit 6 etc
+					int color_bit = x_pos % 8;
+					color_bit -= 7;
+					color_bit *= -1;
+				
+					// combine data 2 and data 1 to get the color id for the pixel
+					// in the tile
+					// <--- verify 
+					int colour_numb = val_bit(data2,color_bit);
+					colour_numb <<= 1;
+					colour_numb |= val_bit(data1,color_bit);
+					
+					if(colour_numb != 0)
+					{
+						continue;
+					}
+					
+					
 				}
 				
 				cpu->screen[scanline][pixel][0] = red;

@@ -1,6 +1,7 @@
 #include "headers/cpu.h"
 #include "headers/lib.h"
 #include "headers/disass.h"
+#include "headers/instr.h"
 #include <stdio.h>
 
 void decode_cb(uint8_t cbop, Cpu *cpu)

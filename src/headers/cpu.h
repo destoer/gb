@@ -144,6 +144,16 @@ typedef struct
 
 
 Cpu init_cpu(void); // returns an initial cpu state
-inline void update_timers(Cpu *cpu, int cycles); // update the cpu timers
-inline void do_interrupts(Cpu *cpu);
-inline void update_graphics(Cpu *cpu, int cycles);
+void update_timers(Cpu *cpu, int cycles); // update the cpu timers
+void do_interrupts(Cpu *cpu);
+void update_graphics(Cpu *cpu, int cycles);
+uint8_t read_mem(uint16_t address, Cpu *cpu);
+bool is_set(uint8_t reg, uint8_t bit);
+uint16_t read_word(int address, Cpu *cpu);
+void write_mem(Cpu *cpu,uint16_t address,int data);
+void write_word(Cpu *cpu,uint16_t address,int data);
+void write_stack(Cpu *cpu, uint8_t data);
+void write_stackw(Cpu *cpu,uint16_t data);
+uint8_t read_stack(Cpu *cpu);
+uint16_t read_stackw(Cpu *cpu);
+void request_interrupt(Cpu * cpu,int interrupt);

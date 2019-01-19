@@ -12,7 +12,7 @@
 /* todo add memory range printing */
 
 
-const static int lens[] =
+const int lens[] =
 {
 
     1,3,1,1,1,1,2,1,3,1,1,1,1,1,2,1,
@@ -34,25 +34,25 @@ const static int lens[] =
 };	
 
 // 1st word of commands
-const static char c1[COMMANDS][7] = 
+const char c1[COMMANDS][7] = 
 {
 	"break",
 	"info",
-	"step",
 	"disass",
+	"step",
 	"run"
 };
 
-void step(char *token, char*input, Cpu* cpu);
-void info(char *token, char*input, Cpu *cpu);
-void breakpoint(char *token, char*input, Cpu* cpu);
-void disass_addr(char *token, char*input, Cpu* cpu);
+void step(Cpu* cpu);
+void info(char *token, Cpu *cpu);
+void breakpoint(char *token, Cpu* cpu);
+void disass_addr(char *token, Cpu* cpu);
 
 // input func for debugger
 // will just  take commands and call other funcs to execute them
 void enter_debugger(Cpu *cpu)
 {
-	void (*f[4])(char *, char *, Cpu *) = {breakpoint,info,step,disass_addr};
+	void (*f[3])(char *, Cpu *) = {breakpoint,info,disass_addr};
 	
 	char input[41] = {0};
 	bool quit = false;
@@ -96,8 +96,16 @@ void enter_debugger(Cpu *cpu)
 		// call the selected function
 		if(command_num < COMMANDS-1 && command_num >= 0)
 		{
-			if(command_num == 2) quit = true; // step should  break immediatly
-			(*f[command_num])(token,input,cpu);
+			if(command_num == 3)
+			{ 
+				quit = true; // step should  break immediatly
+				cpu->step = true;
+			}
+
+			else
+			{
+				(*f[command_num])(token,cpu);
+			}
 		}
 		
 		
@@ -117,7 +125,7 @@ void enter_debugger(Cpu *cpu)
 }
 
 
-void disass_addr(char *token, char*input, Cpu* cpu)
+void disass_addr(char *token, Cpu* cpu)
 {
 	// read first token to get the address
 	// right now we are expecting one or two more tokens
@@ -162,7 +170,7 @@ void disass_addr(char *token, char*input, Cpu* cpu)
 	cpu->pc = pc_backup;
 }
 
-void breakpoint(char *token, char*input, Cpu* cpu)
+void breakpoint(char *token, Cpu* cpu)
 {
 	
 	// right now we are expecting one or two more tokens
@@ -246,7 +254,7 @@ void breakpoint(char *token, char*input, Cpu* cpu)
 	}
 }
 
-void info(char *token, char*input, Cpu *cpu)
+void info(char *token, Cpu *cpu)
 {
 	//puts("called info");
 	
@@ -314,7 +322,7 @@ void info(char *token, char*input, Cpu *cpu)
 
 
 // do other things in here later
-void step(char *token, char*input, Cpu* cpu)
+void step(Cpu* cpu)
 {
 	cpu->step = true;
 	//puts("Break set for next instruction");

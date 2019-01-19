@@ -2,6 +2,7 @@
 #include "headers/lib.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 // flag helper functions
 
@@ -67,7 +68,7 @@ void inc(Cpu *cpu,uint8_t reg)
 
 	// test carry from bit 3
 	// set the half carry if there is
-	if((((reg-1&0xf) + (1&0xf))&0x10) == 0x10)
+	if(((((reg-1)&0xf) + (1&0xf))&0x10) == 0x10)
 	{
 		set_bit(cpu->af.lb,H);
 	}

@@ -17,7 +17,7 @@
 
 // read a word from memory (bypasses the read_memory function)
 // only use when memory reads dont have side affects 
-uint16_t load_word(uint16_t pc, char *mem);
+uint16_t load_word(uint16_t pc, uint8_t *mem);
 
 
 // set a bit 

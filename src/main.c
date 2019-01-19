@@ -8,15 +8,18 @@
 #include "headers/lib.h"
 #include "headers/ppu.h"
 #include "headers/joypad.h"
-#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+#include "headers/opcode.h"
+#include "headers/debug.h"
+#include <SDL2/SDL.h>
+//#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 
+// zelda address 46e8
+// think banking is bugged
+// kirby has broken compare src to backups taken
 
-// fix timings on when conditionals are taken
-// fix the halt bug 
-// fix joypad <--- think its working now appears to be a seperate issue
-// fix issue where tetris loops upon hitting <- key
-// use different tables in opcodes for successful branches 
-// fix the div and tima reg as they may be broken
+// fix dma timings 
+// fix ram banking 
+// fix ram saving to get pokemon yellow saves working
 
 // fps limiting may not be accurate and may need fixing later
 static uint32_t next_time;
@@ -37,6 +40,13 @@ uint32_t time_left(void)
 // the memory and ppu functions can likely be removed 
 // along with the opcode fetches
 
+/*
+after cycles
+after timers
+after gfx
+after int
+*/
+
 int main(int argc, char *argv[])
 {
 	
@@ -50,10 +60,11 @@ int main(int argc, char *argv[])
 	Cpu cpu = init_cpu(); // initalize the cpu
 	cpu.rom_mem = load_rom(argv[1]); // read the rom into a buffer
 	
-	
+	printf("Cpu located at %p\n",&cpu);
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
-	
+	cpu.rom_info.filename = calloc(strlen(argv[1])+1,sizeof(char));
+	strcpy(cpu.rom_info.filename,argv[1]);
 	
 	
 	
@@ -66,6 +77,10 @@ int main(int argc, char *argv[])
 	
 	
 	// check for a sav batt but for now we just copy the damb thing
+	
+	// should be copied back into the ram banks not the memory where
+	// its accessed from
+	
 	char *savename = calloc(strlen(argv[1])+5,1);
 	strcpy(savename,argv[1]);
 	
@@ -76,12 +91,17 @@ int main(int argc, char *argv[])
 	// if file doesn't exist just ignore it
 	if(fp != NULL)
 	{
-		fread(&cpu.mem[0xa000],1,0x2000,fp);
+		
+		
+		fread(cpu.ram_banks,sizeof(uint8_t),(0x2000*cpu.rom_info.noRamBanks),fp);
 		fclose(fp);
+		
 	}
 	
 	free(savename);
 	
+	
+
 	
 /*//----------------------------------------------------------	
 	// memcpy our boot rom over this (we gonna find the bugs)
@@ -137,7 +157,7 @@ int main(int argc, char *argv[])
 	
 
 	
-	
+	uint8_t membckp = cpu.mem[0x1a9];
 	for(;;)
 	{
 		
@@ -154,7 +174,7 @@ int main(int argc, char *argv[])
 		// handle input
 		while(SDL_PollEvent(&event))
 		{	
-			if(event.type == SDL_QUIT)
+			if(event.type == SDL_QUIT) // <-- get saving backing up at regular intervals 
 			{
 				// save the ram and load it later
 				// should do detection on the save battery
@@ -165,14 +185,30 @@ int main(int argc, char *argv[])
 				
 				FILE *fp = fopen(savename,"w");
 				
-				fwrite(&cpu.mem[0xa000],1,0x2000,fp);
+				
+				
+				fwrite(cpu.ram_banks,sizeof(uint8_t),(0x2000*cpu.rom_info.noRamBanks),fp);
+				
+				
+				//fwrite(&cpu.mem[0xa000],1,0x2000,fp);
 				
 				free(savename);
 				fclose(fp);
 				
 				// should clean up our state here too 
-				
+				SDL_DestroyRenderer(renderer);
+				SDL_DestroyWindow(window);
+				SDL_QuitSubSystem(SDL_INIT_EVERYTHING);
 				SDL_Quit();
+				
+				puts("Emulator shutting down...");
+				
+
+				// clean up
+				free(cpu.rom_info.filename);
+				free(cpu.mem);
+				free(cpu.ram_banks);
+				free(cpu.rom_mem);
 				return 0;
 			}	
 			
@@ -233,14 +269,17 @@ int main(int argc, char *argv[])
 		while(cycles_this_update < MAXCYCLES)
 		{
 			
-			
-			int cycles = step_cpu(&cpu);			
+			if(cpu.mem[0x1a9] != membckp)
+			{
+				printf("access violation at %x\n",cpu.pc);
+				enter_debugger(&cpu);
+			}
+			int cycles = step_cpu(&cpu);
 			cycles_this_update += cycles;
 			update_timers(&cpu,cycles); // <--- update timers 
 			//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 			update_graphics(&cpu,cycles); // handle the lcd emulation
 			do_interrupts(&cpu); // handle interrupts <-- verify it works
-			
 			
 			// now we need to test if an ei or di instruction
 			// has just occured if it has step a cpu instr and then 
@@ -269,7 +308,7 @@ int main(int argc, char *argv[])
 				cpu.interrupt_enable = true;
 			}
 			
-			else if(cpu.di) // di
+			if(cpu.di) // di
 			{
 				cpu.di = false;
 				cycles = step_cpu(&cpu);
@@ -290,28 +329,16 @@ int main(int argc, char *argv[])
 			// until an interrupt occurs and wakes it up 
 			
 			
-			else if(cpu.halt) // halt  <-- bugged as hell 
+			if(cpu.halt) // halt  <-- bugged as hell 
 			{
-				//exit(1);
+				
 				cpu.halt = false;
-				/*puts("Cpu halted");
-				cpu_state(&cpu);
-				print_flags(&cpu);
-				printf("int flag %x : ie: %x\n",cpu.mem[0xff0f],cpu.mem[0xffff]);
-				printf("ime: %x\n",cpu.interrupt_enable);
-				*/
-				//for(;;) { }
-				
-				
-				
-				//cpu.pc -= 1;
-				bool imeoff = false;
-				bool interruptnotfired = true;
-				uint8_t req = cpu.mem[0xff0f]; // req ints
+
+				uint8_t req = cpu.mem[0xff0f]; // req ints 
 				uint8_t enabled = cpu.mem[0xffff]; // enabled interrutps
 				
+				//printf("halt req: %x, enabled: %x, ime: %x\n",req,enabled,cpu.interrupt_enable);
 				
-
 				
 				// halt bug
 				// halt state not entered and the pc fails to increment for
@@ -319,55 +346,46 @@ int main(int argc, char *argv[])
 				
 				// appears to detect when it happens but does not emulate the behavior properly
 				
-				if( cpu.interrupt_enable == false &&  (req & enabled) != 0)
+				if( (cpu.interrupt_enable == false) &&  (req & enabled & 0x1f) != 0)
 				{
-					puts("HALT BUG");
+					//puts("HALT BUG");
 					cpu.halt_bug = true;
 					//printf("halt bug over\n");
 				}
+
 				
-				// normal
-				else
-				{
-					// while we have not serviced an interrupt
-					while(interruptnotfired) 
+				// normal halt
+				
+				else 
+				{		
+					/*printf("ly = %x\n",read_mem(0xff44,&cpu));
+					printf("div = %x\n",cpu.mem[DIV]);
+					printf("tima = %x\n",cpu.mem[TIMA]);
+					printf("lcdc = %x\n",cpu.mem[0xff41]);
+					printf("if = %x\n",cpu.mem[0xff0f]);
+					printf("ime = %x\n",cpu.interrupt_enable);
+					printf("ie = %x\n",cpu.mem[0xffff]);
+					printf("stat = %x\n",cpu.mem[0xff41]); // lcd stat
+					printf("lyc = %x\n",cpu.mem[0xff45]);
+					cpu_state(&cpu);
+					print_flags(&cpu);
+					*/
+					//puts("normal halt");
+					while( ( req & enabled & 0x1f) == 0)
 					{
 						cycles = 1; // just go a cycle at a time
 						cycles_this_update += cycles;
 						update_timers(&cpu,cycles); // <--- update timers 
 						//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 						update_graphics(&cpu,cycles); // handle the lcd emulation
-						
-						uint8_t req = cpu.mem[0xff0f];
-						uint8_t enabled = cpu.mem[0xffff];
-						
-
-						if(req > 0)
-						{
-						
-							for(int i = 0; i < 5; i++)
-							{
-								
-								// if requested
-								if(is_set(req,i))
-								{
-									// check that the particular interrupt is enabled
-									if(is_set(enabled,i))
-									{
-										interruptnotfired = false; // interrupt ready to be fired
-									}
-								}
-							}
-						}
-						// if ime is off it should just wake up the cpu and then resume normal execution
-						
-						do_interrupts(&cpu); // handle interrupts 
+							
+						req = cpu.mem[0xff0f];
+						enabled = cpu.mem[0xffff];
 					}
-				}
-				
-			} 
-
-
+					//puts("interrupted halt");
+					do_interrupts(&cpu); // handle interrupts
+				}	
+			}
 		}
 		
 		cycles_this_update = 0;
@@ -379,7 +397,7 @@ int main(int argc, char *argv[])
 		//puts("stub"); // need to add frame limiting 
 		//puts(
 
-		SDL_Delay(time_left());
+		//SDL_Delay(time_left());
 		next_time += screen_ticks_per_frame;
 	}
 

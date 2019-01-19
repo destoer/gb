@@ -89,6 +89,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 				puts("corrupted stop");
 				break;
 			}
+			break;
 
 			
 		case 0x11: // ld de, nn

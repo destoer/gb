@@ -13,6 +13,7 @@
 uint8_t read_mem(uint16_t address, Cpu *cpu);
 bool is_set(uint8_t reg, uint8_t bit);
 int set_clock_freq(Cpu *cpu);
+void service_interrupt(Cpu *cpu,int interrupt);
 
 // fix sprites next 
 
@@ -26,6 +27,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.ram_banks = calloc(0x8000,sizeof(uint8_t)); // ram banks
 	cpu.currentram_bank = 0;
 	cpu.currentrom_bank = 1; // all ways at least one
+	cpu.rom_banking = true; // default
+	cpu.enable_ram = false;
 	//different values for the test!?
 	cpu.af.reg = 0x01B0; // <-- correct values
 	cpu.bc.reg = 0x0013;
@@ -65,9 +68,12 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.mem[0xff00] = 0xff; // all not pressed
 	cpu.pc = 0x100; // reset at 0x100
 	cpu.tacfreq = 256; // number of machine cycles till update
+	cpu.div_counter = 0;
 	cpu.scanline_counter = 114;
 	cpu.joypad_state = 0xff;
 	cpu.breakpoint = 0x100;
+	cpu.memr_breakpoint = -1;
+	cpu.memw_breakpoint = -1;
 	cpu.interrupt_enable = false;
 	
 	cpu.di = false;
@@ -127,10 +133,10 @@ void do_interrupts(Cpu *cpu)
 	
 }
 
-inline void service_interrupt(Cpu *cpu,int interrupt)
+void service_interrupt(Cpu *cpu,int interrupt)
 {
 	
-
+	
 	cpu->interrupt_enable = false; // disable interrupts now one is serviced
 		
 	// reset the bit of in the if to indicate it has been serviced
@@ -153,7 +159,7 @@ inline void service_interrupt(Cpu *cpu,int interrupt)
 		case 0: cpu->pc = 0x40;  break; //vblank
 		case 1: cpu->pc = 0x48; break; //lcd-state 
 		case 2: cpu->pc = 0x50; break; // timer 
-											// needs one for completed serial transfter
+		case 3: cpu->pc = 0x58; break; //serial (not fully implemented)
 		case 4: cpu->pc = 0x60; break; // joypad
 		default: printf("Invalid interrupt %d at %x\n",interrupt,cpu->pc); exit(1);
 	}
@@ -184,53 +190,27 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		enter_debugger(cpu);
 	}
 
-	// do ram enabling 
-	if(address <= 0x2000)
+
+	// handle banking 
+	if(address < 0x8000)
 	{
-		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2)
-		{
-			do_ram_bank_enable(cpu,address,data);
-		}
-	}
-	
-	// do rom or ram bank change
-	else if(address >= 0x200 && address < 0x4000)
-	{
-		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2)
-		{
-			do_change_lo_rom_bank(cpu,data);
-		}		
-	}
-	
-	else if((address >= 0x4000) && (address < 0x6000))
-	{
-		// no rambank in mbc2 use rambank 0
-		if(cpu->rom_info.mbc1)
-		{
-			if(cpu->rom_banking)
-			{
-				do_change_hi_rom_bank(cpu,data);
-			}
-			
-			else
-			{
-				do_ram_bank_change(cpu,data);
-			}
-		}
-	}
-	
-	// this changes wether we want to rom or ram bank
-	// for the above
-	else if((address >= 0x6000 && address < 0x8000))
-	{
-		if(cpu->rom_info.mbc1)
-		{
-			do_change_rom_ram_mode(cpu,data);
-		}
+		handle_banking(address,data,cpu);
+		return;
 	}
 			
-	
-	
+
+
+	else if(address >= 0xa000 && address < 0xc000)
+	{
+		// if ram enabled
+		if(cpu->enable_ram)
+		{
+			uint16_t new_address = address - 0xa000;
+			//printf("write ram bank: %x : %x\n",cpu->currentram_bank,data);
+			cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)] = data;
+			return;
+		}
+	}
 
 	
 	// ECHO ram also writes in ram
@@ -268,7 +248,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// restricted 
 	else if( (address >= 0xFEA0) && (address < 0xFEFF) )
 	{
-
+		return;
 	}
 	
 	// update the timer freq
@@ -280,14 +260,15 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		uint8_t currentfreq = cpu->mem[TMC] & 3;
 		cpu->mem[TMC] = data;
 		
-		if(currentfreq != data & 3)
+		if(currentfreq != (data & 3) )
 		{
 			cpu-> timer_counter = set_clock_freq(cpu);
 		}
 		
 	}
 	
-	// writing anything to DIV resets it to zero
+	// div and tima share the same internal counter
+	// should account for this internal behavior
 	else if(address == DIV)
 	{
 		cpu->mem[DIV] = 0;
@@ -299,32 +280,6 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		cpu->mem[address] = 0;
 	} 
 	
-	// vram can only be accesed at mode 0-2
-	else if(address >= 0x8000 && address <= 0x9fff)
-	{
-		uint8_t status = read_mem(0xff41,cpu);
-		status &= 3; // get just the mode
-		if(status <= 2)
-		{
-			return cpu->mem[address];
-		}
-		
-		return 0xff; // return ff if you cant read
-		
-	}
-
-	// oam is accesible during mode 0-1
-	else if(address >= 0xfe00 && address <= 0xfe9f)
-	{
-		uint8_t status = read_mem(0xff41,cpu);
-		status &= 3; // get just the mode
-		if(status <= 1)
-		{
-			return cpu->mem[address];
-		}
-		
-		return 0xff; // cant read so return ff
-	}
 	
 	else if(address == 0xff46) // dma reg perform a dma transfer
 	{
@@ -337,12 +292,12 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	}
 	
 	
-	/*if(address == 0xff0f)
+	if(address == 0xff0f)
 	{
-		printf("write to if: %x\n",data);
-		cpu->mem[address] = data;
+		//printf("write to if: %x\n",data);
+		cpu->mem[address] = data | (128 + 64 + 32); // top 3 bits allways on
 	}
-	*/
+	
 /*	else if(address == 0xff00)
 	{
 		printf("write to joypad %x\n",data);
@@ -379,25 +334,67 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 		enter_debugger(cpu);
 	}
 	
-	
+
+
 	// are we reading from a rom bank
 	if((address >= 0x4000) && (address <= 0x7FFF))
 	{
+		//printf("Reading from rom bank %x\n",cpu->currentrom_bank);
 		uint16_t new_address = address - 0x4000;
+		//printf("address %x\n",(new_address + (cpu->currentrom_bank*0x4000)));
+		//printf("bank offset %x\n",(cpu->currentrom_bank*0x4000));
+		//printf("raw address = %x\n",address);
 		return cpu->rom_mem[new_address + (cpu->currentrom_bank*0x4000)];
 	}
 		
 	
 	// are we reading from a ram bank
-	else if((address >= 0xa0000) && (address <= 0xbfff))
+	else if((address >= 0xa000) && (address <= 0xbfff))
 	{
-		uint16_t new_address = address - 0xa0000;
-		return cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
+		if(cpu->enable_ram)
+		{
+			uint16_t new_address = address - 0xa000;
+			//printf("read ram bank: %x : %x\n",cpu->currentram_bank,cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)]);
+			return cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
+		}
+		
+		else
+		{
+			// <-- not sure what the correct behaviour here is 
+			return 0xff;
+			//printf("read disabled ram bank %x\n",cpu->mem[address]);
+			//return cpu->mem[address];  //<-- doubt its this one
+		}
 	}
 	
 	
 
-	
+	// vram can only be accesed at mode 0-2
+	else if(address >= 0x8000 && address <= 0x9fff)
+	{
+		uint8_t status = read_mem(0xff41,cpu);
+		status &= 3; // get just the mode
+		if(status <= 2)
+		{
+			return cpu->mem[address];
+		}
+		
+		return 0xff; // return ff if you cant read
+		
+	}
+
+	// oam is accesible during mode 0-1
+	else if(address >= 0xfe00 && address <= 0xfe9f)
+	{
+		uint8_t status = read_mem(0xff41,cpu);
+		status &= 3; // get just the mode
+		if(status <= 1)
+		{
+			return cpu->mem[address];
+		}
+		
+		return 0xff; // cant read so return ff
+	}
 	
 	
 	
@@ -428,33 +425,6 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 		}		
 		
 		return 0xff; // return all unset
-		
-		
-		/*
-		uint8_t res = cpu->mem[0xff00];
-		res ^= 0xff;
-		
-		if(!is_set(res,4))
-		{
-			uint8_t top = cpu->joypad_state >> 4;
-			top |= 0xf0;
-			res &= top;
-		}
-		
-		else if(!is_set(res,5))
-		{
-			uint8_t bot = cpu->joypad_state & 0xf;
-			bot |= 0xf0;
-			res &= bot;
-		}
-		
-		else
-		{
-			res = 0xff;
-		}
-		
-		return res;
-		*/	
 	}	
 	
 	
@@ -468,7 +438,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 
 
 // checked memory reads
-uint16_t read_word(int address, const Cpu *cpu)
+uint16_t read_word(int address, Cpu *cpu)
 {
 	return read_mem(address,cpu) | (read_mem(address+1,cpu) << 8);
 }

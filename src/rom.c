@@ -33,6 +33,7 @@ uint8_t *load_rom(char *filename)
 RomInfo parse_rom(uint8_t *rom)
 {
 	RomInfo romInfo;
+	memset(&romInfo,0,sizeof(RomInfo));
 	
 	printf("Internal name: %s\n",&rom[0x134]); // print the name of the rom
 	
@@ -40,10 +41,15 @@ RomInfo parse_rom(uint8_t *rom)
 	printf("Cart type: %d\n",romInfo.cartType);
 	
 	
+	romInfo.mbc1 = false;
+	romInfo.mbc2 = false;
+	romInfo.mbc3 = false;
+	
 	switch(romInfo.cartType)
 	{
 		case 1 ... 3: romInfo.mbc1 = true; puts("mbc1"); break;
 		case 5 ... 6: romInfo.mbc2 = true; puts("mbc2"); break;
+		default: romInfo.mbc3 = true; puts("mbc3"); break; // should be handled properly later
 	}
 	
 	
