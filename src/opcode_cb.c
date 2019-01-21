@@ -1104,9 +1104,12 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 				
 				
 				default:
+					#ifdef DEBUG
 					fprintf(stderr, "[cpu] Unknown CB opcode: %x\n", cbop);
 					cpu_state(cpu);
 					print_flags(cpu);
 					for(;;) {}
+					#endif
+					break;
 			}
 }

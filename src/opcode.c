@@ -30,7 +30,8 @@ int step_cpu(Cpu * cpu)
 {
 	
 
-
+	
+	#ifdef DEBUG
 	// breakpoint (fail inside call at 1c3c) <--- specifically at 2b03 with a read from ff89
 	//printf("%x: %x\n",cpu->pc,cpu->breakpoint);
 	if(cpu->pc == cpu->breakpoint || cpu->step) 
@@ -48,7 +49,7 @@ int step_cpu(Cpu * cpu)
 		cpu->pc -= 1; // correct pc 
 		
 	} 
-	
+	#endif
 
 	
 	// one byte immediate
@@ -1323,11 +1324,14 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		default:
+			#ifdef DEBUG
 			fprintf(stderr, "[cpu] Unknown opcode: %x\n", opcode);
 			cpu_state(cpu);
 			print_flags(cpu);
 			for(;;) { }
 			//exit(1);
+			#endif
+			break;
 	}
 	
     return mcycles[opcode]; // update the machine cycles		

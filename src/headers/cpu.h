@@ -111,20 +111,24 @@ typedef struct
 	// banking
 	
 	uint8_t *ram_banks; // 4 banks max
-	uint8_t currentram_bank; // currently selected ram bank
-	uint8_t currentrom_bank; // currently selected rom bank
+	int currentram_bank; // currently selected ram bank
+	int currentrom_bank; // currently selected rom bank
 	bool rom_banking; // is rom banking enabled
 	bool enable_ram; // is ram banking enabled
-	
+	bool rtc_enabled;
 	RomInfo rom_info;
+
+
+	// rtc 
 
 	// debugger vars
 	
+	#ifdef DEBUG
 	int breakpoint;
 	int memw_breakpoint;
 	int memr_breakpoint;
 	bool step;
-	
+	#endif
 	// bools used to inform cpu of special instrucitons occuring
 	bool ei;
 	bool di;

@@ -9,8 +9,6 @@
 
 // TODO rewrite the rendering functions
 // to fix links awakening window is is scrolling when it shouldunt
-// fix white line at top
-// fix sprites being cut off at edges
 // refer to cpu manual and ultimate gameboy talk
 
 
@@ -506,7 +504,7 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				// test if its hidden behind the background layer
 				// white is transparent even if the flag is set
 				
-				
+				// may be incorrect
 				// <-- can optimise the hell out of this
 				if(is_set(attributes,7))
 				{
@@ -645,7 +643,7 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 					// find the correct vertical line we are on of the
 					// tile to get the tile data
 				
-					uint8_t line_h = y_pos_h % 8;
+					uint8_t line_h = y_pos % 8;
 					line *= 2; // each line takes up two bytes of mem
 					uint8_t data1_h = read_mem(tile_location + line_h,cpu);
 					uint8_t data2_h = read_mem(tile_location + line_h+1,cpu);

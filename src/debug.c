@@ -1,3 +1,4 @@
+#ifdef DEBUG
 #include "headers/cpu.h"
 #include "headers/lib.h"
 #include "headers/disass.h"
@@ -327,3 +328,4 @@ void step(Cpu* cpu)
 	cpu->step = true;
 	//puts("Break set for next instruction");
 }
+#endif

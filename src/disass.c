@@ -6,6 +6,7 @@
 #include "headers/lib.h"
 #include "headers/disass.h"
 
+#ifdef DEBUG
 // disassembly routine should never modify passed args
 void disass_8080(const uint8_t opcode, const Cpu *cpu)
 {
@@ -1186,3 +1187,4 @@ void print_flags(const Cpu *cpu)
 	printf("\n");
 	
 }
+#endif

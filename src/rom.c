@@ -44,11 +44,13 @@ RomInfo parse_rom(uint8_t *rom)
 	romInfo.mbc1 = false;
 	romInfo.mbc2 = false;
 	romInfo.mbc3 = false;
-	
+	romInfo.has_rtc = false;
 	switch(romInfo.cartType)
 	{
+		case 0: puts("rom only"); break;
 		case 1 ... 3: romInfo.mbc1 = true; puts("mbc1"); break;
 		case 5 ... 6: romInfo.mbc2 = true; puts("mbc2"); break;
+		case 16: romInfo.mbc3 = true; romInfo.has_rtc = true; break;
 		default: romInfo.mbc3 = true; puts("mbc3"); break; // should be handled properly later
 	}
 	

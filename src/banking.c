@@ -9,7 +9,10 @@
 // think the high bank change is not being done correctly
 
 // do it based on cpu manual 
-// mbc2 ram handling is insufficent i think
+// fix mbc2 ram
+
+// implement mbc3 timer <--- now
+
 void do_change_rom_ram_mode(Cpu *cpu, uint8_t data);
 void do_ram_bank_change(Cpu *cpu, uint8_t data);
 void do_change_hi_rom_bank(Cpu *cpu, uint8_t data);
@@ -71,27 +74,36 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 		
 		else if(cpu->rom_info.mbc3)
 		{
-			if(!cpu->rom_banking)
-			{
-				// change the ram bank
-				cpu->currentram_bank = data & 0x7;
+			
+			
+			// change the ram bank or enable timer
+			data = data & 0xc;
 					
+			if(data <= 3)
+			{
+				cpu->currentram_bank = data;
 				if(cpu->rom_info.noRamBanks == 0)
 				{
 					cpu->currentram_bank = 0;
 				}
-	
-					
-					
+		
+						
+						
 				if(cpu->currentram_bank >= cpu->rom_info.noRamBanks)
 				{
 					//printf("[BANKING] Attempted to set a  ram bank greater than max %d\n",cpu->currentram_bank);
 					cpu->currentram_bank %= cpu->rom_info.noRamBanks;
 					//exit(1);
 				}
-					
-				//puts("MBC3 ram change");
 			}
+
+			// rtc reg
+			else if(data >= 0x8 && data <= 0xc && cpu->enable_ram && cpu->rom_info.has_rtc)
+			{
+				cpu->currentram_bank = -1;
+			}
+
+			//puts("MBC3 ram change");	
 		}
 	}
 	

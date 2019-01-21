@@ -29,6 +29,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.currentrom_bank = 1; // all ways at least one
 	cpu.rom_banking = true; // default
 	cpu.enable_ram = false;
+	cpu.rtc_enabled = false;
 	//different values for the test!?
 	cpu.af.reg = 0x01B0; // <-- correct values
 	cpu.bc.reg = 0x0013;
@@ -71,9 +72,6 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.div_counter = 0;
 	cpu.scanline_counter = 114;
 	cpu.joypad_state = 0xff;
-	cpu.breakpoint = 0x100;
-	cpu.memr_breakpoint = -1;
-	cpu.memw_breakpoint = -1;
 	cpu.interrupt_enable = false;
 	
 	cpu.di = false;
@@ -81,6 +79,14 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.halt = false;
 	cpu.halt_bug = false;
 	
+	#ifdef DEBUG
+	// debugging vars 
+	cpu.breakpoint = 0x100;
+	cpu.memr_breakpoint = -1;
+	cpu.memw_breakpoint = -1;
+	#endif
+
+
 	return cpu;
 }
 
@@ -181,6 +187,7 @@ void service_interrupt(Cpu *cpu,int interrupt)
 void write_mem(Cpu *cpu,uint16_t address,int data)
 {
 
+	#ifdef DEBUG
 	// write breakpoint
 	if(address == cpu->memw_breakpoint)
 	{
@@ -189,7 +196,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		printf("data %x\n",data);
 		enter_debugger(cpu);
 	}
-
+	#endif
 
 	// handle banking 
 	if(address < 0x8000)
@@ -203,7 +210,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address >= 0xa000 && address < 0xc000)
 	{
 		// if ram enabled
-		if(cpu->enable_ram)
+		if(cpu->enable_ram && cpu->currentram_bank >= 0)
 		{
 			uint16_t new_address = address - 0xa000;
 			//printf("write ram bank: %x : %x\n",cpu->currentram_bank,data);
@@ -283,16 +290,16 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	
 	else if(address == 0xff46) // dma reg perform a dma transfer
 	{
-		uint16_t address = data  << 8;
+		uint16_t shifted_address = data  << 8;
 		// transfer is from 0xfe00 to 0xfea0
 		for(int i = 0; i < 0xA0; i++)
 		{
-			write_mem(cpu,0xfe00+i, read_mem(address+i,cpu));
+			write_mem(cpu,0xfe00+i, read_mem(shifted_address+i,cpu));
 		}
 	}
 	
 	
-	if(address == 0xff0f)
+	else if(address == 0xff0f)
 	{
 		//printf("write to if: %x\n",data);
 		cpu->mem[address] = data | (128 + 64 + 32); // top 3 bits allways on
@@ -325,7 +332,7 @@ void write_word(Cpu *cpu,uint16_t address,int data) // <- verify
 // also needs the vram related stuff 
 uint8_t read_mem(uint16_t address, Cpu *cpu)
 {
-	
+	#ifdef DEBUG
 	// read breakpoint
 	if(address == cpu->memr_breakpoint)
 	{
@@ -333,7 +340,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 		cpu->memr_breakpoint = -1;
 		enter_debugger(cpu);
 	}
-	
+	#endif
 
 
 	// are we reading from a rom bank
@@ -351,7 +358,9 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// are we reading from a ram bank
 	else if((address >= 0xa000) && (address <= 0xbfff))
 	{
-		if(cpu->enable_ram)
+	
+		// is ram enabled (ram bank of -1 indicates rtc reg)
+		if(cpu->enable_ram && cpu->currentram_bank >= 0)
 		{
 			uint16_t new_address = address - 0xa000;
 			//printf("read ram bank: %x : %x\n",cpu->currentram_bank,cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)]);

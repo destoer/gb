@@ -13,13 +13,13 @@
 #include <SDL2/SDL.h>
 //#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 
-// zelda address 46e8
-// think banking is bugged
-// kirby has broken compare src to backups taken
+
 
 // fix dma timings 
-// fix ram banking 
-// fix ram saving to get pokemon yellow saves working
+
+// fix ppu window 
+// cause links awakening is scrolling the thing
+// when it shouldunt be affected
 
 // fps limiting may not be accurate and may need fixing later
 static uint32_t next_time;
@@ -39,13 +39,10 @@ uint32_t time_left(void)
 // alot of the writemem and readme inside
 // the memory and ppu functions can likely be removed 
 // along with the opcode fetches
+// need to fix mbc2 (or maybye just battery detection)
+// either way f1 race aint saving 
 
-/*
-after cycles
-after timers
-after gfx
-after int
-*/
+
 
 int main(int argc, char *argv[])
 {
@@ -99,9 +96,8 @@ int main(int argc, char *argv[])
 	}
 	
 	free(savename);
-	
-	
-
+	savename = NULL;
+	fp = NULL;
 	
 /*//----------------------------------------------------------	
 	// memcpy our boot rom over this (we gonna find the bugs)
@@ -157,7 +153,7 @@ int main(int argc, char *argv[])
 	
 
 	
-	uint8_t membckp = cpu.mem[0x1a9];
+	
 	for(;;)
 	{
 		
@@ -178,12 +174,12 @@ int main(int argc, char *argv[])
 			{
 				// save the ram and load it later
 				// should do detection on the save battery
-				char *savename = calloc(strlen(argv[1])+5,1);
+				savename = calloc(strlen(argv[1])+5,1);
 				strcpy(savename,argv[1]);
 				
 				strcat(savename,"sv");
 				
-				FILE *fp = fopen(savename,"w");
+				fp = fopen(savename,"w");
 				
 				
 				
@@ -227,12 +223,13 @@ int main(int argc, char *argv[])
 					case SDLK_DOWN: key = 3; break;
 					
 					
-
+					#ifdef DEBUG
 					case SDLK_p:
 					{
 						// enable the debug console by setting a breakpoint at this pc
 						cpu.breakpoint = cpu.pc;
 					}
+					#endif
 				}
 				if(key != -1)
 				{
@@ -268,12 +265,6 @@ int main(int argc, char *argv[])
 		int cycles_this_update = 0;	
 		while(cycles_this_update < MAXCYCLES)
 		{
-			
-			if(cpu.mem[0x1a9] != membckp)
-			{
-				printf("access violation at %x\n",cpu.pc);
-				enter_debugger(&cpu);
-			}
 			int cycles = step_cpu(&cpu);
 			cycles_this_update += cycles;
 			update_timers(&cpu,cycles); // <--- update timers 
