@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define COMMANDS 5
+#define COMMANDS 6
 
 /* todo add memory range printing */
 
@@ -40,6 +40,7 @@ const char c1[COMMANDS][7] =
 	"break",
 	"info",
 	"disass",
+	"write",
 	"step",
 	"run"
 };
@@ -48,12 +49,12 @@ void step(Cpu* cpu);
 void info(char *token, Cpu *cpu);
 void breakpoint(char *token, Cpu* cpu);
 void disass_addr(char *token, Cpu* cpu);
-
+void write_addr(char *token, Cpu* cpu);
 // input func for debugger
 // will just  take commands and call other funcs to execute them
 void enter_debugger(Cpu *cpu)
 {
-	void (*f[3])(char *, Cpu *) = {breakpoint,info,disass_addr};
+	void (*f[4])(char *, Cpu *) = {breakpoint,info,disass_addr,write_addr};
 	
 	char input[41] = {0};
 	bool quit = false;
@@ -97,7 +98,7 @@ void enter_debugger(Cpu *cpu)
 		// call the selected function
 		if(command_num < COMMANDS-1 && command_num >= 0)
 		{
-			if(command_num == 3)
+			if(command_num == 4)
 			{ 
 				quit = true; // step should  break immediatly
 				cpu->step = true;
@@ -111,7 +112,7 @@ void enter_debugger(Cpu *cpu)
 		
 		
 		// user typed run exit out of the debugger
-		else if(command_num == 4)
+		else if(command_num == COMMANDS-1)
 		{
 			quit = true;
 		}
@@ -125,6 +126,54 @@ void enter_debugger(Cpu *cpu)
 	//puts("resuming execution...");
 }
 
+
+void write_addr(char *token, Cpu* cpu)
+{
+	// read first token to get the address
+	// we expect another for the value to write
+	// if two just break the address
+	// if 3 break the mem read or execute
+	token = strtok(NULL," ");
+	if(token == NULL)
+	{
+		puts("[ERROR] no address for write");
+		return;
+	}
+
+	if(token[0] == '*') token += 1;
+
+	int addr = strtol(token,NULL,16);
+
+
+	token = strtok(NULL," ");
+	if(token == NULL)
+	{
+		puts("[ERROR] no value for write");
+		return;
+	}
+
+
+	int val = strtol(token,NULL,16);
+
+	// write to ram etc
+	if(addr >= 0x8000)
+	{
+		write_mem(cpu,addr,val);
+	}
+
+	if(addr >= 0x4000 && addr < 0x8000)
+	{
+		// write to rom we will bypass checks
+		int16_t new_address = addr - 0x4000;
+		cpu->rom_mem[new_address + (cpu->currentrom_bank*0x4000)] = val;
+	}
+
+	else
+	{
+		cpu->mem[addr] = val;
+	}
+
+}
 
 void disass_addr(char *token, Cpu* cpu)
 {

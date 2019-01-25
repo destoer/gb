@@ -11,8 +11,11 @@
 // to fix links awakening window is is scrolling when it shouldunt
 // fix white line at top
 // fix sprites being cut off at edges
+// fix screen tearing <- think this is more sdl and our fps settings
+// than being caused by our ppu implementation
 // refer to cpu manual and ultimate gameboy talk
 
+// run mooneye ppu tests against it
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 

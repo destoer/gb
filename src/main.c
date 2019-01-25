@@ -22,11 +22,11 @@
 // when it shouldunt be affected
 
 // fps limiting may not be accurate and may need fixing later
-static uint32_t next_time;
+static int next_time;
 
 uint32_t time_left(void)
 {
-	uint32_t now;
+	int now;
 	
 	now = SDL_GetTicks();
 	if(next_time <= now)
@@ -144,8 +144,9 @@ int main(int argc, char *argv[])
 	SDL_Window * window = SDL_CreateWindow("GEMBOY",
 		SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,X,Y,0);
 	
-		// set a render for our window
+	// set a render for our window
 	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
 	SDL_Texture * texture = SDL_CreateTexture(renderer,
 		SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STATIC, X, Y);
 	memset(cpu.screen ,255,Y * X *  4 * sizeof(uint8_t));
@@ -159,8 +160,8 @@ int main(int argc, char *argv[])
 		
 
 		
-		const uint32_t fps = 60; // approximation <--- could use float at 59.73
-		const uint32_t screen_ticks_per_frame = 1000 / fps; // <-- no idea why it is the four times 
+		const int fps = 60; // approximation <--- could use float at 59.73
+		const int screen_ticks_per_frame = 1000 / fps; // <-- no idea why it is the four times 
 		// what it should be but ok
 		
 		next_time = SDL_GetTicks() + screen_ticks_per_frame;
@@ -260,8 +261,8 @@ int main(int argc, char *argv[])
 		
 		
 		
-		
-		const int MAXCYCLES = (69905 / 4);
+		// number of cycles for a full screen redraw
+		const int MAXCYCLES = (17556);
 		int cycles_this_update = 0;	
 		while(cycles_this_update < MAXCYCLES)
 		{

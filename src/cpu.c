@@ -16,8 +16,11 @@ int set_clock_freq(Cpu *cpu);
 void service_interrupt(Cpu *cpu,int interrupt);
 
 // fix sprites next 
+// fix interrupt timing
 
 // <-- need to change banking to get Pokemon running i think
+
+// pass mooneye hwio test
 
 // setup a fresh cpu state and return it to main
 Cpu init_cpu(void) // <--- memory should be randomized on startup
@@ -60,13 +63,12 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.mem[0xFF25] = 0xF3;
 	cpu.mem[0xFF26] = 0xF1;
 	cpu.mem[0xFF40] = 0x91;
-	cpu.mem[0xff41] = 0x85; // <- lcd stat reg (from bgb lol)
+
 	cpu.mem[0xFF47] = 0xFC;
 	cpu.mem[0xFF48] = 0xFF;
 	cpu.mem[0xFF49] = 0xFF;
 	
-	cpu.mem[0xff0f] = 0xe1; // what bgb says?
-	cpu.mem[0xff00] = 0xff; // all not pressed
+
 	cpu.pc = 0x100; // reset at 0x100
 	cpu.tacfreq = 256; // number of machine cycles till update
 	cpu.div_counter = 0;
@@ -258,14 +260,17 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		return;
 	}
 	
-	// update the timer freq
+
+
+
+	// update the timer freq (tac in gb docs)
 	else if(address == TMC)
 	{
 		
 		// timer is set to CLOCKSPEED/freq/4 (4 to convert to machine cycles)
 		// <--- needs verifying
 		uint8_t currentfreq = cpu->mem[TMC] & 3;
-		cpu->mem[TMC] = data;
+		cpu->mem[TMC] = data | 248;
 		
 		if(currentfreq != (data & 3) )
 		{
@@ -274,6 +279,18 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		
 	}
 	
+
+	// serial control (stub)
+	else if(address == 0xff02)
+	{
+		cpu->mem[address] = data | 126; 
+	}
+
+	
+	// unused hwio
+	else if(address == 0xff03) cpu->mem[address] = 0xff;
+
+
 	// div and tima share the same internal counter
 	// should account for this internal behavior
 	else if(address == DIV)
@@ -281,6 +298,53 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		cpu->mem[DIV] = 0;
 	}
 	
+
+
+	// nr 10
+	else if(address == 0xff10)
+	{
+		cpu->mem[address] = data | 128;
+	}
+
+
+	// nr 30
+	else if(address == 0xff1a)
+	{
+		cpu->mem[address] = data | 127;
+	}
+
+	// nr 32
+	else if(address == 0xff1c)
+	{
+		cpu->mem[address] = data | 159;
+	}
+
+	
+	// nr 41	
+	else if(address == 0xff20)
+	{
+		cpu->mem[address] = data | 192;
+	}
+
+	// nr 44
+	else if(address == 0xff23)
+	{
+		cpu->mem[address] = data | 63;
+	}
+
+
+	// nr 52
+	else if(address == 0xff26)
+	{
+		cpu->mem[address] = data | 112;
+	}
+
+	// lcd stat
+	else if(address == 0xff41)
+	{
+		cpu->mem[address] = data | 128;
+	}
+
 	// reset ly if the game tries writing to it
 	else if (address == 0xFF44)
 	{
@@ -288,13 +352,23 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	} 
 	
 	
+	// implement timing on dma and page boundary checking
 	else if(address == 0xff46) // dma reg perform a dma transfer
 	{
-		uint16_t shifted_address = data  << 8;
+		cpu->mem[0xff46] = data; // write to the dma reg
+		uint16_t dma_address = data  << 8;
 		// transfer is from 0xfe00 to 0xfea0
-		for(int i = 0; i < 0xA0; i++)
+	
+		// must be page aligned
+		if(dma_address % 0x100) return;		
+		
+		// source must be below 0xe000
+		if(dma_address < 0xe000)
 		{
-			write_mem(cpu,0xfe00+i, read_mem(shifted_address+i,cpu));
+			for(int i = 0; i < 0xA0; i++)
+			{
+				write_mem(cpu,0xfe00+i, read_mem(dma_address+i,cpu));
+			}
 		}
 	}
 	

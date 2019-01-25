@@ -35,6 +35,9 @@ RomInfo parse_rom(uint8_t *rom)
 	RomInfo romInfo;
 	memset(&romInfo,0,sizeof(RomInfo));
 	
+
+	// should probably add handling to make this work for cgb
+	// and to store it somewhere
 	printf("Internal name: %s\n",&rom[0x134]); // print the name of the rom
 	
 	romInfo.cartType = rom[0x147]; // make a constant list later along with string array
@@ -76,6 +79,8 @@ RomInfo parse_rom(uint8_t *rom)
 			exit(1);
 	}
 	
+
+
 	printf("Number of rom banks: %d\n",romInfo.noRomBanks);
 	
 	
@@ -94,8 +99,17 @@ RomInfo parse_rom(uint8_t *rom)
 			exit(1);
 		
 	}
+
+	// hack to get mbc2 ram working <-- needs work
+	if(romInfo.mbc2)
+	{ 
+		romInfo.noRamBanks = 1;
+	}
+
 	printf("Number of ram banks: %d\n",romInfo.noRamBanks);
 	
+
+
 	return romInfo;
 	
 }
