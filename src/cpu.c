@@ -227,6 +227,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	{
 		cpu->mem[address] = data;
 		cpu->mem[address-0x2000] = data;
+		return;
 	}
 	
 	// two below need imeplementing 
@@ -240,6 +241,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		{
 			cpu->mem[address] = data;
 		}
+		return;
 	}
 
 	// oam is accesible during mode 0-1
@@ -251,6 +253,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		{
 			cpu->mem[address] = data;
 		}
+		return;
 	}
 
 	
@@ -274,21 +277,20 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		
 		if(currentfreq != (data & 3) )
 		{
-			cpu-> timer_counter = set_clock_freq(cpu);
+			cpu->timer_counter = set_clock_freq(cpu);
 		}
-		
+		return;
 	}
 	
 
 	// serial control (stub)
 	else if(address == 0xff02)
 	{
-		cpu->mem[address] = data | 126; 
+		cpu->mem[address] = data | 126;
+		return; 
 	}
 
 	
-	// unused hwio
-	else if(address == 0xff03) cpu->mem[address] = 0xff;
 
 
 	// div and tima share the same internal counter
@@ -296,6 +298,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address == DIV)
 	{
 		cpu->mem[DIV] = 0;
+		return;
 	}
 	
 
@@ -304,6 +307,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address == 0xff10)
 	{
 		cpu->mem[address] = data | 128;
+		return;
 	}
 
 
@@ -311,12 +315,14 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address == 0xff1a)
 	{
 		cpu->mem[address] = data | 127;
+		return;
 	}
 
 	// nr 32
 	else if(address == 0xff1c)
 	{
 		cpu->mem[address] = data | 159;
+		return;
 	}
 
 	
@@ -324,12 +330,14 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address == 0xff20)
 	{
 		cpu->mem[address] = data | 192;
+		return;
 	}
 
 	// nr 44
 	else if(address == 0xff23)
 	{
 		cpu->mem[address] = data | 63;
+		return;
 	}
 
 
@@ -337,20 +345,24 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address == 0xff26)
 	{
 		cpu->mem[address] = data | 112;
+		return;
 	}
 
 	// lcd stat
 	else if(address == 0xff41)
 	{
 		cpu->mem[address] = data | 128;
+		return;
 	}
 
-	// reset ly if the game tries writing to it
+/*	// reset ly if the game tries writing to it
+	// probably inaccurate 
 	else if (address == 0xFF44)
 	{
 		cpu->mem[address] = 0;
+		return;
 	} 
-	
+*/	
 	
 	// implement timing on dma and page boundary checking
 	else if(address == 0xff46) // dma reg perform a dma transfer
@@ -359,9 +371,10 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		uint16_t dma_address = data  << 8;
 		// transfer is from 0xfe00 to 0xfea0
 	
-		// must be page aligned
+		/*// must be page aligned revisit later
 		if(dma_address % 0x100) return;		
-		
+		*/
+
 		// source must be below 0xe000
 		if(dma_address < 0xe000)
 		{
@@ -370,6 +383,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 				write_mem(cpu,0xfe00+i, read_mem(dma_address+i,cpu));
 			}
 		}
+		return;
 	}
 	
 	
@@ -377,6 +391,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	{
 		//printf("write to if: %x\n",data);
 		cpu->mem[address] = data | (128 + 64 + 32); // top 3 bits allways on
+		return;
 	}
 	
 /*	else if(address == 0xff00)
@@ -614,7 +629,7 @@ int set_clock_freq(Cpu *cpu)
 {
 	uint8_t freq = cpu->mem[TMC] & 0x3;
 	
-	int newfreq;
+	int newfreq = 0;
 	
 	switch(freq)
 	{				
@@ -622,6 +637,7 @@ int set_clock_freq(Cpu *cpu)
 		case 1: newfreq = 4; break; //freq 262144
 		case 2: newfreq = 16; break; // freq 65536
 		case 3: newfreq = 64; break; // freq 16382
+		default: puts("Invalid freq"); exit(1);
 	}
 	
 	return  newfreq;

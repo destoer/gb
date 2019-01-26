@@ -51,7 +51,7 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 				//exit(1);
 			}
 			
-			if(cpu->currentrom_bank == 0) cpu->currentrom_bank++;
+			if(cpu->currentrom_bank == 0) cpu->currentrom_bank = 1;
 		}
 	}
 	

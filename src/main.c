@@ -60,8 +60,7 @@ int main(int argc, char *argv[])
 	printf("Cpu located at %p\n",&cpu);
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
-	cpu.rom_info.filename = calloc(strlen(argv[1])+1,sizeof(char));
-	strcpy(cpu.rom_info.filename,argv[1]);
+	
 	
 	
 	
@@ -202,7 +201,6 @@ int main(int argc, char *argv[])
 				
 
 				// clean up
-				free(cpu.rom_info.filename);
 				free(cpu.mem);
 				free(cpu.ram_banks);
 				free(cpu.rom_mem);
@@ -380,7 +378,6 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		cycles_this_update = 0;
 		SDL_UpdateTexture(texture, NULL, &cpu.screen,  4 * X * sizeof(uint8_t));
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);

@@ -6,7 +6,7 @@ typedef struct
 	int noRamBanks;
 	int noRomBanks;
 	int cartType;
-	char *filename; // filename of rom
+	char filename[21]; // filename of rom
 	bool mbc1;
 	bool mbc2;
 	bool mbc3;

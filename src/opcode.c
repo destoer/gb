@@ -730,7 +730,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x83: // add e
-			cpu->af.hb =add(cpu,cpu->af.hb,cpu->de.lb);
+			cpu->af.hb = add(cpu,cpu->af.hb,cpu->de.lb);
 			break;
 		
 		case 0x84: // add h

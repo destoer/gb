@@ -7,15 +7,16 @@
 // based off 
 // http://www.codeslinger.co.uk/pages/projects/gameboy/graphics.html
 
-// TODO rewrite the rendering functions
+// TODO rewrite the rendering functions as 
 // to fix links awakening window is is scrolling when it shouldunt
-// fix white line at top
 // fix sprites being cut off at edges
-// fix screen tearing <- think this is more sdl and our fps settings
+// fix screen tearing <-most noicable in gold
 // than being caused by our ppu implementation
 // refer to cpu manual and ultimate gameboy talk
 
 // run mooneye ppu tests against it
+
+// get the bottom 3 ppu mooneye test passing
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 
@@ -45,7 +46,7 @@ void update_graphics(Cpu *cpu, int cycles)
 	
 	if(is_lcd_enabled(cpu))
 	{
-		cpu->scanline_counter -= cycles;
+		 cpu->scanline_counter -= cycles;
 	}
 	else
 	{
@@ -55,7 +56,7 @@ void update_graphics(Cpu *cpu, int cycles)
 	if(cpu->scanline_counter <= 0)
 	{
 		// goto next scanline
-		cpu->mem[0xff44]++;
+		cpu->mem[0xff44] += 1;
 		
 		// read out of ly register to get current scanline
 		uint8_t current_line = read_mem(0xff44,cpu);
@@ -72,10 +73,16 @@ void update_graphics(Cpu *cpu, int cycles)
 		else if(current_line > 153)
 		{
 			cpu->mem[0xff44] = 0;
+		
+			// need to draw the scanline immediatly or else scanline 0
+			// drawing will be skipped over	
+
+			draw_scanline(cpu);
+			return;
 		}
 		
 		// draw the current scanline
-		else if(current_line < 144)
+		if(current_line < 144)
 		{
 			draw_scanline(cpu);
 		}
@@ -623,6 +630,10 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				
 				
 					// get the tile identity num it can be signed or unsigned
+
+					// probably should combine these two rather than having to
+					// run the check twice...
+
 					uint16_t tile_address = background_mem + tile_row+tile_col;
 					if(unsig)
 					{

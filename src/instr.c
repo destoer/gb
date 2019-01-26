@@ -9,7 +9,7 @@
 
 // add sub adc and sbc can have a accessed directely and not returned out
 // note if we use sub we will have to to change cp to use a different function
-// that does not access the value
+// that does not access the value (probably for the best)
 
 void set_zero(Cpu *cpu, uint8_t reg)
 {
