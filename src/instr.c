@@ -197,12 +197,12 @@ uint8_t rl(Cpu *cpu, uint8_t reg)
 
 // may want to use a different register size...
 // for the return value 
-uint8_t sub(Cpu *cpu, uint8_t reg, uint8_t num)
+void sub(Cpu *cpu,  uint8_t num)
 {
 	// set negative flag
 	set_bit(cpu->af.lb,N);
 
-	if(reg == num)
+	if(cpu->af.hb == num)
 	{
 		set_bit(cpu->af.lb,Z);
 	}
@@ -214,7 +214,7 @@ uint8_t sub(Cpu *cpu, uint8_t reg, uint8_t num)
 	
 	// check the carry <-- check this works
 	// opossite to the book?
-	if((( (int)(reg & 0xf) - (int)(num & 0xf) ) < 0))
+	if((( (int)(cpu->af.hb & 0xf) - (int)(num & 0xf) ) < 0))
 	{
 		set_bit(cpu->af.lb,H);
 	}
@@ -225,7 +225,7 @@ uint8_t sub(Cpu *cpu, uint8_t reg, uint8_t num)
 	}
 	
 	
-	if(num > reg) // <--- if flags fail on a sub instruction this is a likely candidate
+	if(num > cpu->af.hb) // <--- if flags fail on a sub instruction this is a likely candidate
 	{
 		set_bit(cpu->af.lb,C); // set the carry
 	}
@@ -235,12 +235,53 @@ uint8_t sub(Cpu *cpu, uint8_t reg, uint8_t num)
 		deset_bit(cpu->af.lb,C);
 	}
 	
-	return reg - num;
+	cpu->af.hb -= num;
 }
 
+void cp(Cpu *cpu,uint8_t num)
+{
+	// set negative flag
+	set_bit(cpu->af.lb,N);
 
-uint8_t sbc(Cpu *cpu, uint8_t reg, uint8_t num)
+	if(cpu->af.hb == num)
+	{
+		set_bit(cpu->af.lb,Z);
+	}
+	
+	else
+	{
+		deset_bit(cpu->af.lb,Z);
+	}
+	
+	// check the carry <-- check this works
+	// opossite to the book?
+	if((( (int)(cpu->af.hb & 0xf) - (int)(num & 0xf) ) < 0))
+	{
+		set_bit(cpu->af.lb,H);
+	}
+	
+	else
+	{
+		deset_bit(cpu->af.lb,H);	
+	}
+	
+	
+	if(num > cpu->af.hb) // <--- if flags fail on a sub instruction this is a likely candidate
+	{
+		set_bit(cpu->af.lb,C); // set the carry
+	}
+	
+	else
+	{
+		deset_bit(cpu->af.lb,C);
+	}
+}	
+
+void sbc(Cpu *cpu, uint8_t num)
 {	
+
+	uint8_t reg = cpu->af.hb;
+
 	int carry = is_set(cpu->af.lb,C) ? 1 : 0;
 	
 	int result = reg - num - carry;
@@ -269,16 +310,16 @@ uint8_t sbc(Cpu *cpu, uint8_t reg, uint8_t num)
 	set_bit(cpu->af.lb,N);
 	set_zero(cpu,result);
 	
-	return result;
+	cpu->af.hb = result;
 }
 
-uint8_t add(Cpu *cpu, uint8_t reg, uint16_t num)
+void add(Cpu *cpu, uint8_t num)
 {
 	deset_bit(cpu->af.lb, N); // reset negative
 	
 	// test carry from bit 3
 	// set the half carry if there is
-	if((((reg&0xf) + (num&0xf))&0x10) == 0x10)
+	if((((cpu->af.hb&0xf) + (num&0xf))&0x10) == 0x10)
 	{
 		set_bit(cpu->af.lb,H);
 	}
@@ -291,7 +332,7 @@ uint8_t add(Cpu *cpu, uint8_t reg, uint16_t num)
 	
 	
 	// check carry from bit 7 <--- could be wrong 
-	if(reg + num > 255)
+	if(cpu->af.hb + num > 255)
 	{
 		set_bit(cpu->af.lb, C);
 	}
@@ -302,10 +343,10 @@ uint8_t add(Cpu *cpu, uint8_t reg, uint16_t num)
 	}
 	
 	
-	reg += num;
+	cpu->af.hb += num;
 	
-	set_zero(cpu,reg);
-	return reg;
+	set_zero(cpu,cpu->af.hb);
+	
 }
 
 // for the sp add opcodes <-- unsure
@@ -344,9 +385,9 @@ uint16_t addi(Cpu *cpu,uint16_t reg, int8_t num)
 	return reg;
 }
 // add n + carry flag to a 
-uint8_t adc(Cpu *cpu,uint8_t reg, uint8_t num)
+void adc(Cpu *cpu,uint8_t num)
 {
-	
+	uint8_t reg = cpu->af.hb;
 	
 	int carry = is_set(cpu->af.lb,C) ? 1 : 0;
 	
@@ -375,7 +416,7 @@ uint8_t adc(Cpu *cpu,uint8_t reg, uint8_t num)
 	//uint8_t finalres = (uint8_t)result;
 	deset_bit(cpu->af.lb,N);
 	set_zero(cpu,result);
-	return result;
+	cpu->af.hb = result;
 }
 	
 

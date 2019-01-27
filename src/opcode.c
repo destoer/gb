@@ -718,138 +718,138 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x80: // add b
-			cpu->af.hb = add(cpu,cpu->af.hb,cpu->bc.hb);
+			add(cpu,cpu->bc.hb);
 			break;
 		
 		case 0x81: // add c
-			cpu->af.hb = add(cpu,cpu->af.hb,cpu->bc.lb);
+			add(cpu,cpu->bc.lb);
 			break;
 		
 		case 0x82: // add d
-			cpu->af.hb = add(cpu,cpu->af.hb,cpu->de.hb);
+			add(cpu,cpu->de.hb);
 			break;
 		
 		case 0x83: // add e
-			cpu->af.hb = add(cpu,cpu->af.hb,cpu->de.lb);
+			add(cpu,cpu->de.lb);
 			break;
 		
 		case 0x84: // add h
-			cpu->af.hb = add(cpu,cpu->af.hb,cpu->hl.hb);
+			add(cpu,cpu->hl.hb);
 			break;
 		
 		case 0x85: // add l
-			cpu->af.hb = add(cpu,cpu->af.hb,cpu->hl.lb);
+			add(cpu,cpu->hl.lb);
 			break;
 		
 		case 0x86: // add a, (hl)
 			cbop = read_mem(cpu->hl.reg,cpu);
-			cpu->af.hb = add (cpu,cpu->af.hb,cbop);
+			add(cpu,cbop);
 			break;
 		
 		case 0x87: // add a
-			cpu->af.hb = add(cpu,cpu->af.hb, cpu->af.hb);
+			add(cpu, cpu->af.hb);
 			break;
 		
 		
 		case 0x88: // adc a, b
-			cpu->af.hb  = adc(cpu,cpu->af.hb,cpu->bc.hb);
+			adc(cpu,cpu->bc.hb);
 			break;
 		
 		case 0x89: // adc c (add carry + n)
-			//add(cpu,cpu->af.hb,cpu->bc.lb + val_bit(cpu->af.lb,C));
-			cpu->af.hb = adc(cpu,cpu->af.hb,cpu->bc.lb);
+			//add(cpu,cpu->bc.lb + val_bit(cpu->af.lb,C));
+			adc(cpu,cpu->bc.lb);
 			break;
 		
 		case 0x8a: // adc d
-			cpu->af.hb = adc(cpu,cpu->af.hb,cpu->de.hb);
+			adc(cpu,cpu->de.hb);
 			break;
 			
 		case 0x8b: // adc e
-			cpu->af.hb = adc(cpu,cpu->af.hb,cpu->de.lb);
+			adc(cpu,cpu->de.lb);
 			break;
 			
 		case 0x8c: // adc h
-			cpu->af.hb = adc(cpu,cpu->af.hb,cpu->hl.hb);
+			adc(cpu,cpu->hl.hb);
 			break;
 			
 		case 0x8d: // adc l
-			cpu->af.hb = adc(cpu,cpu->af.hb,cpu->hl.lb);
+			adc(cpu,cpu->hl.lb);
 			break;
 		
 		case 0x8e: // adc (hl)
 			cbop = read_mem(cpu->hl.reg,cpu);
-			cpu->af.hb = adc(cpu,cpu->af.hb,cbop);
+			 adc(cpu,cbop);
 			break;
 		
 		case 0x8f: // adc a
-			cpu->af.hb = adc(cpu,cpu->af.hb,cpu->af.hb);
+			adc(cpu,cpu->af.hb);
 			break;
 		
 		case 0x90: // sub b
-			cpu->af.hb = sub(cpu,cpu->af.hb,cpu->bc.hb);
+			 sub(cpu,cpu->bc.hb);
 			//cpu_state(cpu); print_flags(cpu); exit(1);
 			break;
 		
 		case 0x91: // sub c
-			cpu->af.hb = sub(cpu,cpu->af.hb,cpu->bc.lb);
+			sub(cpu,cpu->bc.lb);
 			break;
 		
 		case 0x92: // sub d
-			cpu->af.hb = sub(cpu,cpu->af.hb,cpu->de.hb);
+			sub(cpu,cpu->de.hb);
 			break;
 			
 		case 0x93: // sub e
-			cpu->af.hb = sub(cpu,cpu->af.hb,cpu->de.lb);
+			sub(cpu,cpu->de.lb);
 			break;
 			
 		case 0x94: // sub h
-			cpu->af.hb = sub(cpu,cpu->af.hb,cpu->hl.hb);
+			sub(cpu,cpu->hl.hb);
 			break;
 			
 		case 0x95: // sub l
-			cpu->af.hb = sub(cpu,cpu->af.hb,cpu->hl.lb);
+			sub(cpu,cpu->hl.lb);
 			break;
 		
 		case 0x96: // sub (hl)
 			cbop = read_mem(cpu->hl.reg,cpu);
-			cpu->af.hb = sub(cpu,cpu->af.hb,cbop);
+			sub(cpu,cbop);
 			break;
 		
 		case 0x97: // sub a 
-			cpu->af.hb = sub(cpu,cpu->af.hb,cpu->af.hb);
+			sub(cpu,cpu->af.hb);
 			break;
 		
 		case 0x98: // sbc, a, b
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cpu->bc.hb);
+			sbc(cpu,cpu->bc.hb);
 			break;
 			
 		case 0x99: // sbc a, c
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cpu->bc.lb);
+			sbc(cpu,cpu->bc.lb);
 			break;
 			
 		case 0x9a: // sbc a ,d
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cpu->de.hb);
+			sbc(cpu,cpu->de.hb);
 			break;
 			
 		case 0x9b: // sbc a, e
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cpu->de.lb);
+			sbc(cpu,cpu->de.lb);
 			break;
 			
 		case 0x9c: // sbc a, h 
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cpu->hl.hb);
+			sbc(cpu,cpu->hl.hb);
 			break;
 			
 		case 0x9d: // sbc a, l
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cpu->hl.lb);
+			sbc(cpu,cpu->hl.lb);
 			break;
 		
 		case 0x9e: // sbc a, (hl)
 			cbop = read_mem(cpu->hl.reg,cpu);
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cbop);
+			sbc(cpu,cbop);
 			break;
 		
 		case 0x9f: // sbc a, a
-			cpu->af.hb = sbc(cpu,cpu->af.hb,cpu->af.hb);
+			sbc(cpu,cpu->af.hb);
 			break;
 		
 		case 0xa0: // and b
@@ -953,36 +953,36 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xb8: // cp b (sub but ignore result only keep flags)
-			sub(cpu,cpu->af.hb,cpu->bc.hb);
+			cp(cpu,cpu->bc.hb);
 			break;
 
 		case 0xb9: // cp c
-			sub(cpu,cpu->af.hb,cpu->bc.lb);
+			cp(cpu,cpu->bc.lb);
 			break;
 		
 		case 0xba: // cp d
-			sub(cpu,cpu->af.hb,cpu->de.hb);
+			cp(cpu,cpu->de.hb);
 			break;
 		
 		case 0xbb: // cp e
-			sub(cpu,cpu->af.hb,cpu->de.lb);
+			cp(cpu,cpu->de.lb);
 			break;
 		
 		case 0xbc: // cp h
-			sub(cpu,cpu->af.hb,cpu->hl.hb);
+			cp(cpu,cpu->hl.hb);
 			break;
 			
 		case 0xbd: // cp l
-			sub(cpu,cpu->af.hb,cpu->hl.lb);
+			cp(cpu,cpu->hl.lb);
 			break;
 		
 		case 0xbe: // cp (hl)
 			cbop = read_mem(cpu->hl.reg,cpu);
-			sub(cpu,cpu->af.hb,cbop);
+			cp(cpu,cbop);
 			break;
 		
 		case 0xbf: // cp a <-- probably can be optimised to a constant
-			sub(cpu,cpu->af.hb,cpu->af.hb);
+			cp(cpu,cpu->af.hb);
 			break;
 		
 		case 0xc0: // ret nz
@@ -1036,7 +1036,7 @@ int step_cpu(Cpu * cpu)
 		
 		
 		case 0xc6: // add a, nn
-			cpu->af.hb = add(cpu,cpu->af.hb,read_mem(cpu->pc++,cpu));
+			add(cpu,read_mem(cpu->pc++,cpu));
 			break;
 		
 		case 0xc7: // rst 00
@@ -1102,7 +1102,7 @@ int step_cpu(Cpu * cpu)
 			break;
 
 		case 0xce: // adc a, nn
-			cpu->af.hb = adc(cpu,cpu->af.hb,read_mem(cpu->pc++,cpu));
+			adc(cpu,read_mem(cpu->pc++,cpu));
 			break;
 		
 		case 0xcf: // rst 08
@@ -1154,7 +1154,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xd6: // sub a, nn
-			cpu->af.hb = sub(cpu,cpu->af.hb,read_mem(cpu->pc++,cpu));
+			sub(cpu,read_mem(cpu->pc++,cpu));
 			break;
 		
 		case 0xd7: // rst 10
@@ -1203,7 +1203,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xde: // sbc a, n
-			cpu->af.hb = sbc(cpu,cpu->af.hb,read_mem(cpu->pc++,cpu));
+			sbc(cpu,read_mem(cpu->pc++,cpu));
 			break;
 		
 		
@@ -1312,7 +1312,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xFE: // cp a, n (do a sub and discard result)
-			sub(cpu,cpu->af.hb,read_mem(cpu->pc++,cpu));
+			cp(cpu,read_mem(cpu->pc++,cpu));
 		//	cpu_state(cpu);
 		//	print_flags(cpu); exit(1);
 			break;

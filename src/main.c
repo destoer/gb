@@ -10,8 +10,8 @@
 #include "headers/joypad.h"
 #include "headers/opcode.h"
 #include "headers/debug.h"
-#include <SDL2/SDL.h>
-//#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+//#include <SDL2/SDL.h>
+#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 
 
 
