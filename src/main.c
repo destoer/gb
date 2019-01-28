@@ -13,7 +13,10 @@
 //#include <SDL2/SDL.h>
 #include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 
-
+// kirby dreamland 2 doesent work
+// 3443
+// 345f
+// 33b7 // can sometimes be off but think its down to when the button is pushed...
 
 // fix dma timings 
 
@@ -267,7 +270,6 @@ int main(int argc, char *argv[])
 			int cycles = step_cpu(&cpu);
 			cycles_this_update += cycles;
 			update_timers(&cpu,cycles); // <--- update timers 
-			//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 			update_graphics(&cpu,cycles); // handle the lcd emulation
 			do_interrupts(&cpu); // handle interrupts <-- verify it works
 			
@@ -275,11 +277,6 @@ int main(int argc, char *argv[])
 			// has just occured if it has step a cpu instr and then 
 			// perform the requested operation and set the ime flag
 			
-			// refactor as the code looks messy this way but use the general idea
-			
-			//luckily all the tricky opcodes are of length one
-			// so hardcoding the size if fine
-			//uint8_t last_opcode = read_mem(cpu.pc-1,&cpu);
 			
 			if(cpu.ei) // ei
 			{
@@ -287,7 +284,6 @@ int main(int argc, char *argv[])
 				cycles = step_cpu(&cpu);
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
-				//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- verify it works
 				
@@ -304,7 +300,6 @@ int main(int argc, char *argv[])
 				cycles = step_cpu(&cpu);
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
-				//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- verify it works
 				
@@ -338,41 +333,24 @@ int main(int argc, char *argv[])
 				
 				if( (cpu.interrupt_enable == false) &&  (req & enabled & 0x1f) != 0)
 				{
-					//puts("HALT BUG");
 					cpu.halt_bug = true;
-					//printf("halt bug over\n");
 				}
 
 				
 				// normal halt
 				
 				else 
-				{		
-					/*printf("ly = %x\n",read_mem(0xff44,&cpu));
-					printf("div = %x\n",cpu.mem[DIV]);
-					printf("tima = %x\n",cpu.mem[TIMA]);
-					printf("lcdc = %x\n",cpu.mem[0xff41]);
-					printf("if = %x\n",cpu.mem[0xff0f]);
-					printf("ime = %x\n",cpu.interrupt_enable);
-					printf("ie = %x\n",cpu.mem[0xffff]);
-					printf("stat = %x\n",cpu.mem[0xff41]); // lcd stat
-					printf("lyc = %x\n",cpu.mem[0xff45]);
-					cpu_state(&cpu);
-					print_flags(&cpu);
-					*/
-					//puts("normal halt");
+				{
 					while( ( req & enabled & 0x1f) == 0)
 					{
 						cycles = 1; // just go a cycle at a time
 						cycles_this_update += cycles;
 						update_timers(&cpu,cycles); // <--- update timers 
-						//printf("tima: %d, div: %d\n",cpu.mem[TIMA], cpu.mem[DIV]);
 						update_graphics(&cpu,cycles); // handle the lcd emulation
 							
 						req = cpu.mem[0xff0f];
 						enabled = cpu.mem[0xffff];
 					}
-					//puts("interrupted halt");
 					do_interrupts(&cpu); // handle interrupts
 				}	
 			}
@@ -382,11 +360,9 @@ int main(int argc, char *argv[])
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
 		SDL_RenderPresent(renderer);
-		//memset(cpu.screen,255,X*Y*4);
-		//puts("stub"); // need to add frame limiting 
-		//puts(
 
-		//SDL_Delay(time_left());
+
+		SDL_Delay(time_left());
 		next_time += screen_ticks_per_frame;
 	}
 

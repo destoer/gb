@@ -120,6 +120,9 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 
 void do_ram_bank_enable(Cpu * cpu,uint16_t address, uint8_t data)
 {
+	
+
+	
 	if(cpu->rom_info.mbc2)
 	{
 		if(is_set(address,4))

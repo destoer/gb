@@ -4,8 +4,6 @@
 #include "headers/cpu.h"
 #include "headers/lib.h"
 
-// based off 
-// http://www.codeslinger.co.uk/pages/projects/gameboy/graphics.html
 
 // TODO rewrite the rendering functions as 
 // to fix links awakening window is is scrolling when it shouldunt
@@ -15,8 +13,9 @@
 // refer to cpu manual and ultimate gameboy talk
 
 // run mooneye ppu tests against it
-
 // get the bottom 3 ppu mooneye test passing
+// as it doesn't handle edge cases related to stat reg
+
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 
@@ -61,7 +60,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		// read out of ly register to get current scanline
 		uint8_t current_line = read_mem(0xff44,cpu);
 		
-		cpu->scanline_counter = 114; // <- needs to be one foruth as we use m cycles
+		cpu->scanline_counter = 114; // <- needs to be one fourth as we use m cycles
 		
 		// in the vblank period
 		if(current_line == 144)
@@ -70,11 +69,13 @@ void update_graphics(Cpu *cpu, int cycles)
 		}
 		
 		// if past scanline 153 reset to zero
+		// line 153 acts like zero see 
+		// https://forums.nesdev.com/viewtopic.php?f=20&t=13727
 		else if(current_line > 153)
 		{
 			cpu->mem[0xff44] = 0;
 		
-			// need to draw the scanline immediatly or else scanline 0
+			// need to draw the scanline immediately or else scanline 0
 			// drawing will be skipped over	
 
 			draw_scanline(cpu);
@@ -102,7 +103,7 @@ void set_lcd_status(Cpu *cpu)
 		cpu->scanline_counter = 114;
 		cpu->mem[0xff44] = 0;
 		status &= 252;
-		set_bit(status,0);
+		//set_bit(status,0);			// mode might need to be set to one here
 		write_mem(cpu,0xff41,status);
 		return;
 	}
@@ -153,21 +154,32 @@ void set_lcd_status(Cpu *cpu)
 			req_int = is_set(status,3);
 		}
 	}
-	
+
 	
 	// changed mode so req an interrupt
 	if(req_int && (mode != currentmode))
 	{
-		request_interrupt(cpu,1);
+		
+		// the mode bits in stat are enable bits for various interrupts
+		// related to the screen state it must be tested before calling
+		if(is_set(status,mode+3))
+		{
+			request_interrupt(cpu,1);
+		}
 	}
 	
 	// check conincidence flag
 	// needs verifying
 	// if ly == lyc
-	if(currentline == read_mem(0xff45,cpu))
+	uint8_t lyc = read_mem(0xff45,cpu);
+	
+	// line 153 can be treated as zero 
+	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
+	
+	if(currentline == lyc || currentline == 153 && lyc == 0)
 	{
-		set_bit(status,2);
-		if(is_set(status,6))
+		set_bit(status,2); // set the coincidence flag 
+		if(is_set(status,6)) // <-- lcd compare interrupt enable (bit6 of stat)
 		{
 			request_interrupt(cpu,1);
 		}
@@ -177,6 +189,9 @@ void set_lcd_status(Cpu *cpu)
 	{
 		deset_bit(status,2);
 	}
+	
+	
+	 
 	
 	// update the lcd status reg
 	write_mem(cpu,0xff41,status);

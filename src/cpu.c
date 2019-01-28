@@ -401,6 +401,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		printf("emu wrote %x\n",207 | data);
 	}
 */	
+
 	
 	// unrestricted
 	else

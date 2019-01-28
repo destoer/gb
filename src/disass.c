@@ -146,7 +146,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 					
 		case 0x1e: // ld e, n
-			printf("ld b, %02x\n",cpu->mem[cpu->pc]);
+			printf("ld e, %02x\n",cpu->mem[cpu->pc]);
 			break;
 		
 		case 0x1f: // rra 
