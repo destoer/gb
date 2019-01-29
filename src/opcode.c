@@ -16,14 +16,45 @@
 #include <stdio.h>
 
 
-//static int breakpoint = 0x2299;
-//static int breakpoint = 0x29fe;
-//static int breakpoint = 0x100;
-//static int breakpoint = 0x1c4f; // by the second time its reached bc has the wrong value from the ret
-//static int breakpoint = 0x2b40;
-//static int breakpoint = 0x2afe;
-//static int breakpoint = 0x1638; // break in bgb at 0346 after first hit
-//static int breakpoint = 0x164f;
+#include <stdarg.h>
+
+inline void write_log(const char *fmt, ...);
+
+
+//#undef DEBUG
+
+#ifdef DEBUG
+	void write_log(const char *fmt, ...)
+	{
+		va_list args;
+		
+		va_start(args,fmt);
+		
+		//FILE *fp = fopen("log.txt","a+");
+		
+		/*if(fp == NULL)
+		{
+			puts("Error writing to log");
+			exit(1);
+		}*/
+		
+		vprintf(fmt,args);
+		//fclose(fp);
+		va_end(args);
+	}	
+#else
+	void write_log(const char *fmt, ...)
+	{
+		
+	}
+#endif
+
+
+
+
+
+
+
 
 // potentially need the rominfo too but not needed yet
 int step_cpu(Cpu * cpu)
@@ -205,7 +236,8 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x18: // jr n
-			operand = (int8_t)read_mem(cpu->pc++, cpu);
+			operand = read_mem(cpu->pc++, cpu);
+			write_log("jr n at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 			cpu->pc += operand;
 			break;
 		
@@ -240,9 +272,10 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x20: // jr nz, n
-			operand = (uint8_t)read_mem(cpu->pc++, cpu);
+			operand = read_mem(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb, Z))
 			{
+				write_log("jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -312,6 +345,7 @@ int step_cpu(Cpu * cpu)
 			operand = read_mem(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb, Z))
 			{
+				write_log("jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -353,6 +387,7 @@ int step_cpu(Cpu * cpu)
 			operand = read_mem(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb,C))
 			{
+				write_log("jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -402,6 +437,7 @@ int step_cpu(Cpu * cpu)
 			operand = read_mem(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb,C))
 			{
+				write_log("jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -1001,6 +1037,7 @@ int step_cpu(Cpu * cpu)
 		
 			if(!is_set(cpu->af.lb,Z))
 			{
+				write_log("jp nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1019,6 +1056,7 @@ int step_cpu(Cpu * cpu)
 		case 0xc4: // call nz
 			if(!is_set(cpu->af.lb,Z))
 			{
+				write_log("call nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
 				return mtcycles[opcode];
@@ -1059,6 +1097,7 @@ int step_cpu(Cpu * cpu)
 		case 0xca: // jp z, nnnn
 			if(is_set(cpu->af.lb, Z))
 			{
+				write_log("jp z at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1097,6 +1136,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xCD: // call nn <-- verify
+			write_log("call at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 			write_stackw(cpu,cpu->pc+2);
 			cpu->pc = read_word(cpu->pc, cpu);
 			break;
@@ -1125,6 +1165,7 @@ int step_cpu(Cpu * cpu)
 		case 0xd2: // jp nc u16
 			if(!is_set(cpu->af.lb,C))
 			{
+				write_log("jp nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1138,6 +1179,7 @@ int step_cpu(Cpu * cpu)
 		case 0xd4: // call nc nnnn
 			if(!is_set(cpu->af.lb,C))
 			{
+				write_log("call nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
 				return  mtcycles[opcode];
@@ -1178,6 +1220,7 @@ int step_cpu(Cpu * cpu)
 		case 0xda: // jp c, u16
 			if(is_set(cpu->af.lb,C))
 			{
+				write_log("jp c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1191,6 +1234,7 @@ int step_cpu(Cpu * cpu)
 		case 0xdc: // call c, u16
 			if(is_set(cpu->af.lb,C))
 			{
+				write_log("call c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
@@ -1243,6 +1287,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xe9: // jp hl
+			write_log("jp hl at %x -> %x\n",cpu->pc-1,cpu->hl);
 			cpu->pc = cpu->hl.reg;
 			break;
 		
