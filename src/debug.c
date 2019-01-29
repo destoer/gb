@@ -354,6 +354,9 @@ void info(char *token, Cpu *cpu)
 		printf("ime = %x\n",cpu->interrupt_enable);
 		printf("ie = %x\n",cpu->mem[0xffff]);
 		printf("stat = %x\n",cpu->mem[0xff41]); // lcd stat
+		printf("rom_bank = %x\n",cpu->currentrom_bank);
+		printf("ram_bank = %x\n",cpu->currentram_bank);
+		printf("ram_enable = %x\n",cpu->enable_ram);
 		return;
 	}
 	

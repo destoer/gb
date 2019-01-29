@@ -1328,6 +1328,10 @@ int step_cpu(Cpu * cpu)
 			fprintf(stderr, "[cpu] Unknown opcode: %x\n", opcode);
 			cpu_state(cpu);
 			print_flags(cpu);
+			for(int i = 0; i <= 10; i++)
+			{
+				printf("stack address %x\n",read_stackw(cpu));
+			}
 			for(;;) { }
 			//exit(1);
 			#endif

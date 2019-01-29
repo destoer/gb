@@ -100,7 +100,7 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 			// rtc reg
 			else if(data >= 0x8 && data <= 0xc && cpu->enable_ram && cpu->rom_info.has_rtc)
 			{
-				//cpu->currentram_bank = -1;
+				cpu->currentram_bank = -1;
 			}
 
 			//puts("MBC3 ram change");	
@@ -179,9 +179,6 @@ void do_change_lo_rom_bank(Cpu *cpu,uint8_t data)
 		//printf("new rom bank %d\n",cpu->currentrom_bank);
 		//exit(1);
 	}
-	
-
-	
 
 	//printf("lo change %x\n",cpu->currentrom_bank);
 	
@@ -213,8 +210,6 @@ void do_change_hi_rom_bank(Cpu *cpu, uint8_t data)
 	}
 	
 
-	
-	
 
 	
 	//printf("hi change %x\n",cpu->currentrom_bank);

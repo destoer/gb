@@ -13,10 +13,14 @@
 //#include <SDL2/SDL.h>
 #include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 
-// kirby dreamland 2 doesent work
+//33bf
+
+// kirby dreamland 2 doesent work <-- read only memory being trashed?
 // 3443
 // 345f
 // 33b7 // can sometimes be off but think its down to when the button is pushed...
+// 33c4 
+// 427b
 
 // fix dma timings 
 
@@ -72,9 +76,7 @@ int main(int argc, char *argv[])
 	
 	memcpy(cpu.mem,cpu.rom_mem,0x8000); // memcpy the first 2 banks in
 	
-	
-	
-	
+
 	// check for a sav batt but for now we just copy the damb thing
 	
 	// should be copied back into the ram banks not the memory where

@@ -66,6 +66,10 @@ void update_graphics(Cpu *cpu, int cycles)
 		if(current_line == 144)
 		{
 			request_interrupt(cpu,0);
+			if(is_set(read_mem(0xff41,cpu),5))
+			{
+				request_interrupt(cpu,1);
+			}
 		}
 		
 		// if past scanline 153 reset to zero
@@ -121,7 +125,7 @@ void set_lcd_status(Cpu *cpu)
 		mode = 1;
 		set_bit(status,0);
 		deset_bit(status,1);
-		req_int = is_set(status,4);
+		req_int = is_set(status,4);	
 	}
 	else
 	{
