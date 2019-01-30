@@ -2,6 +2,20 @@
 // but it is not running after left is pressed...
 
 
+// break these in order to trigger the crash in kirby
+// with interrupt servicing enabled while ei and di happen
+// not sure what the correct behavior for this is 
+// could also be a timing issue as the timer interrupt is triggered
+
+// 2af4
+// 40ed
+// 5d9
+// 10e6 <--- instantly takes us near the crash point
+		// <--- looks like it sets the wrong rom bank after a call to 5dd
+		// at 620 does not change from one when it should
+// 620 <-- call from 5d9 
+		
+
 // fix adc and sbc
 
 #include "headers/lib.h"
@@ -21,14 +35,18 @@
 inline void write_log(const char *fmt, ...);
 
 
-//#undef DEBUG
+#undef DEBUG
 
+
+void write_log(const char *fmt, ...)
+{
 #ifdef DEBUG
-	void write_log(const char *fmt, ...)
-	{
 		va_list args;
 		
 		va_start(args,fmt);
+		
+		// for obvious reasons dumping this much data to a file 
+		// in this way repeatedly is slow as hell
 		
 		//FILE *fp = fopen("log.txt","a+");
 		
@@ -41,14 +59,10 @@ inline void write_log(const char *fmt, ...);
 		vprintf(fmt,args);
 		//fclose(fp);
 		va_end(args);
-	}	
-#else
-	void write_log(const char *fmt, ...)
-	{
-		
-	}
 #endif
+}
 
+//#define DEBUG
 
 
 
@@ -63,8 +77,6 @@ int step_cpu(Cpu * cpu)
 
 	
 	#ifdef DEBUG
-	// breakpoint (fail inside call at 1c3c) <--- specifically at 2b03 with a read from ff89
-	//printf("%x: %x\n",cpu->pc,cpu->breakpoint);
 	if(cpu->pc == cpu->breakpoint || cpu->step) 
 	{
 		
@@ -83,8 +95,7 @@ int step_cpu(Cpu * cpu)
 	#endif
 
 	
-	// one byte immediate
-	// instrucitons may need to be signed? eg ld a, (ff00 + n)
+
 	
 	// read an opcode and inc the program counter
 	uint8_t opcode;
@@ -92,12 +103,12 @@ int step_cpu(Cpu * cpu)
 	uint8_t cbop;
 	
 	// normal execution
-	
-	
 	opcode = read_mem(cpu->pc++,cpu);
 	//print cpu state and disassemble the opcode
 	//cpu_state(cpu);
 	//disass_8080(opcode, cpu);		
+	
+	
 	
 
 	// halt bug fail to inc pc
@@ -141,7 +152,6 @@ int step_cpu(Cpu * cpu)
 			
 		case 0x5: // dec b
 			dec(cpu, cpu->bc.hb--);
-			//print_flags(cpu);
 			break;
 			
 		case 0x6: // ld b, n
@@ -156,7 +166,6 @@ int step_cpu(Cpu * cpu)
 		
 		case 0x8: // ld (nnnn), sp
 			write_word(cpu,read_word(cpu->pc,cpu),cpu->sp);
-			//printf("write: [%x]%x [%x]%x\n",read_word(cpu->pc,cpu),read_mem(read_word(cpu->pc,cpu),cpu),read_word(cpu->pc,cpu)+1,read_mem(read_word(cpu->pc,cpu)+1,cpu));
 			cpu->pc += 2; // for two immediate ops
 			break;
 		
@@ -197,6 +206,7 @@ int step_cpu(Cpu * cpu)
 			deset_bit(cpu->af.lb,Z);
 			break;
 			
+			// most games should never even execute this 
 		case 0x10: // stop <-- FIX THIS LATER
 			puts("fix stop");
 			//exit(1);
@@ -1287,7 +1297,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xe9: // jp hl
-			write_log("jp hl at %x -> %x\n",cpu->pc-1,cpu->hl);
+			write_log("jp hl at %x -> %x\n",cpu->pc-1,cpu->hl.reg);
 			cpu->pc = cpu->hl.reg;
 			break;
 		
@@ -1377,6 +1387,7 @@ int step_cpu(Cpu * cpu)
 			{
 				printf("stack address %x\n",read_stackw(cpu));
 			}
+			printf("rom_bank = %x\n",cpu->currentrom_bank);
 			for(;;) { }
 			//exit(1);
 			#endif

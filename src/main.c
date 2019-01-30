@@ -273,7 +273,7 @@ int main(int argc, char *argv[])
 			cycles_this_update += cycles;
 			update_timers(&cpu,cycles); // <--- update timers 
 			update_graphics(&cpu,cycles); // handle the lcd emulation
-			do_interrupts(&cpu); // handle interrupts <-- verify it works
+			do_interrupts(&cpu); // handle interrupts 
 			
 			// now we need to test if an ei or di instruction
 			// has just occured if it has step a cpu instr and then 
@@ -284,30 +284,31 @@ int main(int argc, char *argv[])
 			{
 				cpu.ei = false;
 				cycles = step_cpu(&cpu);
+				// we have done an instruction now set ime
+				// needs to be just after the instruction service
+				// but before we service interrupts				
+				cpu.interrupt_enable = true;
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
 				update_graphics(&cpu,cycles); // handle the lcd emulation
-				do_interrupts(&cpu); // handle interrupts <-- verify it works
+				do_interrupts(&cpu); // handle interrupts <-- not sure what should happen here		
 				
-				// we have done an instruction now set ime
-				// may need to be just after the instruction service
-				// but before we service interrupts
-				
-				cpu.interrupt_enable = true;
 			}
 			
 			if(cpu.di) // di
 			{
 				cpu.di = false;
 				cycles = step_cpu(&cpu);
+				// we have executed another instruction now deset ime
+				cpu.interrupt_enable = false;
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
 				update_graphics(&cpu,cycles); // handle the lcd emulation
-				do_interrupts(&cpu); // handle interrupts <-- verify it works
+				do_interrupts(&cpu); // handle interrupts <-- what should happen here?
 				
-				// we have executed another instruction now deset ime
 				
-				cpu.interrupt_enable = false;
+				
+				
 			}
 			
 			
@@ -364,7 +365,7 @@ int main(int argc, char *argv[])
 		SDL_RenderPresent(renderer);
 
 
-		//SDL_Delay(time_left());
+		SDL_Delay(time_left());
 		next_time += screen_ticks_per_frame;
 	}
 
