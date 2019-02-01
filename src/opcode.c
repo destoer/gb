@@ -62,7 +62,7 @@ void write_log(const char *fmt, ...)
 #endif
 }
 
-//#define DEBUG
+#define DEBUG
 
 
 
@@ -85,7 +85,6 @@ int step_cpu(Cpu * cpu)
 		// enter commands exit when run command typed
 		cpu->step = false; // disable stepping
 		printf("execution breakpoint hit at %x\n",cpu->pc);
-		cpu->breakpoint = -1; // deset the breakpoint
 		uint8_t opcode = read_mem(cpu->pc++,cpu);
 		disass_8080(opcode,cpu);
 		enter_debugger(cpu);
@@ -125,8 +124,8 @@ int step_cpu(Cpu * cpu)
 	
 	
 	
-	// decode and execute 
-	//(opcode loads may need to go through the read mem funcion at some point)
+	// decode and execute <-- should not happen in one go 
+	// but its "good" enough
 	switch(opcode)
 	{
 		case 0x0: // nop
@@ -608,7 +607,7 @@ int step_cpu(Cpu * cpu)
 			cpu->de.lb = cpu->de.hb; 
 			break;
 		
-		case 0x5b: // ld ,
+		case 0x5b: // ld e, e
 			// nop 
 			break;
 		
@@ -719,9 +718,8 @@ int step_cpu(Cpu * cpu)
 			write_mem(cpu,cpu->hl.reg,cpu->hl.lb);
 			break;
 		
-		case 0x76: // halt <-- todo
+		case 0x76: // halt 
 			// caller will handle
-			//puts("Implement halt");
 			cpu->halt = true;
 			break;
 		
@@ -802,7 +800,6 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x89: // adc c (add carry + n)
-			//add(cpu,cpu->bc.lb + val_bit(cpu->af.lb,C));
 			adc(cpu,cpu->bc.lb);
 			break;
 		
@@ -832,8 +829,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x90: // sub b
-			 sub(cpu,cpu->bc.hb);
-			//cpu_state(cpu); print_flags(cpu); exit(1);
+			sub(cpu,cpu->bc.hb);
 			break;
 		
 		case 0x91: // sub c

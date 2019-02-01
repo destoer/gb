@@ -9,6 +9,11 @@
 #include "headers/banking.h"
 #include "headers/instr.h"
 #include "headers/debug.h"
+#include "headers/ppu.h"
+
+// c2e6 for write test :) 
+// first set of writes is correct bar 
+// ff26 but it retains its value as it should
 
 uint8_t read_mem(uint16_t address, Cpu *cpu);
 bool is_set(uint8_t reg, uint8_t bit);
@@ -18,9 +23,10 @@ void service_interrupt(Cpu *cpu,int interrupt);
 // fix sprites next 
 // fix interrupt timing
 
-// <-- need to change banking to get Pokemon running i think
+// WORK on sound emulation 1st make sure unused bits are properly handled
 
-// pass mooneye hwio test
+// pass mooneye hwio test <-- may need to init all the unused hwio at start
+// but it does pass
 
 // setup a fresh cpu state and return it to main
 Cpu init_cpu(void) // <--- memory should be randomized on startup
@@ -39,7 +45,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.de.reg = 0x00D8;
 	cpu.hl.reg = 0x014d;
 	cpu.sp = 0xFFFE;
-	
+	cpu.cycles = 0; // cycles from interrupts etc
 	/*
 	cpu.af.reg = 0x1180;
 	cpu.bc.reg = 0x0000;
@@ -68,7 +74,40 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.mem[0xFF48] = 0xFF;
 	cpu.mem[0xFF49] = 0xFF;
 	
+	
+	
+	
+	// init unused hwio
+	cpu.mem[0xff03] = 0xff;
+	cpu.mem[0xff08] = 0xff;
+	cpu.mem[0xff09] = 0xff;
+	cpu.mem[0xff0a] = 0xff;
+	cpu.mem[0xff0b] = 0xff;
+	cpu.mem[0xff0c] = 0xff;
+	cpu.mem[0xff0d] = 0xff;
+	cpu.mem[0xff0e] = 0xff;
+	cpu.mem[0xff15] = 0xff;
+	cpu.mem[0xff1f] = 0xff;
+	cpu.mem[0xff27] = 0xff;
+	cpu.mem[0xff28] = 0xff;
+	cpu.mem[0xff29] = 0xff;
+	
+	
 
+	
+
+	
+	
+
+	cpu.mem[0xff20] = 0xff;
+/*	cpu.mem[0xff2a] = 0xff;
+	cpu.mem[0xff2b] = 0xff;
+	cpu.mem[0xff2c] = 0xff;
+	cpu.mem[0xff2d]	= 0xff;
+	cpu.mem[0xff2e] = 0xff;
+	cpu.mem[0xff2f] = 0xff;
+*/	
+	
 	cpu.pc = 0x100; // reset at 0x100
 	cpu.tacfreq = 256; // number of machine cycles till update
 	cpu.div_counter = 0;
@@ -86,6 +125,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.breakpoint = 0x100;
 	cpu.memr_breakpoint = -1;
 	cpu.memw_breakpoint = -1;
+	cpu.memr_value = -1;
+	cpu.memw_value = -1;
 	#endif
 
 
@@ -133,12 +174,14 @@ void do_interrupts(Cpu *cpu)
 					{
 						//printf("service: %d\n", i);
 						service_interrupt(cpu,i);
+						cpu->cycles += 5; // 5 for interrupt dispatch
 					}
 				}
 			}
 		}
 	}
-	
+	update_timers(cpu,cpu->cycles);
+	cpu->cycles = 0;
 }
 
 void service_interrupt(Cpu *cpu,int interrupt)
@@ -193,10 +236,12 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// write breakpoint
 	if(address == cpu->memw_breakpoint)
 	{
-		printf("Write breakpoint (%x)!\n",cpu->memw_breakpoint);
-		cpu->memw_breakpoint = -1;
-		printf("data %x\n",data);
-		enter_debugger(cpu);
+		if(cpu->memw_value == -1 || cpu->memw_value == data)
+		{
+			printf("Write breakpoint (%x)!\n",cpu->memw_breakpoint);
+			printf("data %x\n",data);
+			enter_debugger(cpu);
+		}
 	}
 	#endif
 
@@ -283,6 +328,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	}
 	
 
+
 	// serial control (stub)
 	else if(address == 0xff02)
 	{
@@ -290,6 +336,69 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		return; 
 	}
 
+	//---------------------------
+	// unused hwio
+	
+	// unused
+	else if(address == 0xff03)
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}
+	
+	// unused
+	else if(address >= 0xff08 && address <= 0xff0e )
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}
+	
+	
+	// unused
+	else if(address == 0xff15 )
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}
+	
+
+	// unused
+	else if(address == 0xff1f)
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}
+	
+	
+	// unused
+	else if(address == 0xff27 )
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}
+	
+	
+	// unused
+	else if(address == 0xff28)
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}
+	
+	// unused
+	else if(address == 0xff29)
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}	
+	
+	
+		// unused
+	else if(address >= 0xff4c && address <= 0xff7f)
+	{
+		cpu->mem[address] = 0xff;
+		return;
+	}
 	
 
 
@@ -298,10 +407,11 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address == DIV)
 	{
 		cpu->mem[DIV] = 0;
+		cpu->mem[TIMA] = 0;
 		return;
 	}
 	
-
+	
 
 	// nr 10
 	else if(address == 0xff10)
@@ -314,7 +424,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// nr 30
 	else if(address == 0xff1a)
 	{
-		cpu->mem[address] = data | 127;
+		cpu->mem[address] = 127;
 		return;
 	}
 
@@ -325,6 +435,13 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		return;
 	}
 
+	
+	// nr 34
+	else if(address == 0xff1e)
+	{
+		cpu->mem[address] = data | (16 + 32 + 8);
+	}
+	
 	
 	// nr 41	
 	else if(address == 0xff20)
@@ -340,29 +457,32 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		return;
 	}
 
+	
 
-	// nr 52
+
+	// nr 52 // bits 0-3 read only 7 r/w 4-6 unused
 	else if(address == 0xff26)
 	{
-		cpu->mem[address] = data | 112;
+		cpu->mem[address] = cpu->mem[0xff26] | ((data & 128) | 112);
 		return;
 	}
 
 	// lcd stat
 	else if(address == 0xff41)
 	{
-		cpu->mem[address] = data | 128;
+	
+		cpu->mem[address] = ( (data & 248) | 128); // bit 7 unused 0-2 read only
 		return;
 	}
 
-/*	// reset ly if the game tries writing to it
+	// reset ly if the game tries writing to it
 	// probably inaccurate 
 	else if (address == 0xFF44)
 	{
 		cpu->mem[address] = 0;
 		return;
 	} 
-*/	
+	
 	
 	// implement timing on dma and page boundary checking
 	else if(address == 0xff46) // dma reg perform a dma transfer
@@ -426,9 +546,14 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// read breakpoint
 	if(address == cpu->memr_breakpoint)
 	{
-		printf("read breakpoint (%x)!\n",cpu->memr_breakpoint);
+		int break_backup = cpu->memr_breakpoint;
 		cpu->memr_breakpoint = -1;
-		enter_debugger(cpu);
+		if(cpu->memr_value == -1 || cpu->memr_value == read_mem(address,cpu))
+		{
+			printf("read breakpoint (%x)!\n",cpu->memr_breakpoint);
+			enter_debugger(cpu);
+		}
+		cpu->memr_breakpoint = break_backup;
 	}
 	#endif
 
@@ -527,6 +652,93 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	}	
 	
 	
+	// sound regs
+	
+	// nr 11 only 7 and 6 readable
+	else if(address == 0xff11)
+	{
+		return cpu->mem[address] & (128 + 64) | (0xff-(128+64));
+	}
+	
+	// write only
+	else if(address == 0xff13)
+	{
+		return 0xff;
+	}
+	
+	// nr 14 only 6 is readable
+	else if(address == 0xff14)
+	{
+		return cpu->mem[address] & (64) | (0xff-64);
+	}
+	
+	// nr 21 only bits 6-7 are r 
+	else if(address == 0xff16)
+	{
+		return cpu->mem[address] & (128 + 64) | (0xff-(128+64));		
+	}
+	
+	// nr 23 write only
+	else if(address == 0xff18)
+	{
+		return 0xff;
+	}
+	
+	// nr 24 only bit 6 can be read 
+	else if(address == 0xff19)
+	{
+		return cpu->mem[address] & (64) | (0xff-64);	
+	}
+	
+	// nr 30 only bit 7
+	else if(address == 0xff1a)
+	{
+		return cpu->mem[address] & (128) | (0xff-128);	
+	}
+	
+	// nr 31 <-- unsure
+	else if(address == 0xff1b)
+	{
+		return 0xff;
+	}
+	
+	// nr 32 6-5 r
+	else if(address == 0xff1c)
+	{
+		return cpu->mem[address] & (64 + 32) | (0xff-(64+32));
+	}
+	
+	// nr33 write only
+	else if(address == 0xff1d)
+	{
+		return 0xff;
+	}
+	
+	// nr 34 6 r
+	else if(address == 0xff1e)
+	{
+		return cpu->mem[address] & (64) | (0xff-64);
+	}
+	
+	// nr 41
+	// requires additional handling
+	else if(address == 0xff20)
+	{
+		return 0xff;
+	}
+
+
+	// nr 44 bit 6
+	else if(address == 0xff23)
+	{
+		return cpu->mem[address] & (64) | (0xff-64);		
+	}
+	
+	// heck knows unsure
+	else if(address >= 0xff2a && address <= 0xff2f)
+	{
+		return 0xff;
+	}
 	
 	else
 	{
@@ -584,6 +796,9 @@ uint16_t read_stackw(Cpu *cpu)
 //void update_graphics(Cpu *cpu, int cycles) todo
 
 
+
+// implement internal timer behavior with div and tima
+// being one reg 
 
 // updates the timers
 void update_timers(Cpu *cpu, int cycles)

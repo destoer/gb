@@ -107,7 +107,7 @@ typedef struct
 	int scanline_counter;
 	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
 	uint8_t joypad_state; // has state of held down buttons
-	
+	int cycles;
 	// banking
 	
 	uint8_t *ram_banks; // 4 banks max
@@ -118,15 +118,27 @@ typedef struct
 	bool rtc_enabled;
 	RomInfo rom_info;
 
+	
+	// sound 
+	
 
+	
+	
+	
 	// rtc 
 
-	// debugger vars
 	
+	
+	
+	
+	
+	// debugger vars
 	#ifdef DEBUG
 	int breakpoint;
 	int memw_breakpoint;
+	int memw_value;
 	int memr_breakpoint;
+	int memr_value;
 	bool step;
 	#endif
 	// bools used to inform cpu of special instrucitons occuring
@@ -134,6 +146,8 @@ typedef struct
 	bool di;
 	bool halt;
 	bool halt_bug;
+	
+	
 	// timers
 	int timer_counter;
 	int div_counter;

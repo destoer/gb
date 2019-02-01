@@ -58,7 +58,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		cpu->mem[0xff44] += 1;
 		
 		// read out of ly register to get current scanline
-		uint8_t current_line = read_mem(0xff44,cpu);
+		uint8_t current_line = cpu->mem[0xff44];
 		
 		cpu->scanline_counter = 114; // <- needs to be one fourth as we use m cycles
 		
@@ -66,7 +66,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		if(current_line == 144)
 		{
 			request_interrupt(cpu,0);
-			if(is_set(read_mem(0xff41,cpu),5))
+			if(is_set(cpu->mem[0xff41],5))
 			{
 				request_interrupt(cpu,1);
 			}
@@ -104,15 +104,13 @@ void set_lcd_status(Cpu *cpu)
 	// mode must be one if lcd is disabled
 	if(!is_lcd_enabled(cpu))
 	{
-		cpu->scanline_counter = 114;
 		cpu->mem[0xff44] = 0;
 		status &= 252;
-		//set_bit(status,0);			// mode might need to be set to one here
-		write_mem(cpu,0xff41,status);
+		cpu->mem[0xff41] = (status | 128);
 		return;
 	}
 	
-	uint8_t currentline = read_mem(0xff44, cpu);
+	uint8_t currentline = cpu->mem[0xff44];
 	uint8_t currentmode = status & 0x3;
 	
 	uint8_t mode = 0;
@@ -175,20 +173,23 @@ void set_lcd_status(Cpu *cpu)
 	// check conincidence flag
 	// needs verifying
 	// if ly == lyc
-	uint8_t lyc = read_mem(0xff45,cpu);
+	uint8_t lyc = cpu->mem[0xff45];
 	
 	// line 153 can be treated as zero 
 	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
 	
-	if(currentline == lyc || currentline == 153 && lyc == 0)
+	if( (currentline == lyc) || (currentline == 153 && lyc == 0) )
 	{
+		bool before = is_set(status,2); // <-- must be 0 before as its a signal edge
 		set_bit(status,2); // set the coincidence flag 
-		if(is_set(status,6)) // <-- lcd compare interrupt enable (bit6 of stat)
+		if(is_set(status,6) && before == false) // <-- lcd compare interrupt enable (bit6 of stat)
 		{
 			request_interrupt(cpu,1);
 		}
 	}
 	
+	
+	// not equal deset coincidence flag
 	else
 	{
 		deset_bit(status,2);
@@ -198,7 +199,7 @@ void set_lcd_status(Cpu *cpu)
 	 
 	
 	// update the lcd status reg
-	write_mem(cpu,0xff41,status);
+	cpu->mem[0xff41] = status | 128;
 }
 
 void draw_scanline(Cpu *cpu)
