@@ -10,13 +10,17 @@
 #include "headers/joypad.h"
 #include "headers/opcode.h"
 #include "headers/debug.h"
-//#include <SDL2/SDL.h>
-#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+#include <SDL2/SDL.h>
+//#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+//33bf
 
-// kirby dreamland 2 doesent work
+// kirby dreamland 2 doesent work <-- read only memory being trashed?
 // 3443
 // 345f
 // 33b7 // can sometimes be off but think its down to when the button is pushed...
+// 33c4 
+// 427b
 
 // fix dma timings 
 
@@ -72,9 +76,7 @@ int main(int argc, char *argv[])
 	
 	memcpy(cpu.mem,cpu.rom_mem,0x8000); // memcpy the first 2 banks in
 	
-	
-	
-	
+
 	// check for a sav batt but for now we just copy the damb thing
 	
 	// should be copied back into the ram banks not the memory where
@@ -271,7 +273,7 @@ int main(int argc, char *argv[])
 			cycles_this_update += cycles;
 			update_timers(&cpu,cycles); // <--- update timers 
 			update_graphics(&cpu,cycles); // handle the lcd emulation
-			do_interrupts(&cpu); // handle interrupts <-- verify it works
+			do_interrupts(&cpu); // handle interrupts 
 			
 			// now we need to test if an ei or di instruction
 			// has just occured if it has step a cpu instr and then 
@@ -282,30 +284,27 @@ int main(int argc, char *argv[])
 			{
 				cpu.ei = false;
 				cycles = step_cpu(&cpu);
+				// we have done an instruction now set ime
+				// needs to be just after the instruction service
+				// but before we service interrupts				
+				cpu.interrupt_enable = true;
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
 				update_graphics(&cpu,cycles); // handle the lcd emulation
-				do_interrupts(&cpu); // handle interrupts <-- verify it works
+				do_interrupts(&cpu); // handle interrupts <-- not sure what should happen here		
 				
-				// we have done an instruction now set ime
-				// may need to be just after the instruction service
-				// but before we service interrupts
-				
-				cpu.interrupt_enable = true;
 			}
 			
 			if(cpu.di) // di
 			{
 				cpu.di = false;
 				cycles = step_cpu(&cpu);
+				// we have executed another instruction now deset ime
+				cpu.interrupt_enable = false;
 				cycles_this_update += cycles;
 				update_timers(&cpu,cycles); // <--- update timers 
 				update_graphics(&cpu,cycles); // handle the lcd emulation
-				do_interrupts(&cpu); // handle interrupts <-- verify it works
-				
-				// we have executed another instruction now deset ime
-				
-				cpu.interrupt_enable = false;
+				do_interrupts(&cpu); // handle interrupts <-- what should happen here?
 			}
 			
 			
@@ -331,11 +330,19 @@ int main(int argc, char *argv[])
 				
 				// appears to detect when it happens but does not emulate the behavior properly
 				
+
+				
 				if( (cpu.interrupt_enable == false) &&  (req & enabled & 0x1f) != 0)
 				{
 					cpu.halt_bug = true;
 				}
 
+				
+				// not sure what defined behaviour is here
+				else if(enabled == 0)
+				{
+						
+				}
 				
 				// normal halt
 				
@@ -362,7 +369,7 @@ int main(int argc, char *argv[])
 		SDL_RenderPresent(renderer);
 
 
-		SDL_Delay(time_left());
+		SDL_Delay(time_left() / 4);
 		next_time += screen_ticks_per_frame;
 	}
 

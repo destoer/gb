@@ -4,10 +4,10 @@
 #include "headers/cpu.h"
 #include "headers/lib.h"
 
-// fix rendering functions 
 
 // TODO rewrite the rendering functions as 
 // to fix links awakening window is somehow scrolling when it shouldunt
+// also seen on super mario land
 // fix sprites being cut off at edges
 // fix screen tearing <-most noicable in gold only on tiles!?
 // than being caused by our ppu implementation
@@ -16,7 +16,7 @@
 // run mooneye ppu tests against it
 // get the bottom 3 ppu mooneye test passing
 // as it doesn't handle edge cases related to stat reg
-// compare with original and fix rewrite
+
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 
@@ -41,174 +41,179 @@ bool is_lcd_enabled(Cpu *cpu)
 
 void update_graphics(Cpu *cpu, int cycles)
 {
+	// set the lcd status
+	set_lcd_status(cpu);
 	
-	//-----------------------
-	// update the stat reg state
-	// and trigger interrupts	
-	
-	// read out current stat reg
-	uint8_t status = cpu->mem[0xff41];
-	
-	// save our current signal state
-	bool signal_old = cpu->signal;
-	
-	// mode is one if lcd is disabled
-	if(!is_lcd_enabled(cpu))
+	if(is_lcd_enabled(cpu))
 	{
-		cpu->mem[0xff44] = 0; // reset ly
-		status &= 252;
-		//status |= 1; // mode 1
-		cpu->mem[0xff41] = status | 128;
-		return; // can exit if ppu is disabled nothing else to do
+		cpu->scanline_counter += cycles;
 	}
-	
-	uint8_t ly = cpu->mem[0xff44];
-	uint8_t currentmode = status & 0x3; // get current mode
-	status &= 252; // mask the mode 
-	
-	uint8_t mode = 0; // store mode switch
-	bool stat_interrupt = false;
-	
-	// vblank (mode 1)
-	if(ly >= 144)
-	{
-		mode = 1;
-		stat_interrupt = is_set(status,4);
-	}
-	
-	// is the mode interrupt enabled
-	
-	
 	else
 	{
-		// oam search (mode 2)
-		if(cpu->scanline_counter <= 20)
-		{
-			mode = 2;
-			stat_interrupt = is_set(status,5);
-		}
-		
-		// pixel transfer (mode 3)
-		else if(cpu->scanline_counter <= 63) 
-		{
-			mode = 3;
-		}
-		
-		// hblank mode 0
-		else // setting mode var is redundant here
-		{ 
-			stat_interrupt = is_set(status,3);	
-		}
+		return;
 	}
 	
-	// update the mode
-	status |= mode;
-	
-	// check coincidence  (lyc == ly)
-	uint8_t lyc = cpu->mem[0xff45];
-	
-	// line 153 can be treated as zero 
-	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
-	if( lyc == ly || (lyc == 0 && ly == 153) )
+	if(cpu->scanline_counter >= 114)
 	{
-		set_bit(status,2); // toggle coincidence bit
-		if(is_set(status,6)) // if interrupt is enabled set the signal
+		// goto next scanline
+		cpu->mem[0xff44] += 1;
+		
+
+	
+		
+		// read out of ly register to get current scanline
+		uint8_t current_line = cpu->mem[0xff44];
+		
+		cpu->scanline_counter = cpu->scanline_counter - 114; // <- needs to be one fourth as we use m cycles
+		
+		// in the vblank period
+		if(current_line == 144)
 		{
-			cpu->signal = true;
-			if(signal_old == false) // if 0 -> 1 req an int 
+			request_interrupt(cpu,0);
+			
+
+			
+			if(is_set(cpu->mem[0xff41],5))
 			{
 				request_interrupt(cpu,1);
 			}
 		}
-	}
-	
-	else
-	{
-		deset_bit(status,2); // deset coincidence bit
-		cpu->signal = false; // <- should this deset?
-	}
-	
-	
-	
-	// if mode has changed and if interrupt is enabled
-	// set signal to one
-	// is_set(status,mode+3) && 
-	if(mode != currentmode && stat_interrupt == true)
-	{
-		cpu->signal = true;
-	}
-	
-	// deset signal
-	else
-	{
-		cpu->signal = false;
-	}
-	
-	
-	
-	// if we have changed from 0 to 1 for signal
-	// request a stat interrupt
-	if(signal_old == false && cpu->signal == true)
-	{
-		request_interrupt(cpu,1);
-	}
-	
-	
-	// update our status reg
-	cpu->mem[0xff41] = status | 128;
-	
-	//--------------------
-	// tick the ppu
+		
+		// if past scanline 153 reset to zero
+		// line 153 acts like zero see 
+		// https://forums.nesdev.com/viewtopic.php?f=20&t=13727
+		else if(current_line > 153)
+		{
+			cpu->mem[0xff44] = 0;
+		
+			// need to draw the scanline immediately or else scanline 0
+			// drawing will be skipped over	
 
-	cpu->scanline_counter += cycles; // advance the cycle counter
+			draw_scanline(cpu);
+			return;
+		}		
+		
+	
 
 
-	// we have finished drawing a line 
-	if(cpu->scanline_counter >= 114)
-	{
-		// if we are not in vblank draw the scanline
-		if(ly < 144)
+		
+		
+
+		
+		// draw the current scanline
+		if(current_line < 144)
 		{
 			draw_scanline(cpu);
-		}
-		
-		// inc the save ly and write it back 
-		ly += 1;
-		
-		cpu->mem[0xff44] = ly;
-		
-		// reset the counter extra cycles should tick over
-		cpu->scanline_counter = cpu->scanline_counter - 114;
-		
-		// vblank has been entered
-		if(ly == 144)
-		{
-			request_interrupt(cpu,0);
-			
-			// edge case oam stat interrupt is triggered here if enabled
-			if(is_set(status,5))
-			{
-				cpu->signal = true;
-				if(signal_old == false)
-				{
-					request_interrupt(cpu,1);
-				}
-			}
-		}
-		
-		// if past 153 reset ly
-		else if(ly > 153)
-		{
-			ly = 0;
-			cpu->mem[0xff44] = ly;
-			
 		}
 	}
 }
 
-	
-	
 
+void set_lcd_status(Cpu *cpu)
+{
+	// lcd status flag 
+	uint8_t status = read_mem(0xff41, cpu);
+	
+	
+	// mode must be one if lcd is disabled
+	if(!is_lcd_enabled(cpu))
+	{
+		cpu->scanline_counter = 0; // think its supposed to not be reset
+		cpu->mem[0xff44] = 0;
+		status &= 252;
+		cpu->signal = false;
+		cpu->mem[0xff41] = (status | 128);
+		return;
+	}
+	
+	uint8_t ly = cpu->mem[0xff44];
+	uint8_t currentmode = status & 0x3;
+	
+	uint8_t mode = 0;
+	bool req_int = false;
+	
+	
+	// in vblank set to mode one
+	if(ly >= 144)
+	{
+		mode = 1;
+		set_bit(status,0);
+		deset_bit(status,1);
+		req_int = is_set(status,4);	
+	}
+	else
+	{
+		// mode 2 // oam search
+		if(cpu->scanline_counter <= 20)
+		{
+			mode = 2;
+			set_bit(status,1);
+			deset_bit(status,0);
+			req_int = is_set(status,5);
+		}
+		
+		// mode 3 // pixel transfer
+		else if(cpu->scanline_counter <= 63)
+		{
+			mode = 3;
+			set_bit(status,1);
+			set_bit(status,0);
+		}
+		
+		// mode 0 // hblank
+		else
+		{
+			mode = 0;
+			deset_bit(status,1);
+			deset_bit(status,0);
+			req_int = is_set(status,3);
+		}
+	}
+
+	
+	// changed mode so req an interrupt
+	if(req_int && (mode != currentmode))
+	{
+		if(cpu->signal == false) // <-- handle signal edge 
+		{
+			request_interrupt(cpu,1);
+		}
+		cpu->signal = true;
+	}
+	
+	else if(mode != currentmode && !req_int)
+	{
+		cpu->signal = false; 
+	}
+	
+	
+	// check conincidence flag
+	// needs verifying
+	// if ly == lyc
+	uint8_t lyc = cpu->mem[0xff45];		
+	// line 153 can be treated as zero 
+	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
+	if( ly == lyc || lyc == 0 && ly == 153 )
+	{
+		set_bit(status,2);
+		if(is_set(status,6) && cpu->signal == false) // <-- lcd compare interrupt enable (bit6 of stat)
+		{
+			request_interrupt(cpu,1);
+		}
+		cpu->signal = true;
+	}
+		
+	// not equal deset coincidence flag
+	else
+	{
+		deset_bit(status,2);
+		cpu->signal = false;
+	}		
+		
+
+	// update the lcd status reg
+	cpu->mem[0xff41] = status | 128;
+}
 
 void draw_scanline(Cpu *cpu)
 {

@@ -12,6 +12,8 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 {
 	
 	uint8_t op;
+	uint8_t operand = read_mem(cpu->pc,cpu);
+	uint16_t operandw = read_word(cpu->pc,cpu);
 	// disass the opcode
 	switch(opcode)
 	{
@@ -20,7 +22,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x1: // ld bc, nn
-			printf("ld bc, %04x\n",load_word(cpu->pc,cpu->mem));
+			printf("ld bc, %04x\n",operandw);
 			break;
 		
 		case 0x2: // ld (bc), a
@@ -40,7 +42,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 			
 		case 0x6: // ld b, n
-			printf("ld b, %x\n",cpu->mem[cpu->pc]);
+			printf("ld b, %x\n",operand);
 			break;
 		
 		case 0x7: // rlca
@@ -52,7 +54,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x08: // ld (nnnn), sp
-			printf("ld (%x), sp\n",load_word(cpu->pc,cpu->mem));
+			printf("ld (%x), sp\n",operandw);
 			break;
 		
 		case 0x9: // add hl, bc
@@ -72,7 +74,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 			
 		case 0xe: // ld c,n
-			printf("ld c, %02x\n",cpu->mem[cpu->pc]);
+			printf("ld c, %02x\n",operand);
 			break;
 			
 		case 0xf: // rrca
@@ -94,7 +96,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 
 			
 		case 0x11: // ld de, nn
-			printf("ld de, %04x\n",load_word(cpu->pc,cpu->mem));
+			printf("ld de, %04x\n",operandw);
 			break;	
 		
 		case 0x12: // ld (de),a
@@ -114,7 +116,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x16: // ld d, n
-			printf("ld d, %x",cpu->mem[cpu->pc]);
+			printf("ld d, %x",operand);
 			break;
 		
 		case 0x17: // rla
@@ -122,7 +124,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x18: // n 
-			printf("jr %02x\n",(cpu->pc+1 + (int8_t)cpu->mem[cpu->pc]));
+			printf("jr %02x\n",(cpu->pc+1 + (int8_t)operand));
 			break;
 		
 		case 0x19: // add hl, de
@@ -146,7 +148,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 					
 		case 0x1e: // ld e, n
-			printf("ld e, %02x\n",cpu->mem[cpu->pc]);
+			printf("ld e, %02x\n",operand);
 			break;
 		
 		case 0x1f: // rra 
@@ -154,11 +156,11 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x20: // jr nz, n
-			printf("jr nz, %02x\n",(cpu->pc+1 + (int8_t)cpu->mem[cpu->pc]));
+			printf("jr nz, %02x\n",(cpu->pc+1 + (int8_t)operand));
 			break;
 			
 		case 0x21: // ld hl, nn
-			printf("ld hl, %04x\n",load_word(cpu->pc,cpu->mem));
+			printf("ld hl, %04x\n",operandw);
 			break;
 		
 		case 0x22: // ldi (hl), a
@@ -178,7 +180,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 
 		case 0x26: // ld h, nn
-			printf("ld h, %x\n",cpu->mem[cpu->pc]);
+			printf("ld h, %x\n",operand);
 			break;
 		
 		case 0x27: // daa (decimal adjust a)
@@ -186,7 +188,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x28: // jr z, n
-			printf("jr z, %02x\n",(cpu->pc+1 + (int8_t)cpu->mem[cpu->pc]));
+			printf("jr z, %02x\n",(cpu->pc+1 + (int8_t)operand));
 			break;
 		
 		case 0x29: // add hl, hl 
@@ -210,7 +212,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x2e: // ld l,n
-			printf("ld l, %02x\n",cpu->mem[cpu->pc]);
+			printf("ld l, %02x\n",operand);
 			break;
 			
 		case 0x2f: // cpl
@@ -218,11 +220,11 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x30: // jr nc, nn
-			printf("jr nc, %x\n",(cpu->pc+1 + (int8_t)cpu->mem[cpu->pc]));
+			printf("jr nc, %x\n",(cpu->pc+1 + (int8_t)operand));
 			break;
 			
 		case 0x31: // ld sp, nn
-			printf("ld sp, %04x\n",load_word(cpu->pc,cpu->mem));		
+			printf("ld sp, %04x\n",operandw);		
 			break;
 			
 		case 0x32: // ldd (hl),a
@@ -242,7 +244,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x36: // ld (hl), n
-			printf("ld (hl), %02x\n",cpu->mem[cpu->pc]);
+			printf("ld (hl), %02x\n",operand);
 			break;
 		
 		case 0x37: // scf
@@ -250,7 +252,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0x38: // jr c, nnnn
-			printf("jr c, %x\n",(cpu->pc+1 + (int8_t)cpu->mem[cpu->pc]));
+			printf("jr c, %x\n",(cpu->pc+1 + (int8_t)operand));
 			break;
 		
 		case 0x39: // add hl, sp
@@ -274,7 +276,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 			
 		case 0x3e: // ld a, nn 
-			printf("ld a, %04x\n",cpu->mem[cpu->pc]);
+			printf("ld a, %04x\n",operand);
 			break;
 		
 		case 0x3f: // ccf
@@ -741,7 +743,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xCA: // jp z, nnnn
-			printf("jp z, %x\n",load_word(cpu->pc,cpu->mem));
+			printf("jp z, %x\n",operandw);
 			break;
 		
 		case 0xCB: // extended opcode 
@@ -800,6 +802,10 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 				
 				case 0x27: // sla a
 					puts("sla a");
+					break;
+				
+				case 0x2f:
+					puts("sra a");
 					break;
 				
 				case 0x33: // swap e
@@ -975,15 +981,15 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xcc: // call z u16
-			printf("call z, %x\n",load_word(cpu->pc,cpu->mem));
+			printf("call z, %x\n",operandw);
 			break;
 		
 		case 0xCD: // call nn 
-			printf("call %04x\n",load_word(cpu->pc,cpu->mem));
+			printf("call %04x\n",operandw);
 			break;
 		
 		case 0xce: // adc a, nn
-			printf("adc a, %x\n",cpu->mem[cpu->pc]);
+			printf("adc a, %x\n",operand);
 			break;
 		
 		case 0xcf: // rst 08
@@ -999,11 +1005,11 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xd2: // jp nc u16
-			printf("jp nc, %x\n",load_word(cpu->pc,cpu->mem));
+			printf("jp nc, %x\n",operandw);
 			break;
 		
 		case 0xd4: // call nc
-			printf("call nc %x\n",load_word(cpu->pc,cpu->mem));
+			printf("call nc %x\n",operandw);
 			break;
 		
 		case 0xd5: // push de
@@ -1011,7 +1017,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xd6: // sub a, nn
-			printf("sub a, %x\n",cpu->mem[cpu->pc]);
+			printf("sub a, %x\n",operand);
 			break;
 		
 		case 0xd7: // rest 10
@@ -1028,19 +1034,19 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 		
 		
 		case 0xda: // jp c u16
-			printf("jp c, %x\n",load_word(cpu->pc,cpu->mem));
+			printf("jp c, %x\n",operandw);
 			break;
 		
 		case 0xdc: // call c, u16
-			printf("call c, %x\n",load_word(cpu->pc,cpu->mem));
+			printf("call c, %x\n",operandw);
 			break;
 		
 		case 0xde: // sbc a, nn
-			printf("sbc a, %x\n",cpu->mem[cpu->pc]);
+			printf("sbc a, %x\n",operand);
 			break;
 		
 		case 0xE0: // LD(FFF0+N),a
-			printf("ld (ff00+%02x),a\n",cpu->mem[cpu->pc]);
+			printf("ld (ff00+%02x),a\n",operand);
 			break;
 		
 		case 0xe1: // pop hl
@@ -1057,11 +1063,11 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 		
 		
 		case 0xe6: // and a, n 
-			printf("and a, %x\n",cpu->mem[cpu->pc]);
+			printf("and a, %x\n",operand);
 			break;
 		
 		case 0xe8: // add sp, i8
-			printf("add sp, %x\n",(int8_t)cpu->mem[cpu->pc]);
+			printf("add sp, %x\n",(int8_t)operand);
 			break;
 		
 		case 0xe9: // jp hl
@@ -1069,11 +1075,11 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xea: // ld (nnnn), a 
-			printf("ld (%04x), a\n",load_word(cpu->pc,cpu->mem));
+			printf("ld (%04x), a\n",operandw);
 			break;
 		
 		case 0xee: // xor a, nn
-			printf("cpu a, %x\n",cpu->mem[cpu->pc]);
+			printf("cpu a, %x\n",operand);
 			break;
 		
 		case 0xef: // rst 28
@@ -1081,7 +1087,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xf0: // ld a, (ff00+n)
-			printf("ld a, (ff00+%02x)\n",cpu->mem[cpu->pc]);
+			printf("ld a, (ff00+%02x)\n",operand);
 			break;
 		
 		case 0xf1: // pop af
@@ -1101,11 +1107,11 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xf6: // or a, nn
-			printf("or a, %x\n",cpu->mem[cpu->pc]);
+			printf("or a, %x\n",operand);
 			break;
 		
 		case 0xf8: // ld hlsp, n
-			printf("ld sp, hl + %x\n",(int8_t)cpu->mem[cpu->pc]);
+			printf("ld sp, hl + %x\n",(int8_t)operand);
 			
 			break;
 		
@@ -1114,7 +1120,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xfa: // ld a (nn) <- 16 bit address
-			printf("ld a, (%x)\n",load_word(cpu->pc,cpu->mem));
+			printf("ld a, (%x)\n",operandw);
 			break;
 		
 		case 0xfb: // ei
@@ -1122,7 +1128,7 @@ void disass_8080(const uint8_t opcode, const Cpu *cpu)
 			break;
 		
 		case 0xfe: // cp a, n (cmp)
-			printf("cp a, %02x\n",cpu->mem[cpu->pc]);
+			printf("cp a, %02x\n",operand);
 			break;
 		
 		default:

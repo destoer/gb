@@ -1,9 +1,3 @@
-// VBLANK interrupt is what should be taking the game out of the loop
-// but it is not running after left is pressed...
-
-
-// fix adc and sbc
-
 #include "headers/lib.h"
 #include "headers/cpu.h"
 #include "headers/opcode_cb.h"
@@ -16,14 +10,45 @@
 #include <stdio.h>
 
 
-//static int breakpoint = 0x2299;
-//static int breakpoint = 0x29fe;
-//static int breakpoint = 0x100;
-//static int breakpoint = 0x1c4f; // by the second time its reached bc has the wrong value from the ret
-//static int breakpoint = 0x2b40;
-//static int breakpoint = 0x2afe;
-//static int breakpoint = 0x1638; // break in bgb at 0346 after first hit
-//static int breakpoint = 0x164f;
+#include <stdarg.h>
+
+inline void write_log(const char *fmt, ...);
+
+
+
+
+
+void write_log(const char *fmt, ...)
+{
+#ifdef DEBUG
+		va_list args;
+		
+		va_start(args,fmt);
+		
+		// for obvious reasons dumping this much data to a file 
+		// in this way repeatedly is slow as hell
+		
+		//FILE *fp = fopen("log.txt","a+");
+		
+		/*if(fp == NULL)
+		{
+			puts("Error writing to log");
+			exit(1);
+		}*/
+		
+		vprintf(fmt,args);
+		//fclose(fp);
+		va_end(args);
+#endif
+}
+
+
+
+
+
+
+
+
 
 // potentially need the rominfo too but not needed yet
 int step_cpu(Cpu * cpu)
@@ -32,8 +57,6 @@ int step_cpu(Cpu * cpu)
 
 	
 	#ifdef DEBUG
-	// breakpoint (fail inside call at 1c3c) <--- specifically at 2b03 with a read from ff89
-	//printf("%x: %x\n",cpu->pc,cpu->breakpoint);
 	if(cpu->pc == cpu->breakpoint || cpu->step) 
 	{
 		
@@ -42,9 +65,8 @@ int step_cpu(Cpu * cpu)
 		// enter commands exit when run command typed
 		cpu->step = false; // disable stepping
 		printf("execution breakpoint hit at %x\n",cpu->pc);
-		cpu->breakpoint = -1; // deset the breakpoint
 		uint8_t opcode = read_mem(cpu->pc++,cpu);
-		disass_8080(opcode,cpu);
+		./disass_8080(opcode,cpu);
 		enter_debugger(cpu);
 		cpu->pc -= 1; // correct pc 
 		
@@ -52,8 +74,7 @@ int step_cpu(Cpu * cpu)
 	#endif
 
 	
-	// one byte immediate
-	// instrucitons may need to be signed? eg ld a, (ff00 + n)
+
 	
 	// read an opcode and inc the program counter
 	uint8_t opcode;
@@ -61,12 +82,12 @@ int step_cpu(Cpu * cpu)
 	uint8_t cbop;
 	
 	// normal execution
-	
-	
 	opcode = read_mem(cpu->pc++,cpu);
 	//print cpu state and disassemble the opcode
 	//cpu_state(cpu);
 	//disass_8080(opcode, cpu);		
+	
+	
 	
 
 	// halt bug fail to inc pc
@@ -77,14 +98,8 @@ int step_cpu(Cpu * cpu)
 	}
 	
 	
-
-	
-	
-	
-	
-	
-	// decode and execute 
-	//(opcode loads may need to go through the read mem funcion at some point)
+	// decode and execute <-- should not happen in one go 
+	// but its "good" enough
 	switch(opcode)
 	{
 		case 0x0: // nop
@@ -110,7 +125,6 @@ int step_cpu(Cpu * cpu)
 			
 		case 0x5: // dec b
 			dec(cpu, cpu->bc.hb--);
-			//print_flags(cpu);
 			break;
 			
 		case 0x6: // ld b, n
@@ -125,7 +139,6 @@ int step_cpu(Cpu * cpu)
 		
 		case 0x8: // ld (nnnn), sp
 			write_word(cpu,read_word(cpu->pc,cpu),cpu->sp);
-			//printf("write: [%x]%x [%x]%x\n",read_word(cpu->pc,cpu),read_mem(read_word(cpu->pc,cpu),cpu),read_word(cpu->pc,cpu)+1,read_mem(read_word(cpu->pc,cpu)+1,cpu));
 			cpu->pc += 2; // for two immediate ops
 			break;
 		
@@ -166,6 +179,7 @@ int step_cpu(Cpu * cpu)
 			deset_bit(cpu->af.lb,Z);
 			break;
 			
+			// most games should never even execute this 
 		case 0x10: // stop <-- FIX THIS LATER
 			puts("fix stop");
 			//exit(1);
@@ -205,7 +219,8 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x18: // jr n
-			operand = (int8_t)read_mem(cpu->pc++, cpu);
+			operand = read_mem(cpu->pc++, cpu);
+			write_log("jr n at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 			cpu->pc += operand;
 			break;
 		
@@ -240,9 +255,10 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x20: // jr nz, n
-			operand = (uint8_t)read_mem(cpu->pc++, cpu);
+			operand = read_mem(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb, Z))
 			{
+				write_log("jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -312,6 +328,7 @@ int step_cpu(Cpu * cpu)
 			operand = read_mem(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb, Z))
 			{
+				write_log("jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -353,6 +370,7 @@ int step_cpu(Cpu * cpu)
 			operand = read_mem(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb,C))
 			{
+				write_log("jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -402,6 +420,7 @@ int step_cpu(Cpu * cpu)
 			operand = read_mem(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb,C))
 			{
+				write_log("jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				return mtcycles[opcode];
 			}
@@ -562,7 +581,7 @@ int step_cpu(Cpu * cpu)
 			cpu->de.lb = cpu->de.hb; 
 			break;
 		
-		case 0x5b: // ld ,
+		case 0x5b: // ld e, e
 			// nop 
 			break;
 		
@@ -673,9 +692,8 @@ int step_cpu(Cpu * cpu)
 			write_mem(cpu,cpu->hl.reg,cpu->hl.lb);
 			break;
 		
-		case 0x76: // halt <-- todo
+		case 0x76: // halt 
 			// caller will handle
-			//puts("Implement halt");
 			cpu->halt = true;
 			break;
 		
@@ -756,7 +774,6 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x89: // adc c (add carry + n)
-			//add(cpu,cpu->bc.lb + val_bit(cpu->af.lb,C));
 			adc(cpu,cpu->bc.lb);
 			break;
 		
@@ -786,8 +803,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x90: // sub b
-			 sub(cpu,cpu->bc.hb);
-			//cpu_state(cpu); print_flags(cpu); exit(1);
+			sub(cpu,cpu->bc.hb);
 			break;
 		
 		case 0x91: // sub c
@@ -1001,6 +1017,7 @@ int step_cpu(Cpu * cpu)
 		
 			if(!is_set(cpu->af.lb,Z))
 			{
+				write_log("jp nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1019,6 +1036,7 @@ int step_cpu(Cpu * cpu)
 		case 0xc4: // call nz
 			if(!is_set(cpu->af.lb,Z))
 			{
+				write_log("call nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
 				return mtcycles[opcode];
@@ -1059,6 +1077,7 @@ int step_cpu(Cpu * cpu)
 		case 0xca: // jp z, nnnn
 			if(is_set(cpu->af.lb, Z))
 			{
+				write_log("jp z at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1097,6 +1116,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xCD: // call nn <-- verify
+			write_log("call at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 			write_stackw(cpu,cpu->pc+2);
 			cpu->pc = read_word(cpu->pc, cpu);
 			break;
@@ -1125,6 +1145,7 @@ int step_cpu(Cpu * cpu)
 		case 0xd2: // jp nc u16
 			if(!is_set(cpu->af.lb,C))
 			{
+				write_log("jp nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1138,6 +1159,7 @@ int step_cpu(Cpu * cpu)
 		case 0xd4: // call nc nnnn
 			if(!is_set(cpu->af.lb,C))
 			{
+				write_log("call nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
 				return  mtcycles[opcode];
@@ -1178,6 +1200,7 @@ int step_cpu(Cpu * cpu)
 		case 0xda: // jp c, u16
 			if(is_set(cpu->af.lb,C))
 			{
+				write_log("jp c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
 			}
@@ -1191,6 +1214,7 @@ int step_cpu(Cpu * cpu)
 		case 0xdc: // call c, u16
 			if(is_set(cpu->af.lb,C))
 			{
+				write_log("call c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
 				return mtcycles[opcode];
@@ -1243,6 +1267,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xe9: // jp hl
+			write_log("jp hl at %x -> %x\n",cpu->pc-1,cpu->hl.reg);
 			cpu->pc = cpu->hl.reg;
 			break;
 		
@@ -1328,6 +1353,11 @@ int step_cpu(Cpu * cpu)
 			fprintf(stderr, "[cpu] Unknown opcode: %x\n", opcode);
 			cpu_state(cpu);
 			print_flags(cpu);
+			for(int i = 0; i <= 10; i++)
+			{
+				printf("stack address %x\n",read_stackw(cpu));
+			}
+			printf("rom_bank = %x\n",cpu->currentrom_bank);
 			for(;;) { }
 			//exit(1);
 			#endif

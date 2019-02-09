@@ -20,13 +20,17 @@
 uint16_t load_word(uint16_t pc, uint8_t *mem);
 
 
+
+// if this done work (likely)
+// change back function names and uncomment hte old macro
+
 // set a bit 
 #define set_bit(dest,bit) ((dest) |= (1 << bit))
-//uint8_t set_bit(int num,uint8_t bit);
+//uint8_t set_bit(uint8_t num,uint8_t bit);
 
 // deset (that is set to zero a bit)
-#define deset_bit(dest,bit) ((dest) &= ~(1 << bit))
-//uint8_t deset_bit(int num,uint8_t bit);
+#define deset_bit(dest,bit) ((dest) &= ~(1 << bit)) 
+//uint8_t deset_bit(uint8_t num,uint8_t bit);
 
 bool is_set(uint8_t reg, uint8_t bit);
 uint8_t val_bit(uint8_t data, int position);
