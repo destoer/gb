@@ -66,7 +66,7 @@ int step_cpu(Cpu * cpu)
 		cpu->step = false; // disable stepping
 		printf("execution breakpoint hit at %x\n",cpu->pc);
 		uint8_t opcode = read_mem(cpu->pc++,cpu);
-		./disass_8080(opcode,cpu);
+		disass_8080(opcode,cpu);
 		enter_debugger(cpu);
 		cpu->pc -= 1; // correct pc 
 		

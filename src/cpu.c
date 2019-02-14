@@ -34,7 +34,6 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 {	
 	Cpu cpu;
 	cpu.mem = calloc(0x10000, sizeof(uint8_t)); // main memory
-	cpu.ram_banks = calloc(0x8000,sizeof(uint8_t)); // ram banks
 	cpu.currentram_bank = 0;
 	cpu.currentrom_bank = 1; // all ways at least one
 	cpu.rom_banking = true; // default
@@ -472,6 +471,8 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		return;
 	}
 
+
+
 	// lcd stat <-- writes can trigger intterupts?
 	else if(address == 0xff41)
 	{
@@ -666,7 +667,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 11 only 7 and 6 readable
 	else if(address == 0xff11)
 	{
-		return (cpu->mem[address] & (128 + 64)) | (0xff-(128+64));
+		return cpu->mem[address] & (128 + 64) | (0xff-(128+64));
 	}
 	
 	// write only
@@ -678,13 +679,13 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 14 only 6 is readable
 	else if(address == 0xff14)
 	{
-		return (cpu->mem[address] & (64)) | (0xff-64);
+		return cpu->mem[address] & (64) | (0xff-64);
 	}
 	
 	// nr 21 only bits 6-7 are r 
 	else if(address == 0xff16)
 	{
-		return (cpu->mem[address] & (128 + 64)) | (0xff-(128+64));		
+		return cpu->mem[address] & (128 + 64) | (0xff-(128+64));		
 	}
 	
 	// nr 23 write only
@@ -696,13 +697,13 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 24 only bit 6 can be read 
 	else if(address == 0xff19)
 	{
-		return (cpu->mem[address] & (64)) | (0xff-64);	
+		return cpu->mem[address] & (64) | (0xff-64);	
 	}
 	
 	// nr 30 only bit 7
 	else if(address == 0xff1a)
 	{
-		return (cpu->mem[address] & (128)) | (0xff-128);	
+		return cpu->mem[address] & (128) | (0xff-128);	
 	}
 	
 	// nr 31 <-- unsure
@@ -714,7 +715,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 32 6-5 r
 	else if(address == 0xff1c)
 	{
-		return (cpu->mem[address] & (64 + 32)) | (0xff-(64+32));
+		return cpu->mem[address] & (64 + 32) | (0xff-(64+32));
 	}
 	
 	// nr33 write only
@@ -726,7 +727,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 34 6 r
 	else if(address == 0xff1e)
 	{
-		return (cpu->mem[address] & (64)) | (0xff-64);
+		return cpu->mem[address] & (64) | (0xff-64);
 	}
 	
 	// nr 41
@@ -740,7 +741,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 44 bit 6
 	else if(address == 0xff23)
 	{
-		return (cpu->mem[address] & (64)) | (0xff-64);		
+		return cpu->mem[address] & (64) | (0xff-64);		
 	}
 	
 	// heck knows unsure

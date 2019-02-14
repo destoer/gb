@@ -87,15 +87,13 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 				cpu->currentram_bank = 0;
 			}
 	
-			else if((cpu->currentram_bank <= 3 || cpu->rom_info.has_rtc) && cpu->currentram_bank >= cpu->rom_info.noRamBanks)
+			else if(cpu->currentram_bank <= 3 && cpu->currentram_bank >= cpu->rom_info.noRamBanks)
 			{
 				//printf("[BANKING] Attempted to set a  ram bank greater than max %d\n",cpu->currentram_bank);
 				cpu->currentram_bank %= cpu->rom_info.noRamBanks;
 				//exit(1);
 			}
 			
-			
-
 			//puts("MBC3 ram change");	
 		}
 	}

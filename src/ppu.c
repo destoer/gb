@@ -4,7 +4,7 @@
 #include "headers/cpu.h"
 #include "headers/lib.h"
 
-// fix rendering functions 
+// fix rendering functions  // <--- just the cut off at the top of the screen 
 
 // TODO rewrite the rendering functions as 
 // to fix links awakening window is somehow scrolling when it shouldunt
@@ -17,6 +17,10 @@
 // get the bottom 3 ppu mooneye test passing
 // as it doesn't handle edge cases related to stat reg
 // compare with original and fix rewrite
+
+
+// gold locking up waiting for a vblank interrupt if left alone for too long ?
+// get the vblank test passing 
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 
@@ -178,32 +182,33 @@ void update_graphics(Cpu *cpu, int cycles)
 		cpu->mem[0xff44] = ly;
 		
 		// reset the counter extra cycles should tick over
-		cpu->scanline_counter = cpu->scanline_counter - 114;
-		
+		//cpu->scanline_counter = cpu->scanline_counter - 114;
+		cpu->scanline_counter = 0;
 		// vblank has been entered
 		if(ly == 144)
 		{
 			request_interrupt(cpu,0);
 			
 			// edge case oam stat interrupt is triggered here if enabled
-			if(is_set(status,5))
+			if(is_set(status,5) || is_set(status,4))
 			{
-				cpu->signal = true;
 				if(signal_old == false)
 				{
 					request_interrupt(cpu,1);
 				}
+				cpu->signal = true;
 			}
 		}
 		
 		// if past 153 reset ly
-		else if(ly > 153)
+		else if(ly > 154)
 		{
 			ly = 0;
 			cpu->mem[0xff44] = ly;
 			
 		}
 	}
+	
 }
 
 	
@@ -305,6 +310,7 @@ void render_tiles(Cpu *cpu)
 	
 	else
 	{
+		
 		y_pos = read_mem(0xff44,cpu) - window_y;
 	}
 	
@@ -314,15 +320,18 @@ void render_tiles(Cpu *cpu)
 	
 	// time to start drawing the 160 horizontal pixels
 	// for the scanline
-	for(int pixel = 0; pixel < 160; pixel++)
+	for(uint8_t pixel = 0; pixel < 160; pixel++)
 	{
-		uint8_t x_pos = pixel + scroll_x;
-		
-		// translate the current x pos to window space
+		uint8_t x_pos = pixel;
+		if(!using_window) // <-- dont think this is correct
+		{
+			x_pos += scroll_x;
+		}
+		// translate the current x pos to window space // <--- think this causes the weird wrapping behavior with links awakening
 		// if needed
 		if(using_window)
 		{
-			if(pixel >= window_x)
+			if(x_pos >= window_x)
 			{
 				x_pos = pixel - window_x;
 			}
@@ -397,14 +406,13 @@ void render_tiles(Cpu *cpu)
 			case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77; break;
 		}
 	
-		int final_y = read_mem(0xff44,cpu);
+		uint8_t final_y = read_mem(0xff44,cpu);
 	
 	
 		// saftey check (not required?)
-		if ((final_y<0)||(final_y>143)||(pixel<0)||(pixel>159))
-        	{
+		if((final_y>143)||(pixel>159))
+        {
 			continue;
-			//exit(1); {} continue;
 		}
 		
 		cpu->screen[final_y][pixel][0] = red;
@@ -453,11 +461,11 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 	
-	for(int sprite = 0; sprite < 40; sprite++) // more efficent to count loop down instead of up
+	for(int sprite = 39; sprite >= 0; sprite--) // more efficent to count loop down instead of up
 	{
 		// sprite takes 4 bytes in the sprite attributes table
 		uint8_t index = sprite*4; 
-		uint8_t y_pos = read_mem(0xfe00+index,cpu) - 16;
+		uint8_t y_pos = (read_mem(0xfe00+index,cpu));
 		uint8_t x_pos = read_mem(0xfe00+index+1, cpu)-8;
 		uint8_t sprite_location = read_mem(0xfe00+index+2,cpu);
 		uint8_t attributes = read_mem(0xfe00+index+3, cpu);
@@ -465,14 +473,17 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 		bool y_flip = is_set(attributes,6);
 		bool x_flip = is_set(attributes,5);
 		
-		int scanline = read_mem(0xff44,cpu);
+		uint8_t scanline = read_mem(0xff44,cpu);
 		
 
 		
-		// does this sprite intercept with the scanline
-		if((scanline >= y_pos) && (scanline < (y_pos+y_size)))
-		{
-			int line = scanline - y_pos;
+		
+		// does this sprite  intercept with the scanline
+		if( scanline -(y_size - 16) < y_pos  && scanline + 16 >= y_pos )
+		{	
+			y_pos -= 16;
+			uint8_t line = scanline - y_pos; 
+			
 			
 			// read the sprite backwards in y axis
 			if(y_flip)
@@ -529,15 +540,14 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 					case DARK_GRAY: red =0x77; green = 0x77; blue = 0x77; break;
 				}
 				
-				int x_pix = 0 - sprite_pixel;
+				uint8_t x_pix = 0 - sprite_pixel;
 				x_pix += 7;
 				
-				int pixel = x_pos + x_pix;
+				uint8_t pixel = x_pos + x_pix;
 				
-				if ((scanline<0)||(scanline>143)||(pixel<0)||(pixel>159))
+				if ((scanline>143)||(pixel>159))
 				{
 					continue;
-					//exit(1); continue ;
 				}
 	
 	
@@ -545,8 +555,9 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				// white is transparent even if the flag is set
 				
 				
-				// <-- can optimise the hell out of this
-				if(is_set(attributes,7))
+				// <-- can optimise the hell out of this use a priority array lol
+				//if(is_set(attributes,7))
+				if(0)
 				{
 					
 					// check what id the background had 

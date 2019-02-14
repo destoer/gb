@@ -10,8 +10,8 @@
 #include "headers/joypad.h"
 #include "headers/opcode.h"
 #include "headers/debug.h"
-#include <SDL2/SDL.h>
-//#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+//#include <SDL2/SDL.h>
+#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 //#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 //33bf
 
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 	printf("Cpu located at %p\n",&cpu);
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
-	
+	cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
 	
 	
 	
@@ -87,16 +87,13 @@ int main(int argc, char *argv[])
 	
 	strcat(savename,"sv");
 				
-	FILE *fp = fopen(savename,"r");
+	FILE *fp = fopen(savename,"rb");
 	
 	// if file doesn't exist just ignore it
 	if(fp != NULL)
 	{
-		
-		
 		fread(cpu.ram_banks,sizeof(uint8_t),(0x2000*cpu.rom_info.noRamBanks),fp);
 		fclose(fp);
-		
 	}
 	
 	free(savename);
@@ -184,14 +181,14 @@ int main(int argc, char *argv[])
 				
 				strcat(savename,"sv");
 				
-				fp = fopen(savename,"w");
+				fp = fopen(savename,"wb");
 				
 				
 				
 				fwrite(cpu.ram_banks,sizeof(uint8_t),(0x2000*cpu.rom_info.noRamBanks),fp);
 				
 				
-				//fwrite(&cpu.mem[0xa000],1,0x2000,fp);
+
 				
 				free(savename);
 				fclose(fp);
@@ -369,7 +366,7 @@ int main(int argc, char *argv[])
 		SDL_RenderPresent(renderer);
 
 
-		SDL_Delay(time_left() / 4);
+		//SDL_Delay(time_left());
 		next_time += screen_ticks_per_frame;
 	}
 
