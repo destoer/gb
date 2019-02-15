@@ -44,3 +44,20 @@ uint8_t val_bit(uint8_t data, int position)
 	uint8_t mask = 1 << position ;
 	return ( data & mask ) ? 1 : 0 ;
 }
+
+
+void binary(int number)
+{
+	int counter = 1;
+	int mask = 128;
+	while(counter <= 8)
+	{
+		putchar(number & mask? '1' : '0');
+		number = number << 1;
+		if(counter % 8 == 0)
+		{
+			putchar(' ');
+		}
+		counter++;
+	}
+}

@@ -86,7 +86,6 @@ void enter_debugger(Cpu *cpu)
 		int command_num = -1;
 		for(int i = 0; i < COMMANDS; i++)
 		{
-			//printf("%s : %s\n",token,c1[i]);
 			if(0 == strcmp(token,c1[i]))
 			{
 				command_num = i;
@@ -94,7 +93,6 @@ void enter_debugger(Cpu *cpu)
 			}
 		}
 		
-		//printf("%d : %s\n",command_num,c1[command_num]);
 		
 		// call the selected function
 		if(command_num < COMMANDS-1 && command_num >= 0)
@@ -137,7 +135,7 @@ void enter_debugger(Cpu *cpu)
 			printf("[ERROR] unknown command %s\n",token);
 		}
 	}
-	//puts("resuming execution...");
+	
 }
 
 

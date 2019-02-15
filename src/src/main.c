@@ -13,22 +13,7 @@
 //#include <SDL2/SDL.h>
 #include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
 //#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
-//33bf
 
-// kirby dreamland 2 doesent work <-- read only memory being trashed?
-// 3443
-// 345f
-// 33b7 // can sometimes be off but think its down to when the button is pushed...
-// 33c4 
-// 427b
-
-// fix dma timings 
-
-// fix ppu window 
-// cause links awakening is scrolling the thing
-// when it shouldunt be affected
-
-// fps limiting may not be accurate and may need fixing later
 static int next_time;
 
 uint32_t time_left(void)
@@ -43,11 +28,7 @@ uint32_t time_left(void)
 }
 
 
-// alot of the writemem and readme inside
-// the memory and ppu functions can likely be removed 
-// along with the opcode fetches
-// need to fix mbc2 (or maybye just battery detection)
-// either way f1 race aint saving 
+
 
 
 
@@ -317,10 +298,7 @@ int main(int argc, char *argv[])
 
 				uint8_t req = cpu.mem[0xff0f]; // req ints 
 				uint8_t enabled = cpu.mem[0xffff]; // enabled interrutps
-				
-				//printf("halt req: %x, enabled: %x, ime: %x\n",req,enabled,cpu.interrupt_enable);
-				
-				
+		
 				// halt bug
 				// halt state not entered and the pc fails to increment for
 				// one instruction read 

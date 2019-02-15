@@ -11,18 +11,15 @@
 #include "headers/debug.h"
 #include "headers/ppu.h"
 
-// c2e6 for write test :) 
-// first set of writes is correct bar 
-// ff26 but it retains its value as it should
 
-// ff1a is failing its value at 80
+
 
 uint8_t read_mem(uint16_t address, Cpu *cpu);
 bool is_set(uint8_t reg, uint8_t bit);
 int set_clock_freq(Cpu *cpu);
 void service_interrupt(Cpu *cpu,int interrupt);
 
-// fix sprites next 
+
 // fix interrupt timing
 
 // WORK on sound emulation 1st make sure unused bits are properly handled
@@ -46,13 +43,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.hl.reg = 0x014d;
 	cpu.sp = 0xFFFE;
 	cpu.cycles = 0; // cycles from interrupts etc
-	/*
-	cpu.af.reg = 0x1180;
-	cpu.bc.reg = 0x0000;
-	cpu.de.reg = 0xff56;
-	cpu.hl.reg = 0x000d;
-	cpu.sp = 0xfffe;
-	*/
+
 	cpu.mem[0xFF10] = 0x80;
 	cpu.mem[0xFF11] = 0xBF;	
 	cpu.mem[0xFF12] = 0xF3;
@@ -69,7 +60,6 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.mem[0xFF25] = 0xF3;
 	cpu.mem[0xFF26] = 0xF1;
 	cpu.mem[0xFF40] = 0x91;
-
 	cpu.mem[0xFF47] = 0xFC;
 	cpu.mem[0xFF48] = 0xFF;
 	cpu.mem[0xFF49] = 0xFF;
@@ -91,22 +81,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.mem[0xff27] = 0xff;
 	cpu.mem[0xff28] = 0xff;
 	cpu.mem[0xff29] = 0xff;
-	
-	
-
-	
-
-	
-	
-
 	cpu.mem[0xff20] = 0xff;
-/*	cpu.mem[0xff2a] = 0xff;
-	cpu.mem[0xff2b] = 0xff;
-	cpu.mem[0xff2c] = 0xff;
-	cpu.mem[0xff2d]	= 0xff;
-	cpu.mem[0xff2e] = 0xff;
-	cpu.mem[0xff2f] = 0xff;
-*/	
+
 	
 	cpu.pc = 0x100; // reset at 0x100
 	cpu.tacfreq = 256; // number of machine cycles till update
@@ -143,7 +119,6 @@ void request_interrupt(Cpu * cpu,int interrupt)
 	uint8_t req = cpu->mem[0xff0f];
 	set_bit(req,interrupt);
 	cpu->mem[0xff0f] = req;
-	//puts("Interrupt sucessfully requested");
 }
 
 
@@ -156,8 +131,6 @@ void do_interrupts(Cpu *cpu)
 	{	
 		// get the set requested interrupts
 		uint8_t req = cpu->mem[0xff0f];
-		//uint8_t req = read_mem(cpu,0xff0f); // read mem appears to be returning ff may cause issues later
-		//printf("req: %x : %x\n",req,cpu->mem[0xff0f]);
 		// checked that the interrupt is enabled from the ie reg 
 		uint8_t enabled = cpu->mem[0xffff];
 		
@@ -173,7 +146,6 @@ void do_interrupts(Cpu *cpu)
 					// check that the particular interrupt is enabled
 					if(is_set(enabled,i))
 					{
-						//printf("service: %d\n", i);
 						service_interrupt(cpu,i);
 						cpu->cycles += 5; // 5 for interrupt dispatch
 					}
@@ -214,12 +186,7 @@ void service_interrupt(Cpu *cpu,int interrupt)
 		case 3: cpu->pc = 0x58; break; //serial (not fully implemented)
 		case 4: cpu->pc = 0x60; break; // joypad
 		default: printf("Invalid interrupt %d at %x\n",interrupt,cpu->pc); exit(1);
-	}
-		
-		
-		
-	
-	//printf("Interrupt: cpu->pc = %x\n",cpu->pc);	
+	}	
 }
 
 
@@ -331,7 +298,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 
 	
 
-	// serial control (stub)
+/*	// serial control (stub)
 	else if(address == 0xff02)
 	{
 		data |= 2; // <-- for dmg 
@@ -341,7 +308,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		cpu->mem[0xff01] = 0xff;		
 		return; 
 	}
-
+*/
 	//---------------------------
 	// unused hwio
 	
@@ -518,18 +485,11 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	
 	else if(address == 0xff0f)
 	{
-		//printf("write to if: %x\n",data);
 		cpu->mem[address] = data | (128 + 64 + 32); // top 3 bits allways on
 		return;
 	}
 	
-/*	else if(address == 0xff00)
-	{
-		printf("write to joypad %x\n",data);
-		cpu->mem[address] = (207 | data);
-		printf("emu wrote %x\n",207 | data);
-	}
-*/	
+
 
 	
 	// unrestricted
@@ -542,7 +502,6 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 
 void write_word(Cpu *cpu,uint16_t address,int data) // <- verify 
 {
-	//printf("data: %x, [%x]%x, [%x]%x\n", data,address,data & 0xff,address+1, (data & 0xff00) >> 8);
 	write_mem(cpu,address+1,((data & 0xff00) >> 8));
 	write_mem(cpu,address,(data & 0x00ff));
 }
@@ -571,11 +530,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// are we reading from a rom bank
 	if((address >= 0x4000) && (address <= 0x7FFF))
 	{
-		//printf("Reading from rom bank %x\n",cpu->currentrom_bank);
 		uint16_t new_address = address - 0x4000;
-		//printf("address %x\n",(new_address + (cpu->currentrom_bank*0x4000)));
-		//printf("bank offset %x\n",(cpu->currentrom_bank*0x4000));
-		//printf("raw address = %x\n",address);
 		return cpu->rom_mem[new_address + (cpu->currentrom_bank*0x4000)];
 	}
 		
@@ -588,15 +543,12 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 		if(cpu->enable_ram && cpu->currentram_bank <= 3)
 		{
 			uint16_t new_address = address - 0xa000;
-			//printf("read ram bank: %x : %x\n",cpu->currentram_bank,cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)]);
 			return cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
 		}
 		
 		else
 		{
 			return 0xff;
-			//printf("read disabled ram bank %x\n",cpu->mem[address]);
-			//return cpu->mem[address];  //<-- doubt its this one
 		}
 	}
 	
@@ -631,20 +583,17 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	
 	
 	
-	else if(address == 0xff00) // joypad control reg <-- cleary bugged
+	else if(address == 0xff00) // joypad control reg <-- used for sgb command packets too
 	{
 		
-		//puts("Joypad read:");
-		//cpu_state(cpu);
+
 		
 		// read from mem
 		uint8_t req = cpu->mem[0xff00];
-		//printf("Joypad req = %x\n",req);
 		// we want to test if bit 5 and 4 are set 
 		// so we can determine what the game is interested
 		// in reading
-		
-		
+				
 		
 		// read out dpad 
 		if(!is_set(req,4))
@@ -781,11 +730,9 @@ uint16_t read_word(int address, Cpu *cpu)
 
 void write_stack(Cpu *cpu, uint8_t data)
 {
-	cpu->sp -= 1;
-	//printf("write to stack [%x] = %x\n",cpu->sp,data);
+	cpu->sp -= 1; // dec stack pointer before writing mem for push
 	write_mem(cpu,cpu->sp,data); // write to stack
-	// and decrement stack pointer
-	//printf("stack now located at [%x]\n",cpu->sp);
+
 }
 
 
@@ -815,7 +762,7 @@ uint16_t read_stackw(Cpu *cpu)
 
 
 
-//void update_graphics(Cpu *cpu, int cycles) todo
+
 
 
 
@@ -851,7 +798,6 @@ void update_timers(Cpu *cpu, int cycles)
 			if(cpu->mem[TIMA] == 255)
 			{	
 				cpu->mem[TIMA] = cpu->mem[TMA]; // reset to value in tma
-				//puts("Timer overflow!");
 				request_interrupt(cpu,2); // timer overflow interrupt
 			}
 			

@@ -113,7 +113,7 @@ void update_graphics(Cpu *cpu, int cycles)
 	
 	// line 153 can be treated as zero 
 	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
-	if( lyc == ly )
+	if( lyc == ly || (lyc == 0 && ly == 153) )
 	{
 		set_bit(status,2); // toggle coincidence bit
 		if(is_set(status,6)) // if interrupt is enabled set the signal
@@ -490,7 +490,8 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 			// read the sprite backwards in y axis
 			if(y_flip)
 			{
-				line -= y_size;
+				line -= (y_size);
+				line += 1;
 				line *= -1;
 			}
 			
@@ -558,6 +559,7 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				
 				
 				// <-- can optimise the hell out of this use a priority array lol
+				// but trying to save memory.....
 				if(is_set(attributes,7))
 				{
 					
