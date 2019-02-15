@@ -118,7 +118,8 @@ void update_graphics(Cpu *cpu, int cycles)
 		set_bit(status,2); // toggle coincidence bit
 		if(is_set(status,6)) // if interrupt is enabled set the signal
 		{
-			cpu->signal = true;
+			//cpu->signal = true;
+			// ^ lyc shares a different line?
 			if(signal_old == false) // if 0 -> 1 req an int 
 			{
 				request_interrupt(cpu,1);
@@ -129,7 +130,8 @@ void update_graphics(Cpu *cpu, int cycles)
 	else
 	{
 		deset_bit(status,2); // deset coincidence bit
-		cpu->signal = false; // <- should this deset?
+		//cpu->signal = false; // <- should this deset?
+		// ^ lyc shares a different line?
 	}
 	
 	
@@ -488,7 +490,8 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 			// read the sprite backwards in y axis
 			if(y_flip)
 			{
-				line -= y_size;
+				line -= (y_size);
+				line += 1;
 				line *= -1;
 			}
 			
@@ -556,8 +559,7 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				
 				
 				// <-- can optimise the hell out of this use a priority array lol
-				//if(is_set(attributes,7))
-				if(0)
+				if(is_set(attributes,7))
 				{
 					
 					// check what id the background had 

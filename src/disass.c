@@ -8,7 +8,7 @@
 
 #ifdef DEBUG
 // disassembly routine should never modify passed args
-void disass_8080(const uint8_t opcode, const Cpu *cpu)
+void disass_8080(const uint8_t opcode, Cpu *cpu)
 {
 	
 	uint8_t op;

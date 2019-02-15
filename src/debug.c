@@ -350,6 +350,10 @@ void info(char *token, Cpu *cpu)
 	// check if we wanna print whats at a mem address
 	if(token[0] == '*')
 	{
+		int breakr_bk = cpu->memr_breakpoint;
+		cpu->memr_breakpoint = -1;
+		
+		
 		token += 1;
 		int address = strtol(token,NULL,16);
 		
@@ -401,7 +405,7 @@ void info(char *token, Cpu *cpu)
 		}
 		
 		putchar(10);
-		
+		cpu->memr_breakpoint = breakr_bk;
 	
 	}
 	

@@ -334,7 +334,11 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// serial control (stub)
 	else if(address == 0xff02)
 	{
-		cpu->mem[address] = data | 126;
+		data |= 2; // <-- for dmg 
+		cpu->mem[address] = data | (~0x83);
+		deset_bit(cpu->mem[0xff02],7); // <- cheat to time it out immediately lol
+		request_interrupt(cpu,3);
+		cpu->mem[0xff01] = 0xff;		
 		return; 
 	}
 
@@ -657,17 +661,19 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	}	
 	
 	
-	if(address == 0xff01)
-	{
-		return 0xff; // stub for serial data 
-	}
+
 	
 	// sound regs
+	
+	else if(address == 0xff01) // <-- stub for failed transfer 
+	{
+		return cpu->mem[0xff01];
+	}
 	
 	// nr 11 only 7 and 6 readable
 	else if(address == 0xff11)
 	{
-		return cpu->mem[address] & (128 + 64) | (0xff-(128+64));
+		return (cpu->mem[address] & (128 + 64)) | (0xff-(128+64));
 	}
 	
 	// write only
@@ -679,13 +685,13 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 14 only 6 is readable
 	else if(address == 0xff14)
 	{
-		return cpu->mem[address] & (64) | (0xff-64);
+		return (cpu->mem[address] & (64)) | (0xff-64);
 	}
 	
 	// nr 21 only bits 6-7 are r 
 	else if(address == 0xff16)
 	{
-		return cpu->mem[address] & (128 + 64) | (0xff-(128+64));		
+		return (cpu->mem[address] & (128 + 64)) | (0xff-(128+64));		
 	}
 	
 	// nr 23 write only
@@ -697,13 +703,13 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 24 only bit 6 can be read 
 	else if(address == 0xff19)
 	{
-		return cpu->mem[address] & (64) | (0xff-64);	
+		return (cpu->mem[address] & (64)) | (0xff-64);	
 	}
 	
 	// nr 30 only bit 7
 	else if(address == 0xff1a)
 	{
-		return cpu->mem[address] & (128) | (0xff-128);	
+		return (cpu->mem[address] & (128)) | (0xff-128);	
 	}
 	
 	// nr 31 <-- unsure
@@ -715,7 +721,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 32 6-5 r
 	else if(address == 0xff1c)
 	{
-		return cpu->mem[address] & (64 + 32) | (0xff-(64+32));
+		return (cpu->mem[address] & (64 + 32)) | (0xff-(64+32));
 	}
 	
 	// nr33 write only
@@ -727,7 +733,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 34 6 r
 	else if(address == 0xff1e)
 	{
-		return cpu->mem[address] & (64) | (0xff-64);
+		return (cpu->mem[address] & (64)) | (0xff-64);
 	}
 	
 	// nr 41
@@ -741,7 +747,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// nr 44 bit 6
 	else if(address == 0xff23)
 	{
-		return cpu->mem[address] & (64) | (0xff-64);		
+		return (cpu->mem[address] & (64)) | (0xff-64);		
 	}
 	
 	// heck knows unsure

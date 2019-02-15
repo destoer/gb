@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
 		SDL_RenderPresent(renderer);
 
 
-		//SDL_Delay(time_left());
+		SDL_Delay(time_left());
 		next_time += screen_ticks_per_frame;
 	}
 

@@ -20,7 +20,7 @@ inline void write_log(const char *fmt, ...);
 
 void write_log(const char *fmt, ...)
 {
-#ifdef DEBUG
+/*#ifdef DEBUG
 		va_list args;
 		
 		va_start(args,fmt);
@@ -30,16 +30,16 @@ void write_log(const char *fmt, ...)
 		
 		//FILE *fp = fopen("log.txt","a+");
 		
-		/*if(fp == NULL)
-		{
-			puts("Error writing to log");
-			exit(1);
-		}*/
+		//if(fp == NULL)
+		//{
+			//puts("Error writing to log");
+			//exit(1);
+		//}
 		
 		vprintf(fmt,args);
 		//fclose(fp);
 		va_end(args);
-#endif
+#endif*/
 }
 
 
