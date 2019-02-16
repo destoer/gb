@@ -34,3 +34,7 @@ uint16_t load_word(uint16_t pc, uint8_t *mem);
 
 bool is_set(uint8_t reg, uint8_t bit);
 uint8_t val_bit(uint8_t data, int position);
+
+#ifdef DEBUG
+void binary(int number);
+#endif

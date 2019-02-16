@@ -559,6 +559,7 @@ void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
 				
 				
 				// <-- can optimise the hell out of this use a priority array lol
+				// but trying to save memory.....
 				if(is_set(attributes,7))
 				{
 					
