@@ -115,12 +115,13 @@ void update_graphics(Cpu *cpu, int cycles)
 	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
 	if( lyc == ly || (lyc == 0 && ly == 153) )
 	{
+		bool lyc_old = is_set(status,2);
 		set_bit(status,2); // toggle coincidence bit
 		if(is_set(status,6)) // if interrupt is enabled set the signal
 		{
 			//cpu->signal = true;
 			// ^ lyc shares a different line?
-			if(signal_old == false) // if 0 -> 1 req an int 
+			if(lyc_old == false) // if 0 -> 1 req an int 
 			{
 				request_interrupt(cpu,1);
 			}
