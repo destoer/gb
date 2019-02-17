@@ -24,7 +24,7 @@ void service_interrupt(Cpu *cpu,int interrupt);
 
 // WORK on sound emulation 1st make sure unused bits are properly handled
 
-
+// implement internal timer behaviour 
 
 // setup a fresh cpu state and return it to main
 Cpu init_cpu(void) // <--- memory should be randomized on startup
@@ -228,6 +228,8 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		if(cpu->enable_ram && cpu->currentram_bank <= 3)
 		{
 			uint16_t new_address = address - 0xa000;
+
+
 			//printf("write ram bank: %x : %x\n",cpu->currentram_bank,data);
 			cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)] = data;
 			return;
@@ -443,13 +445,35 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	}
 
 
+	else if(address == 0xff40) // lcdc
+	{
+		cpu->mem[address] = data;
+		if(!is_lcd_enabled(cpu) && (data & 0x80)) // lcd switched off this write
+		{
+			uint8_t status = cpu->mem[0xff41];
+			cpu->scanline_counter = 0; // counter is reset
+			cpu->mem[0xff44] = 0; // reset ly
+			status &= 252; // stat mode 0
+			cpu->mem[0xff41] = status | 128;	
+		}
+
+	}
+
 
 	// lcd stat <-- writes can trigger intterupts?
 	else if(address == 0xff41)
 	{
-		cpu->mem[address] = (cpu->mem[address] & 0x7) | ( (data & (248)) | 128); // bit 7 unused 0-2 read only
+		// delete writeable bits
+		cpu->mem[0xff41] &= 7;
 		
-		
+		// set the w bits with the data written
+		cpu->mem[0xff41] |= data & ~7;
+	
+		// set unused bit
+		cpu->mem[0xff41] |= 0x80;
+
+		// update the stat state
+		update_stat(cpu);
 		return;
 	}
 

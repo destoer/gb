@@ -10,9 +10,12 @@
 #include "headers/joypad.h"
 #include "headers/opcode.h"
 #include "headers/debug.h"
-//#include <SDL2/SDL.h>
-#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
-//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+#ifdef __linux__
+	#include <SDL2/SDL.h>
+#elif _WIN32
+	#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+	//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h"
+#endif 
 
 static int next_time;
 
@@ -27,9 +30,15 @@ uint32_t time_left(void)
 		return next_time - now;
 }
 
+//---------------------------------------------
+// saving memory
 
+// can use internal emulator storage in echo ram
+// or at memory banks if we fiddle with our memory 
+// banking implementation + echo ram
 
-
+// or better yet make seperate arrays for each region
+// and check the ranges and write to the appropiate pointer
 
 
 int main(int argc, char *argv[])
@@ -48,8 +57,16 @@ int main(int argc, char *argv[])
 	printf("Cpu located at %p\n",&cpu);
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
-	cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
-	
+	if(cpu.rom_info.noRamBanks > 0)
+	{
+		cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
+	}
+
+	else 
+	{
+		// dont allow any access
+		cpu.ram_banks = NULL;
+	}
 	
 	
 	
@@ -163,7 +180,12 @@ int main(int argc, char *argv[])
 				strcat(savename,"sv");
 				
 				fp = fopen(savename,"wb");
-				
+				if(fp == NULL)
+				{
+					printf("Error opening save file %s for saving\n",savename);
+					free(savename);
+					goto done;
+				}
 				
 				
 				fwrite(cpu.ram_banks,sizeof(uint8_t),(0x2000*cpu.rom_info.noRamBanks),fp);
@@ -174,6 +196,7 @@ int main(int argc, char *argv[])
 				free(savename);
 				fclose(fp);
 				
+				done:
 				// should clean up our state here too 
 				SDL_DestroyRenderer(renderer);
 				SDL_DestroyWindow(window);
@@ -185,7 +208,11 @@ int main(int argc, char *argv[])
 
 				// clean up
 				free(cpu.mem);
-				free(cpu.ram_banks);
+
+				if(cpu.ram_banks != NULL)
+				{
+					free(cpu.ram_banks);
+				}
 				free(cpu.rom_mem);
 				return 0;
 			}	
@@ -291,12 +318,12 @@ int main(int argc, char *argv[])
 			// until an interrupt occurs and wakes it up 
 			
 			
-			if(cpu.halt) // halt  <-- bugged as hell 
+			if(cpu.halt) // halt occured in prev instruction
 			{
 				
 				cpu.halt = false;
 
-				uint8_t req = cpu.mem[0xff0f]; // req ints 
+				uint8_t req = cpu.mem[0xff0f]; // requested ints 
 				uint8_t enabled = cpu.mem[0xffff]; // enabled interrutps
 		
 				// halt bug
@@ -338,12 +365,14 @@ int main(int argc, char *argv[])
 			}
 		}
 		
+		// do our screen blit
 		SDL_UpdateTexture(texture, NULL, &cpu.screen,  4 * X * sizeof(uint8_t));
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
 		SDL_RenderPresent(renderer);
 
 
+		// delay to keep our emulator running at the correct speed
 		SDL_Delay(time_left());
 		next_time += screen_ticks_per_frame;
 	}

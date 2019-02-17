@@ -29,6 +29,12 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 	// do ram enabling 
 	if(address < 0x2000)
 	{
+		// no ram banks dont enable it
+		if(cpu->rom_info.noRamBanks == 0)
+		{
+			return;
+		}
+
 		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2 || cpu->rom_info.mbc3)
 		{
 			do_ram_bank_enable(cpu,address,data);

@@ -4,19 +4,17 @@
 #include "headers/cpu.h"
 #include "headers/lib.h"
 
-// fix rendering functions  // <--- just the cut off at the top of the screen 
 
-// TODO rewrite the rendering functions as 
-// to fix links awakening window is somehow scrolling when it shouldunt
-// fix sprites being cut off at edges
-// fix screen tearing <-most noicable in gold only on tiles!?
-// than being caused by our ppu implementation
-// refer to cpu manual and ultimate gameboy talk
+
+
+
+// metroid 2 final boss
+
+
 
 // run mooneye ppu tests against it
-// get the bottom 3 ppu mooneye test passing
-// as it doesn't handle edge cases related to stat reg
-// compare with original and fix rewrite
+// get lyc test passing
+
 
 
 // gold locking up waiting for a vblank interrupt if left alone for too long ?
@@ -43,9 +41,8 @@ bool is_lcd_enabled(Cpu *cpu)
 	return is_set(read_mem(0xff40,cpu),7);	
 }
 
-void update_graphics(Cpu *cpu, int cycles)
+void update_stat(Cpu *cpu)
 {
-	
 	//-----------------------
 	// update the stat reg state
 	// and trigger interrupts	
@@ -59,113 +56,112 @@ void update_graphics(Cpu *cpu, int cycles)
 	// mode is one if lcd is disabled
 	if(!is_lcd_enabled(cpu))
 	{
+		cpu->scanline_counter = 0; // counter is reset
 		cpu->mem[0xff44] = 0; // reset ly
-		status &= 252;
-		//status |= 1; // mode 1
+		status &= ~3; // stat mode 0
 		cpu->mem[0xff41] = status | 128;
 		return; // can exit if ppu is disabled nothing else to do
 	}
 	
 	uint8_t ly = cpu->mem[0xff44];
-	uint8_t currentmode = status & 0x3; // get current mode
-	status &= 252; // mask the mode 
+	status &= ~3; // mask the mode 
 	
-	uint8_t mode = 0; // store mode switch
-	bool stat_interrupt = false;
+	
 	
 	// vblank (mode 1)
 	if(ly >= 144)
 	{
-		mode = 1;
-		stat_interrupt = is_set(status,4);
+		status |= 1; // set mode 1
+		cpu->signal = is_set(status,4);
 	}
 	
-	// is the mode interrupt enabled
 	
-	
-	else
+	// else check based on our cycle counter
+	// technically this should vary depending on
+	// what is being drawn to the screen
+	else // <-- test interrupt(if true set signal line) and update the mode
 	{
 		// oam search (mode 2)
 		if(cpu->scanline_counter <= 20)
 		{
-			mode = 2;
-			stat_interrupt = is_set(status,5);
+			status |= 2; // set mode 2
+			cpu->signal = is_set(status,5);
 		}
 		
 		// pixel transfer (mode 3)
 		else if(cpu->scanline_counter <= 63) 
 		{
-			mode = 3;
+			status |= 3; // set mode 3
 		}
 		
 		// hblank mode 0
 		else // setting mode var is redundant here
 		{ 
-			stat_interrupt = is_set(status,3);	
+			cpu->signal = is_set(status,3);	
 		}
 	}
 	
-	// update the mode
-	status |= mode;
+
+
 	
 	// check coincidence  (lyc == ly)
 	uint8_t lyc = cpu->mem[0xff45];
 	
+
+
 	// line 153 can be treated as zero 
 	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
 	if( lyc == ly || (lyc == 0 && ly == 153) )
 	{
-		bool lyc_old = is_set(status,2);
 		set_bit(status,2); // toggle coincidence bit
-		if(is_set(status,6)) // if interrupt is enabled set the signal
-		{
-			//cpu->signal = true;
-			// ^ lyc shares a different line?
-			if(lyc_old == false) // if 0 -> 1 req an int 
-			{
-				request_interrupt(cpu,1);
-			}
-		}
 	}
 	
 	else
 	{
 		deset_bit(status,2); // deset coincidence bit
-		//cpu->signal = false; // <- should this deset?
-		// ^ lyc shares a different line?
 	}
 	
 	
-	
-	// if mode has changed and if interrupt is enabled
-	// set signal to one
-	// is_set(status,mode+3) && 
-	if(mode != currentmode && stat_interrupt == true)
+	// if the lyc coeincidence is set and interrupt is enabled
+	if(is_set(status,6) && is_set(status,2))
 	{
 		cpu->signal = true;
 	}
-	
-	// deset signal
-	else
-	{
-		cpu->signal = false;
-	}
-	
-	
-	
-	// if we have changed from 0 to 1 for signal
+
+
+
+
+	// if we have changed from 0 to 1 for signal(signal edge)
 	// request a stat interrupt
-	if(signal_old == false && cpu->signal == true)
+	if(signal_old == false && cpu->signal)
 	{
-		request_interrupt(cpu,1);
+		request_interrupt(cpu,1);	
 	}
-	
 	
 	// update our status reg
 	cpu->mem[0xff41] = status | 128;
+}
+
+void update_graphics(Cpu *cpu, int cycles)
+{
+	// update the stat register
+	update_stat(cpu);
+
+	if(!is_lcd_enabled(cpu))
+	{
+		return;
+	}
 	
 	//--------------------
 	// tick the ppu
+
+	// read out current stat reg
+	uint8_t status = cpu->mem[0xff41];
+	
+	// save our current signal state
+	bool signal_old = cpu->signal;
+
+	uint8_t ly = cpu->mem[0xff44];
 
 	cpu->scanline_counter += cycles; // advance the cycle counter
 
@@ -185,15 +181,15 @@ void update_graphics(Cpu *cpu, int cycles)
 		cpu->mem[0xff44] = ly;
 		
 		// reset the counter extra cycles should tick over
-		//cpu->scanline_counter = cpu->scanline_counter - 114;
-		cpu->scanline_counter = 0;
+		cpu->scanline_counter = cpu->scanline_counter - 114;
+
 		// vblank has been entered
 		if(ly == 144)
 		{
 			request_interrupt(cpu,0);
 			
 			// edge case oam stat interrupt is triggered here if enabled
-			if(is_set(status,5) || is_set(status,4))
+			if(is_set(status,5))
 			{
 				if(signal_old == false)
 				{
@@ -204,14 +200,12 @@ void update_graphics(Cpu *cpu, int cycles)
 		}
 		
 		// if past 153 reset ly
-		else if(ly > 154)
+		else if(ly > 153)
 		{
-			ly = 0;
-			cpu->mem[0xff44] = ly;
-			
+			cpu->mem[0xff44] = 0;	
 		}
-	}
-	
+
+	}	
 }
 
 	
@@ -456,15 +450,15 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
 }
 
 
-// should add code that lets it draw over the window 
-void render_sprites(Cpu *cpu) // <--- NEEDS FIXING NEXT so we can test tetris
+// add sprite precedence behaviour
+void render_sprites(Cpu *cpu) 
 {
 	
 	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
 
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 	
-	for(int sprite = 39; sprite >= 0; sprite--) // more efficent to count loop down instead of up
+	for(int sprite = 39; sprite >= 0; sprite--) // more efficent to count loop down instead of up this ruins sprite ordering but we aint emulating it anyways
 	{
 		// sprite takes 4 bytes in the sprite attributes table
 		uint8_t index = sprite*4; 

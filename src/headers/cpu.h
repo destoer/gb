@@ -155,6 +155,7 @@ typedef struct
 	// timers
 	int timer_counter;
 	int div_counter;
+
 	
 } Cpu;
 
