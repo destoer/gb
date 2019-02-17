@@ -6,10 +6,10 @@
 #define CLOCKSPEED 419430
 
 // timers
-#define TIMA 0xFF05
-#define TMA 0xFF06
-#define TMC 0xFF07 
-#define DIV 0XFF04
+#define IO_TIMA 0x05
+#define IO_TMA 0x06
+#define IO_TMC 0x07 
+#define IO_DIV 0X04
 
 // gb is 160x144 pixels
 #define X 160
@@ -38,3 +38,33 @@ uint8_t val_bit(uint8_t data, int position);
 #ifdef DEBUG
 void binary(int number);
 #endif
+
+
+// i/o reg constants only use when performing direct access to the io array(use the actual address otherwhise)
+#define IO_NR10 0x10
+#define IO_NR11 0x11
+#define IO_NR14 0x14
+#define IO_NR21 0x16
+#define IO_NR23 0x18
+#define IO_NR24 0x19
+#define IO_NR30 0x1a
+#define IO_NR31 0x1b
+#define IO_NR32 0x1c
+#define IO_NR33 0x1d
+#define IO_NR34 0x1e
+#define IO_NR41 0x20
+#define IO_NR44 0x23
+#define IO_NR52 0x26
+#define IO_LY 0x44
+#define IO_LCDC 0x40
+#define IO_STAT 0x41
+#define IO_LYC 0x45
+#define IO_DMA 0x46
+#define IO_IF 0x0f
+#define IO_IE 0xff
+#define IO_JOYPAD 0x00
+#define IO_SB 0x01
+#define IO_SC 0x02
+
+
+// potentially add constants for unused bits

@@ -2,6 +2,7 @@
 #include "headers/lib.h"
 #include "headers/disass.h"
 #include "headers/instr.h"
+#include "headers/memory.h"
 #include <stdio.h>
 
 void decode_cb(uint8_t cbop, Cpu *cpu)

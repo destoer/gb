@@ -5,6 +5,7 @@
 #include "headers/cpu.h"
 #include "headers/lib.h"
 #include "headers/disass.h"
+#include "headers/memory.h"
 
 #ifdef DEBUG
 // disassembly routine should never modify passed args
@@ -82,7 +83,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 
 		case 0x10: // stop if followed by a 00
-			if(cpu->mem[cpu->pc+1] == 00)
+			if(read_mem(cpu->pc+1,cpu) == 00)
 			{
 				puts("stop");
 			}
@@ -709,16 +710,16 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0xc2: // jp nz nnnn
-			printf("jp nz, %x\n",load_word(cpu->pc,cpu->mem));
+			printf("jp nz, %x\n",read_word(cpu->pc,cpu));
 			break;
 		
 		case 0xc3: // jump
-			printf("jp %04X\n",load_word(cpu->pc,cpu->mem));
+			printf("jp %04X\n",read_word(cpu->pc,cpu));
 			break;
 		
 		
 		case 0xc4: // call nz nnnn
-			printf("call nz %x\n",load_word(cpu->pc,cpu->mem));
+			printf("call nz %x\n",read_word(cpu->pc,cpu));
 			break;
 		
 		case 0xc5: // push bc
@@ -726,7 +727,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0xc6: // add a, nn
-			printf("add a, %x\n",cpu->mem[cpu->pc]);
+			printf("add a, %x\n",read_mem(cpu->pc,cpu));
 			break;
 		
 		
@@ -747,7 +748,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0xCB: // extended opcode 
-			op = cpu->mem[cpu->pc];
+			op = read_mem(cpu->pc,cpu);
 			
 			switch(op)
 			{

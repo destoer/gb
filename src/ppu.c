@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "headers/cpu.h"
 #include "headers/lib.h"
+#include "headers/memory.h"
 
 
 
@@ -48,22 +49,23 @@ void update_stat(Cpu *cpu)
 	// and trigger interrupts	
 	
 	// read out current stat reg
-	uint8_t status = cpu->mem[0xff41];
-	
-	// save our current signal state
-	bool signal_old = cpu->signal;
+	uint8_t status = cpu->io[IO_STAT];	
 	
 	// mode is one if lcd is disabled
 	if(!is_lcd_enabled(cpu))
 	{
 		cpu->scanline_counter = 0; // counter is reset
-		cpu->mem[0xff44] = 0; // reset ly
+		cpu->io[IO_LY] = 0; // reset ly
 		status &= ~3; // stat mode 0
-		cpu->mem[0xff41] = status | 128;
+		cpu->io[IO_STAT] = status | 128;
 		return; // can exit if ppu is disabled nothing else to do
 	}
 	
-	uint8_t ly = cpu->mem[0xff44];
+
+	// save our current signal state
+	bool signal_old = cpu->signal;
+
+	uint8_t ly = cpu->io[IO_LY];
 	status &= ~3; // mask the mode 
 	
 	
@@ -95,7 +97,7 @@ void update_stat(Cpu *cpu)
 		}
 		
 		// hblank mode 0
-		else // setting mode var is redundant here
+		else
 		{ 
 			cpu->signal = is_set(status,3);	
 		}
@@ -105,7 +107,7 @@ void update_stat(Cpu *cpu)
 
 	
 	// check coincidence  (lyc == ly)
-	uint8_t lyc = cpu->mem[0xff45];
+	uint8_t lyc = cpu->io[IO_LYC];
 	
 
 
@@ -139,7 +141,7 @@ void update_stat(Cpu *cpu)
 	}
 	
 	// update our status reg
-	cpu->mem[0xff41] = status | 128;
+	cpu->io[IO_STAT] = status | 128;
 }
 
 void update_graphics(Cpu *cpu, int cycles)
@@ -156,12 +158,12 @@ void update_graphics(Cpu *cpu, int cycles)
 	// tick the ppu
 
 	// read out current stat reg
-	uint8_t status = cpu->mem[0xff41];
+	uint8_t status = cpu->io[IO_STAT];
 	
 	// save our current signal state
 	bool signal_old = cpu->signal;
 
-	uint8_t ly = cpu->mem[0xff44];
+	uint8_t ly = cpu->io[IO_LY];
 
 	cpu->scanline_counter += cycles; // advance the cycle counter
 
@@ -178,7 +180,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		// inc the save ly and write it back 
 		ly += 1;
 		
-		cpu->mem[0xff44] = ly;
+		cpu->io[IO_LY] = ly;
 		
 		// reset the counter extra cycles should tick over
 		cpu->scanline_counter = cpu->scanline_counter - 114;
@@ -202,7 +204,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		// if past 153 reset ly
 		else if(ly > 153)
 		{
-			cpu->mem[0xff44] = 0;	
+			cpu->io[IO_LY] = 0;	
 		}
 
 	}	

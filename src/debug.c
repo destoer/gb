@@ -2,6 +2,7 @@
 #include "headers/cpu.h"
 #include "headers/lib.h"
 #include "headers/disass.h"
+#include "headers/memory.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -180,9 +181,11 @@ void write_addr(char *token, Cpu* cpu)
 		cpu->rom_mem[new_address + (cpu->currentrom_bank*0x4000)] = val;
 	}
 
-	else
+	else // may need editing
 	{
-		cpu->mem[addr] = val;
+		
+		//cpu->mem[addr] = val;
+		write_mem(cpu,addr,val);
 	}
 
 }
@@ -420,13 +423,13 @@ void info(char *token, Cpu *cpu)
 	{
 		//printf("ly = %x\n",cpu->mem[0xff44]);
 		printf("ly = %x\n",read_mem(0xff44,cpu));
-		printf("div = %x\n",cpu->mem[DIV]);
-		printf("tima = %x\n",cpu->mem[TIMA]);
-		printf("lcdc = %x\n",cpu->mem[0xff40]);
-		printf("if = %x\n",cpu->mem[0xff0f]);
+		printf("div = %x\n",cpu->io[IO_DIV]);
+		printf("tima = %x\n",cpu->io[IO_TIMA]);
+		printf("lcdc = %x\n",cpu->io[0x40]);
+		printf("if = %x\n",cpu->io[0x0f]);
 		printf("ime = %x\n",cpu->interrupt_enable);
-		printf("ie = %x\n",cpu->mem[0xffff]);
-		printf("stat = %x\n",cpu->mem[0xff41]); // lcd stat
+		printf("ie = %x\n",cpu->io[0xff]);
+		printf("stat = %x\n",cpu->io[0x41]); // lcd stat
 		printf("rom_bank = %x\n",cpu->currentrom_bank);
 		printf("ram_bank = %x\n",cpu->currentram_bank);
 		printf("ram_enable = %x\n",cpu->enable_ram);

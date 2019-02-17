@@ -70,10 +70,8 @@ int main(int argc, char *argv[])
 	
 	
 	
-	// load the first banks in (implement bank switches later)
-	
-	memcpy(cpu.mem,cpu.rom_mem,0x8000); // memcpy the first 2 banks in
-	
+
+
 
 	// check for a sav batt but for now we just copy the damb thing
 	
@@ -98,36 +96,7 @@ int main(int argc, char *argv[])
 	savename = NULL;
 	fp = NULL;
 	
-/*//----------------------------------------------------------	
-	// memcpy our boot rom over this (we gonna find the bugs)
-	// read in the rom
-	FILE *fp = fopen("dmg_boot.bin", "rb");
-	
-	if(fp == NULL)
-	{
-		fprintf(stderr, "Failed to open file: %s","dmg_bot.bin");
-		exit(1);
-	}
 
-	fseek(fp, 0, SEEK_END); // get file size and set it to len
-	int len = ftell(fp); // get length of file
-	printf("Rom length is %d (bytes)\n", len );
-	rewind(fp); // go to start of file
-	
-	
-	uint8_t *rom = malloc(len * sizeof(uint8_t));
-	
-	fread(rom, sizeof(uint8_t), len, fp); // load file into array buffer
-	
-	
-	memcpy(cpu.mem,rom,len);
-	cpu.pc = 0;
-	cpu.de.reg = 0;
-	cpu.af.reg = 0;
-	cpu.sp = 0;
-	cpu.bc.reg = 0;
-	
-//-------------------------------------------------------------------- */
 	
 	/* sdl setup */
 	
@@ -207,7 +176,6 @@ int main(int argc, char *argv[])
 				
 
 				// clean up
-				free(cpu.mem);
 
 				if(cpu.ram_banks != NULL)
 				{
@@ -323,8 +291,8 @@ int main(int argc, char *argv[])
 				
 				cpu.halt = false;
 
-				uint8_t req = cpu.mem[0xff0f]; // requested ints 
-				uint8_t enabled = cpu.mem[0xffff]; // enabled interrutps
+				uint8_t req = cpu.io[IO_IF]; // requested ints 
+				uint8_t enabled = cpu.io[IO_IE]; // enabled interrutps
 		
 				// halt bug
 				// halt state not entered and the pc fails to increment for
@@ -357,8 +325,8 @@ int main(int argc, char *argv[])
 						update_timers(&cpu,cycles); // <--- update timers 
 						update_graphics(&cpu,cycles); // handle the lcd emulation
 							
-						req = cpu.mem[0xff0f];
-						enabled = cpu.mem[0xffff];
+						req = cpu.io[IO_IF];
+						enabled = cpu.io[IO_IE];
 					}
 					do_interrupts(&cpu); // handle interrupts
 				}	

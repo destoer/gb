@@ -4,6 +4,7 @@
 #include "headers/disass.h"
 #include "headers/debug.h"
 #include "headers/instr.h"
+#include "headers/memory.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>

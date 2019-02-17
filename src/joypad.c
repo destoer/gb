@@ -38,7 +38,7 @@ void key_pressed(int key, Cpu *cpu)
 		button = false; // directional one pressed
 	}
 	
-	uint8_t key_req = cpu->mem[0xff00];
+	uint8_t key_req = cpu->io[0x00];
 	bool req_int = false;
 	
 	// only request an interrupt if the button just pressed
