@@ -244,12 +244,9 @@ int main(int argc, char *argv[])
 		{
 			int cycles = step_cpu(&cpu);
 			cycles_this_update += cycles;
+			update_timers(&cpu,cycles); // <--- update timers 
+			update_graphics(&cpu,cycles); // handle the lcd emulation
 			do_interrupts(&cpu); // handle interrupts 
-			
-			
-			
-			
-			
 			
 			// now we need to test if an ei or di instruction
 			// has just occured if it has step a cpu instr and then 
@@ -265,17 +262,21 @@ int main(int argc, char *argv[])
 				// but before we service interrupts				
 				cpu.interrupt_enable = true;
 				cycles_this_update += cycles;
+				update_timers(&cpu,cycles); // <--- update timers 
+				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- not sure what should happen here		
 				
 			}
 			
-			else if(cpu.di) // di
+			if(cpu.di) // di
 			{
 				cpu.di = false;
 				cycles = step_cpu(&cpu);
 				// we have executed another instruction now deset ime
 				cpu.interrupt_enable = false;
 				cycles_this_update += cycles;
+				update_timers(&cpu,cycles); // <--- update timers 
+				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- what should happen here?
 			}
 			
@@ -285,7 +286,7 @@ int main(int argc, char *argv[])
 			// until an interrupt occurs and wakes it up 
 			
 			
-			else if(cpu.halt) // halt occured in prev instruction
+			if(cpu.halt) // halt occured in prev instruction
 			{
 				
 				cpu.halt = false;
@@ -319,10 +320,10 @@ int main(int argc, char *argv[])
 				{
 					while( ( req & enabled & 0x1f) == 0)
 					{
-						cycles = 1; // just go a cycle at a time
-						cycles_this_update += cycles;
-						update_timers(&cpu,cycles); // <--- update timers 
-						update_graphics(&cpu,cycles); // handle the lcd emulation
+						// just go a cycle at a time
+						cycles_this_update += 1;
+						update_timers(&cpu,1); // <--- update timers 
+						update_graphics(&cpu,1); // handle the lcd emulation
 							
 						req = cpu.io[IO_IF];
 						enabled = cpu.io[IO_IE];

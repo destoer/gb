@@ -9,13 +9,13 @@
 
 
 
-// metroid 2 final boss
+// fix metroid 2 final boss
+// and the slight screen tear in gold
 
 
 
 // run mooneye ppu tests against it
-// get lyc test passing <-- 236 for one round 3
-// hits mode 2 too early should it block the re-enable?  for 1m-cycle
+// get lyc test passing
 
 
 
@@ -34,184 +34,152 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 void draw_scanline(Cpu *cpu);
 void render_tiles(Cpu *cpu);
 void render_sprites(Cpu *cpu);
-void set_lcd_status(Cpu *cpu);
+
 
 // probably the largest room for optimization
 
 bool is_lcd_enabled(Cpu *cpu)
 {
-	return ( is_set(cpu->io[IO_LCDC],7) );	
+	return is_set(read_mem(0xff40,cpu),7);	
 }
 
 void update_stat(Cpu *cpu)
 {
-	//-----------------------
-	// update the stat reg state
-	// and trigger interrupts	
+	// lcd status flag 
+	uint8_t status = read_mem(0xff41, cpu);
 	
-	// read out current stat reg and mask the mode
-	uint8_t status = cpu->io[IO_STAT] & ~3;	
 	
-	// mode is one if lcd is disabled
-	if(!is_lcd_enabled(cpu)) // <-- should re enable on a delay?
+	// mode must be one if lcd is disabled
+	if(false == is_lcd_enabled(cpu))
 	{
-		cpu->scanline_counter = 0; // counter is reset?
-		cpu->io[IO_LY] = 0; // reset ly
-		//status &= ~3; // stat mode 0 ^ done by default as it needs to be done anyways
-		cpu->io[IO_STAT] = status; 
-		return; // can exit if ppu is disabled nothing else to do
+		cpu->scanline_counter = 114;
+		cpu->io[IO_LY] = 0;
+		status &= 252;
+		set_bit(status,0);
+		write_mem(cpu,0xff41,status);
+		return;
 	}
 	
-
-	// save our current signal state
-	bool signal_old = cpu->signal;
-
-	uint8_t ly = cpu->io[IO_LY];
-
+	uint8_t currentline = read_mem(0xff44, cpu);
+	uint8_t currentmode = status & 0x3;
+	
+	uint8_t mode = 0;
+	bool req_int = false;
 	
 	
-	
-	// vblank (mode 1)
-	if(ly >= 144)
+	// in vblank set to mode one
+	if(currentline >= 144)
 	{
-		status |= 1; // set mode 1
-		cpu->signal = is_set(status,4);
+		mode = 1;
+		set_bit(status,0);
+		deset_bit(status,1);
+		is_set(status,4);
 	}
-	
-	
-	// else check based on our cycle counter
-	// technically this should vary depending on
-	// what is being drawn to the screen
-	else // <-- test interrupt(if true set signal line) and update the mode
+	else
 	{
-		// oam search (mode 2)
+
+		
+		// mode 2
 		if(cpu->scanline_counter <= 20)
 		{
-			status |= 2; // set mode 2
-			cpu->signal = is_set(status,5);
+			mode = 2;
+			set_bit(status,1);
+			deset_bit(status,0);
+			req_int = is_set(status,5);
 		}
 		
-		// pixel transfer (mode 3)
-		else if(cpu->scanline_counter <= 63) 
+		// mode 3
+		else if(cpu->scanline_counter <= 63)
 		{
-			status |= 3; // set mode 3
+			mode = 3;
+			set_bit(status,1);
+			set_bit(status,0);
 		}
 		
-		// hblank mode 0
+		// mode 0
 		else
-		{ 
-			cpu->signal = is_set(status,3);	
+		{
+			mode = 0;
+			deset_bit(status,1);
+			deset_bit(status,0);
+			req_int = is_set(status,3);
 		}
 	}
 	
-
-
 	
-	// check coincidence  (lyc == ly)
-	uint8_t lyc = cpu->io[IO_LYC];
-	
-
-
-	// line 153 can be treated as zero 
-	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
-	if( lyc == ly || (lyc == 0 && ly == 153) )
+	// changed mode so req an interrupt
+	if(req_int && (mode != currentmode))
 	{
-		set_bit(status,2); // toggle coincidence bit
+		request_interrupt(cpu,1);
+	}
+	
+	// check conincidence flag
+	// needs verifying
+	// if ly == lyc
+	if(read_mem(0xff44,cpu) == read_mem(0xff45,cpu))
+	{
+		set_bit(status,2);
+		if(is_set(status,6))
+		{
+			request_interrupt(cpu,1);
+		}
 	}
 	
 	else
 	{
-		deset_bit(status,2); // deset coincidence bit
+		deset_bit(status,2);
 	}
 	
-	
-	// if the lyc coeincidence is set and interrupt is enabled
-	if(is_set(status,6) && is_set(status,2))
-	{
-		cpu->signal = true;
-	}
-
-
-
-
-	// if we have changed from 0 to 1 for signal(signal edge)
-	// request a stat interrupt
-	if(signal_old == false && cpu->signal)
-	{
-		request_interrupt(cpu,1);	
-	}
-	
-	// update our status reg
-	cpu->io[IO_STAT] = status | 128;
+	// update the lcd status reg
+	write_mem(cpu,0xff41,status);
 }
 
 void update_graphics(Cpu *cpu, int cycles)
 {
-	// update the stat register
+	// set the lcd status
 	update_stat(cpu);
-
-	if(!is_lcd_enabled(cpu))
+	
+	if(is_lcd_enabled(cpu))
+	{
+		cpu->scanline_counter += cycles;
+	}
+	else
 	{
 		return;
 	}
 	
-	//--------------------
-	// tick the ppu
-
-	// read out current stat reg
-	uint8_t status = cpu->io[IO_STAT];
-	
-	// save our current signal state
-	bool signal_old = cpu->signal;
-
-	uint8_t ly = cpu->io[IO_LY];
-
-	cpu->scanline_counter += cycles; // advance the cycle counter
-
-
-	// we have finished drawing a line 
-	if(cpu->scanline_counter >= 114) // <-- > or >=?
+	if(cpu->scanline_counter >= 114)
 	{
-		// if we are not in vblank draw the scanline
+		// read out of ly register to get current scanline
+		uint8_t ly = read_mem(0xff44,cpu);
+
+		// draw the current scanline
 		if(ly < 144)
 		{
 			draw_scanline(cpu);
 		}
-		
-		// inc the save ly and write it back 
-		ly += 1;
-		
-		cpu->io[IO_LY] = ly;
-		
-		// reset the counter extra cycles should tick over
-		cpu->scanline_counter = cpu->scanline_counter - 114;
 
-		// vblank has been entered
+		// goto next scanline
+		cpu->io[IO_LY] = ++ly;
+		
+		
+		cpu->scanline_counter = 0;
+		
+		// in the vblank period
 		if(ly == 144)
 		{
 			request_interrupt(cpu,0);
-			
-			// edge case oam stat interrupt is triggered here if enabled
-			if(is_set(status,5))
-			{
-				if(signal_old == false)
-				{
-					request_interrupt(cpu,1);
-				}
-				cpu->signal = true;
-			}
 		}
 		
-		// if past 153 reset ly
+		// if past scanline 153 reset to zero
 		else if(ly > 153)
 		{
-			cpu->io[IO_STAT] &= ~3;
-			cpu->io[IO_STAT] |= 2;
-			cpu->io[IO_LY] = 0;	
+			cpu->io[IO_LY] = 0;
 		}
-
-	}	
+		
+	}
 }
+
 
 	
 	
@@ -325,10 +293,9 @@ void render_tiles(Cpu *cpu)
 	for(uint8_t pixel = 0; pixel < 160; pixel++)
 	{
 		uint8_t x_pos = pixel;
-		
 		if(!using_window) // <-- dont think this is correct
 		{
-			//x_pos += scroll_x;
+			x_pos += scroll_x;
 		}
 		// translate the current x pos to window space // <--- think this causes the weird wrapping behavior with links awakening
 		// if needed
@@ -336,7 +303,7 @@ void render_tiles(Cpu *cpu)
 		{
 			if(x_pos >= window_x)
 			{
-				//x_pos = pixel - window_x;
+				x_pos = pixel - window_x;
 			}
 		}
 	
@@ -412,15 +379,13 @@ void render_tiles(Cpu *cpu)
 		uint8_t final_y = read_mem(0xff44,cpu);
 	
 	
-	
 		// saftey check (not required?)
 		if((final_y>143)||(pixel>159))
-        {
+       		{
 			continue;
 		}
-		// save the color to check priority
 		cpu->screenp[final_y][pixel] = colour_num;
-		
+
 		cpu->screen[final_y][pixel][0] = red;
 		cpu->screen[final_y][pixel][1] = green;
 		cpu->screen[final_y][pixel][2] = blue;
@@ -560,12 +525,19 @@ void render_sprites(Cpu *cpu)
 	
 				// test if its hidden behind the background layer
 				// white is transparent even if the flag is set
+				
+				
+				// <-- can optimise the hell out of this use a priority array lol
+				// but trying to save memory.....
 				if(is_set(attributes,7))
 				{
+					// check what id the background had 
+					// only if its id zero can we draw over it
+					// else just continue					
 					if(cpu->screenp[scanline][pixel] != 0)
 					{
 						continue;
-					}	
+					}
 				}
 				
 				cpu->screen[scanline][pixel][0] = red;
