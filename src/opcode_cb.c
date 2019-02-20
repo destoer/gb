@@ -8,7 +8,7 @@
 void decode_cb(uint8_t cbop, Cpu *cpu)
 {
 	
-			
+			uint8_t op = cbop; // save it 
 			// figure out instruction bits and decode fields
 			// unless u want 100s of switch statements 
 			// ^ not going with above may resort to later
@@ -1113,4 +1113,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					#endif
 					break;
 			}
+			
+	
+	cycle_tick(cpu,cbmcycles[op]);		
 }

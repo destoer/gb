@@ -244,9 +244,12 @@ int main(int argc, char *argv[])
 		{
 			int cycles = step_cpu(&cpu);
 			cycles_this_update += cycles;
-			update_timers(&cpu,cycles); // <--- update timers 
-			update_graphics(&cpu,cycles); // handle the lcd emulation
 			do_interrupts(&cpu); // handle interrupts 
+			
+			
+			
+			
+			
 			
 			// now we need to test if an ei or di instruction
 			// has just occured if it has step a cpu instr and then 
@@ -262,21 +265,17 @@ int main(int argc, char *argv[])
 				// but before we service interrupts				
 				cpu.interrupt_enable = true;
 				cycles_this_update += cycles;
-				update_timers(&cpu,cycles); // <--- update timers 
-				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- not sure what should happen here		
 				
 			}
 			
-			if(cpu.di) // di
+			else if(cpu.di) // di
 			{
 				cpu.di = false;
 				cycles = step_cpu(&cpu);
 				// we have executed another instruction now deset ime
 				cpu.interrupt_enable = false;
 				cycles_this_update += cycles;
-				update_timers(&cpu,cycles); // <--- update timers 
-				update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- what should happen here?
 			}
 			
@@ -286,7 +285,7 @@ int main(int argc, char *argv[])
 			// until an interrupt occurs and wakes it up 
 			
 			
-			if(cpu.halt) // halt occured in prev instruction
+			else if(cpu.halt) // halt occured in prev instruction
 			{
 				
 				cpu.halt = false;

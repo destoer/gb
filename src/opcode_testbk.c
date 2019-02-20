@@ -409,10 +409,7 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		
-		case 0x36: // ld (hl), n
-			//cycle_tick(cpu,1);
-			//write_memt(cpu,cpu->hl.reg,read_memt(cpu->pc++,cpu));
-			//return mcycles[opcode];
+		case 0x36: // ld (hl), n 
 			write_mem(cpu,cpu->hl.reg,read_mem(cpu->pc++,cpu));
 			break;
 		
@@ -1109,6 +1106,7 @@ int step_cpu(Cpu * cpu)
 			
 			cbop = read_mem(cpu->pc++, cpu); // fetch the opcode
 			decode_cb(cbop,cpu); // exec it 
+			cycle_tick(cpu,cbmcycles[cbop]);
 			return cbmcycles[cbop]; // update machine cylces for cb prefix
 			break; 
 		
@@ -1118,7 +1116,6 @@ int step_cpu(Cpu * cpu)
 			{
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return  mtcycles[opcode];
 			}
 			
@@ -1147,7 +1144,6 @@ int step_cpu(Cpu * cpu)
 			if(!is_set(cpu->af.lb,C))
 			{
 				cpu->pc = read_stackw(cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			break;
@@ -1161,7 +1157,6 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			
@@ -1177,7 +1172,6 @@ int step_cpu(Cpu * cpu)
 				write_log("call nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return  mtcycles[opcode];
 			}
 			
@@ -1204,7 +1198,6 @@ int step_cpu(Cpu * cpu)
 			if(is_set(cpu->af.lb,C))
 			{
 				cpu->pc = read_stackw(cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			break;
@@ -1219,7 +1212,6 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			
@@ -1235,7 +1227,6 @@ int step_cpu(Cpu * cpu)
 				write_log("call c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			
@@ -1382,6 +1373,7 @@ int step_cpu(Cpu * cpu)
 			#endif
 			break;
 	}
+	
 	cycle_tick(cpu,mcycles[opcode]);
     return mcycles[opcode]; // update the machine cycles		
 }

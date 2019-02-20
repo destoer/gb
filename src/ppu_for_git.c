@@ -325,10 +325,9 @@ void render_tiles(Cpu *cpu)
 	for(uint8_t pixel = 0; pixel < 160; pixel++)
 	{
 		uint8_t x_pos = pixel;
-		
 		if(!using_window) // <-- dont think this is correct
 		{
-			//x_pos += scroll_x;
+			x_pos += scroll_x;
 		}
 		// translate the current x pos to window space // <--- think this causes the weird wrapping behavior with links awakening
 		// if needed
@@ -336,7 +335,7 @@ void render_tiles(Cpu *cpu)
 		{
 			if(x_pos >= window_x)
 			{
-				//x_pos = pixel - window_x;
+				x_pos = pixel - window_x;
 			}
 		}
 	

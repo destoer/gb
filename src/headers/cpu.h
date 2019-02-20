@@ -116,6 +116,7 @@ typedef struct
 	// ppu
 	int scanline_counter;
 	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
+	uint8_t screenp[Y][X];
 	bool signal;
 	
 	uint8_t joypad_state; // has state of held down buttons
@@ -163,7 +164,9 @@ typedef struct
 	// timers
 	int timer_counter;
 	int div_counter;
-
+	uint16_t internal_timer; // <--  this is used to count div top msb is the value seen
+	bool timer_reloading;
+	
 	
 } Cpu;
 
@@ -187,3 +190,13 @@ uint8_t read_stack(Cpu *cpu);
 uint16_t read_stackw(Cpu *cpu);
 void request_interrupt(Cpu * cpu,int interrupt);
 int set_clock_freq(Cpu *cpu);
+
+
+/*// timed functions
+uint16_t read_wordt(int address, Cpu *cpu);
+uint8_t read_memt(int address, Cpu *cpu);
+void write_memt(Cpu *cpu,uint16_t address,int data);
+void write_wordt(Cpu *cpu,uint16_t address,int data);
+void cycle_tick(Cpu *cpu,int cycles);
+*/
+void cycle_tick(Cpu *cpu,int cycles);
