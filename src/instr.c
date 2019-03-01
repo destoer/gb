@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+// implement oam bug 
+
 // flag helper functions
 
 

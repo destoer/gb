@@ -43,7 +43,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.de.reg = 0x00D8;
 	cpu.hl.reg = 0x014d;
 	cpu.sp = 0xFFFE;
-	cpu.cycles = 0; // cycles from interrupts etc
+
 
 	cpu.io[0x10] = 0x80;
 	cpu.io[0x11] = 0xBF;	
@@ -88,7 +88,6 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.pc = 0x100; // reset at 0x100
 	cpu.tacfreq = 256; // number of machine cycles till update
 	cpu.div_counter = 0;
-	cpu.internal_timer = 0;
 	cpu.scanline_counter = 0;
 	cpu.signal = false;
 	cpu.joypad_state = 0xff;
@@ -127,7 +126,7 @@ void request_interrupt(Cpu * cpu,int interrupt)
 
 void do_interrupts(Cpu *cpu)
 {
-	
+	//int cycles = 0;
 	// if interrupts are enabled
 	if(cpu->interrupt_enable)
 	{	
@@ -149,14 +148,16 @@ void do_interrupts(Cpu *cpu)
 					if(is_set(enabled,i))
 					{
 						service_interrupt(cpu,i);
-						cpu->cycles += 5; // 5 for interrupt dispatch
+						//cycles += 5;
 					}
 				}
 			}
 		}
 	}
-	cycle_tick(cpu,cpu->cycles);
-	cpu->cycles = 0;
+	//if(cycles > 0)
+	//{
+		//update_timers(cpu,cycles);
+	//}
 }
 
 void service_interrupt(Cpu *cpu,int interrupt)
@@ -204,25 +205,7 @@ void write_word(Cpu *cpu,uint16_t address,int data) // <- verify
 	write_mem(cpu,address,(data & 0x00ff));
 }
 
-inline void cycle_tick(Cpu *cpu,int cycles)
-{
-	update_timers(cpu,cycles); // <--- update timers 
-	update_graphics(cpu,cycles); // handle the lcd emulation
-}
 
-
-// timed reads and writes
-uint8_t read_memt(int address, Cpu *cpu)
-{
-	uint8_t num = read_mem(address,cpu);
-	cycle_tick(cpu,1);
-	return num;
-}
-void write_memt(Cpu *cpu,uint16_t address,int data)
-{
-	write_mem(cpu,address,data);
-	cycle_tick(cpu,1);
-}
 
 
 
@@ -269,22 +252,19 @@ uint16_t read_stackw(Cpu *cpu)
 
 
 
-
-
-
-
-/*// implement internal timer behavior with div and tima
+/*
+// implement internal timer behavior with div and tima
 // being one reg 
 
 // updates the timers
 void update_timers(Cpu *cpu, int cycles)
 {
 	// timer requires a reload?
-	if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
-	{
-		cpu->timer_reloading = false;
-		cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-	}
+	//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
+	//{
+		//cpu->timer_reloading = false;
+		//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
+	//}
 	
 	int cycles_to_add = cycles*4;
 	
@@ -293,67 +273,74 @@ void update_timers(Cpu *cpu, int cycles)
 	// divider reg in here for convenience
 	//cpu->internal_timer += cycles*4;
 	
-			
+
+						
 	
 	
-	// if timer is enabled <--- edge case with timer is failing the timing test
+	// if timer is enabled 
 	if(is_set(cpu->io[IO_TMC],2))
 	{	
 		for(int i = 0; i < cycles_to_add; i++)
 		{
 			// timer requires a reload?
-			if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
-			{
-				cpu->timer_reloading = false;
-				cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-			}
-			
-			//cpu->timer_counter += cycles;
-			cpu->internal_timer += 1;
-			//int threshold = set_clock_freq(cpu);
+			//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
+			//{
+				//cpu->timer_reloading = false;
+				//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
+			//}
 			uint8_t freq = cpu->io[IO_TMC] & 0x3;
-			
-			uint8_t bit;
-			
+					
+			uint8_t bit;	
 			switch(freq)
 			{
-				case 1: bit = 3; break;
-				case 0: bit = 9; break;
+				case 1: bit = 9; break;
+				case 0: bit = 3; break;
 				case 2: bit = 5; break;
 				case 3: bit = 7; break;
 			}
+			bool bit_set = is_set(cpu->internal_timer,bit);				
+			cpu->internal_timer += 1;
+			
+
 			
 			
-			
-			// update tima register cycles have elapsed dont think this will work lol
-			if(is_set(cpu->internal_timer,bit))
+			// if our bit is set and it was not before inc tima
+			if(is_set(cpu->internal_timer,bit) && !bit_set)
 			{
-			
-				cpu->io[IO_TIMA]++;
-				
-				// timer has overflowed
-				if(cpu->io[IO_TIMA] == 0)
+
+				// timer about to overflow
+				if(cpu->io[IO_TIMA] == 255)
 				{	
-					//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-					cpu->timer_reloading = true;
+					cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
+					//cpu->timer_reloading = true;
 					request_interrupt(cpu,2); // timer overflow interrupt
 					
+				}
+				
+				else
+				{
+					cpu->io[IO_TIMA]++;
 				}
 			}
 		}
 	}
 	
-	else
+	else // its not enabled so just tick div
 	{
 		cpu->internal_timer += cycles_to_add;	
 	}
 	
+	// div value is msb of internal timer
 	cpu->io[IO_DIV] = (cpu->internal_timer & 0xff00) >> 8;
-} */
+}
+
+*/
+// implement internal timer behavior with div and tima
+// being one reg 
 
 // updates the timers
 void update_timers(Cpu *cpu, int cycles)
-{
+{	
 	
 	// divider reg in here for convenience
 	cpu->div_counter += cycles;

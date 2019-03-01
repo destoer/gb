@@ -20,7 +20,6 @@ void do_dma(Cpu *cpu, uint8_t data);
 
 void write_mem(Cpu *cpu,uint16_t address,int data)
 {
-	
 
 	#ifdef DEBUG
 	// write breakpoint
@@ -221,7 +220,6 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 			case IO_DIV:
 			{
 				cpu->io[IO_DIV] = 0;
-				cpu->internal_timer = 0;
 				cpu->io[IO_TIMA] = 0;
 				return;
 			}
@@ -288,10 +286,11 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 
 			case IO_LCDC: // lcdc
 			{
-				
-				if(!is_lcd_enabled(cpu) && is_set(data,7)) // lcd re-enabled this write <-- should start after a delay...
+				if(!is_set(data,7) && is_lcd_enabled(cpu)) // lcd switched off this write
 				{
-					cpu->scanline_counter = 0;
+					cpu->scanline_counter = 0; // counter is reset
+					cpu->io[IO_LY] = 0; // reset ly
+					cpu->io[IO_STAT] &= ~3; // mode 0
 				}
 				cpu->io[IO_LCDC] = data;
 				return;
@@ -310,9 +309,6 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 			
 				// set unused bit
 				cpu->io[IO_STAT] |= 0x80;
-
-				// update the stat state
-				update_stat(cpu);
 				return;
 			}
 
