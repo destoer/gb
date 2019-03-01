@@ -112,8 +112,9 @@ int main(int argc, char *argv[])
 		SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STATIC, X, Y);
 	memset(cpu.screen ,255,Y * X *  4 * sizeof(uint8_t));
 	
-	
-
+	#ifdef DEBUG
+		bool speed_up = false;
+	#endif
 	
 	
 	for(;;)
@@ -198,7 +199,15 @@ int main(int argc, char *argv[])
 					{
 						// enable the debug console by setting a breakpoint at this pc
 						cpu.breakpoint = cpu.pc;
+						break;
 					}
+
+					case SDLK_l:
+					{
+						speed_up = !speed_up;
+						break;
+					}
+
 					#endif
 				}
 				if(key != -1)
@@ -334,7 +343,24 @@ int main(int argc, char *argv[])
 
 
 		// delay to keep our emulator running at the correct speed
+		// if in debug mode the l key toggles speedup
+		#ifdef DEBUG
+		if(speed_up)
+		{
+			SDL_Delay(time_left() / 8);
+		}
+
+		else
+		{
+			SDL_Delay(time_left());
+		}
+
+		#else
+		
+		
 		SDL_Delay(time_left());
+		
+		#endif		
 		next_time += screen_ticks_per_frame;
 	}
 

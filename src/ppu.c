@@ -218,8 +218,8 @@ void update_graphics(Cpu *cpu, int cycles)
 		// if past 153 reset ly
 		else if(ly > 154)
 		{
-			cpu->io[IO_STAT] &= ~3;
-			cpu->io[IO_STAT] |= 2;
+			//cpu->io[IO_STAT] &= ~3;
+			//cpu->io[IO_STAT] |= 2;
 			cpu->io[IO_LY] = 0;	
 		}
 
