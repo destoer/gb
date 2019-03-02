@@ -54,6 +54,7 @@ void update_stat(Cpu *cpu)
 	
 	// read out current stat reg and mask the mode
 	uint8_t status = cpu->io[IO_STAT];	
+	uint8_t old_mode = status & 0x3;
 	status &= ~0x3;
 	// mode is one if lcd is disabled
 	if(!is_lcd_enabled(cpu)) // <-- should re enable on a delay?
@@ -106,16 +107,16 @@ void update_stat(Cpu *cpu)
 	
 	// save our current signal state
 	bool signal_old = cpu->signal;
-
-	
-	switch(mode)
+	if( mode != old_mode )
 	{
-		case 0: cpu->signal = is_set(status,3); break;
-		case 1: cpu->signal = is_set(status,4); break;
-		case 2: cpu->signal = is_set(status,5); break;
-		default: cpu->signal = false; break;
+		switch(mode)
+		{
+			case 0: cpu->signal = is_set(status,3); break;
+			case 1: cpu->signal = is_set(status,4); break;
+			case 2: cpu->signal = is_set(status,5); break;
+			default: cpu->signal = false; break;
+		}
 	}
-	
 	
 
 
@@ -154,13 +155,11 @@ void update_stat(Cpu *cpu)
 	}
 	
 	// update our status reg
-	cpu->io[IO_STAT] = status | 128 | mode;
+	cpu->io[IO_STAT] = status | 128;
 }
 
 void update_graphics(Cpu *cpu, int cycles)
 {
-	
-	
 	// update the stat register
 	update_stat(cpu);
 
@@ -171,9 +170,7 @@ void update_graphics(Cpu *cpu, int cycles)
 	
 	//--------------------
 	// tick the ppu
-	cpu->scanline_counter += cycles; // advance the cycle counter
-	
-	
+
 	// read out current stat reg
 	uint8_t status = cpu->io[IO_STAT];
 	
@@ -182,7 +179,7 @@ void update_graphics(Cpu *cpu, int cycles)
 
 	uint8_t ly = cpu->io[IO_LY];
 
-	
+	cpu->scanline_counter += cycles; // advance the cycle counter
 
 
 	// we have finished drawing a line 
@@ -219,7 +216,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		}
 		
 		// if past 153 reset ly
-		else if(ly > 153)
+		else if(ly > 154)
 		{
 			//cpu->io[IO_STAT] &= ~3;
 			//cpu->io[IO_STAT] |= 2;

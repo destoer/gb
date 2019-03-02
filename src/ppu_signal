@@ -95,6 +95,7 @@ void update_stat(Cpu *cpu)
 		else if(cpu->scanline_counter <= 63) 
 		{
 			status |= 3; // set mode 3
+			cpu->signal = false;
 		}
 		
 		// hblank mode 0
