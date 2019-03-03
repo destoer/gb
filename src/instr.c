@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+// implement oam bug 
+
 // flag helper functions
 
 
@@ -306,7 +308,7 @@ void sbc(Cpu *cpu, uint8_t num)
 		deset_bit(cpu->af.lb,H);
 	}
 	
-	//uint8_t finalres = (uint8_t)result;
+
 	set_bit(cpu->af.lb,N);
 	set_zero(cpu,result);
 	
@@ -487,21 +489,7 @@ void xor(Cpu *cpu,uint8_t num)
 	set_zero(cpu,cpu->af.hb); // check for zero
 }
 
-void binary(int number)
-{
-	int counter = 1;
-	int mask = 128;
-	while(counter <= 8)
-	{
-		putchar(number & mask? '1' : '0');
-		number = number << 1;
-		if(counter % 8 == 0)
-		{
-			putchar(' ');
-		}
-		counter++;
-	}
-}
+
 
 
 // shift left into carry deset bit 1

@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+// get the last test on mbc1 working
+// fix windows saving!?
+
 
 // think the high bank change is not being done correctly
 
@@ -12,6 +15,8 @@
 // fix mbc2 ram
 
 // implement mbc3 timer <--- now
+
+// mbc3 may not be enabling and disabling ram properly? 
 
 void do_change_rom_ram_mode(Cpu *cpu, uint8_t data);
 void do_ram_bank_change(Cpu *cpu, uint8_t data);
@@ -24,6 +29,12 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 	// do ram enabling 
 	if(address < 0x2000)
 	{
+		// no ram banks dont enable it
+		if(cpu->rom_info.noRamBanks == 0)
+		{
+			return;
+		}
+
 		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2 || cpu->rom_info.mbc3)
 		{
 			do_ram_bank_enable(cpu,address,data);
@@ -74,36 +85,21 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 		
 		else if(cpu->rom_info.mbc3)
 		{
-			
-			
-			// change the ram bank or enable timer
-			data = data & 0xc;
-					
-			if(data <= 3)
+			// change the ram bank
+			// if ram bank is greater than 0x3 disable writes
+			cpu->currentram_bank = data;
+			if(cpu->rom_info.noRamBanks == 0)
 			{
-				cpu->currentram_bank = data;
-				if(cpu->rom_info.noRamBanks == 0)
-				{
-					cpu->currentram_bank = 0;
-				}
-		
-						
-						
-				else if(cpu->currentram_bank >= cpu->rom_info.noRamBanks)
-				{
-					//printf("[BANKING] Attempted to set a  ram bank greater than max %d\n",cpu->currentram_bank);
-					cpu->currentram_bank %= cpu->rom_info.noRamBanks;
-					//exit(1);
-				}
+				cpu->currentram_bank = 0;
 			}
-
-			// rtc reg
-			else if(data >= 0x8 && data <= 0xc && cpu->rom_info.has_rtc)
+	
+			else if(cpu->currentram_bank <= 3 && cpu->currentram_bank >= cpu->rom_info.noRamBanks)
 			{
-				cpu->currentram_bank = -1;
-				puts("Timer lock!");
+				//printf("[BANKING] Attempted to set a  ram bank greater than max %d\n",cpu->currentram_bank);
+				cpu->currentram_bank %= cpu->rom_info.noRamBanks;
+				//exit(1);
 			}
-
+			
 			//puts("MBC3 ram change");	
 		}
 	}

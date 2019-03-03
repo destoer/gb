@@ -10,25 +10,13 @@
 #include "headers/joypad.h"
 #include "headers/opcode.h"
 #include "headers/debug.h"
-//#include <SDL2/SDL.h>
-#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+#ifdef __linux__
+	#include <SDL2/SDL.h>
+#elif _WIN32
+	#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+	//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h"
+#endif 
 
-//33bf
-
-// kirby dreamland 2 doesent work <-- read only memory being trashed?
-// 3443
-// 345f
-// 33b7 // can sometimes be off but think its down to when the button is pushed...
-// 33c4 
-// 427b
-
-// fix dma timings 
-
-// fix ppu window 
-// cause links awakening is scrolling the thing
-// when it shouldunt be affected
-
-// fps limiting may not be accurate and may need fixing later
 static int next_time;
 
 uint32_t time_left(void)
@@ -41,15 +29,12 @@ uint32_t time_left(void)
 	else 
 		return next_time - now;
 }
-
-
-// alot of the writemem and readme inside
-// the memory and ppu functions can likely be removed 
-// along with the opcode fetches
-// need to fix mbc2 (or maybye just battery detection)
-// either way f1 race aint saving 
-
-
+/* TODO */
+// implement the internal timer
+// then get mem timing tests passing <-- passing but the cycle tick after at end instead of after the fetch seems wrong.....
+// probably due to not emulating the behavior for stack or register based reads......
+// Kirby dream land 2 is broken now as well investigate... likely related to di / ei order again... 
+// then the ppu ones <---
 
 int main(int argc, char *argv[])
 {
@@ -67,15 +52,21 @@ int main(int argc, char *argv[])
 	printf("Cpu located at %p\n",&cpu);
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
+	if(cpu.rom_info.noRamBanks > 0)
+	{
+		cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
+	}
+
+	else 
+	{
+		// dont allow any access
+		cpu.ram_banks = NULL;
+	}
 	
 	
 	
-	
-	
-	// load the first banks in (implement bank switches later)
-	
-	memcpy(cpu.mem,cpu.rom_mem,0x8000); // memcpy the first 2 banks in
-	
+
+
 
 	// check for a sav batt but for now we just copy the damb thing
 	
@@ -87,52 +78,20 @@ int main(int argc, char *argv[])
 	
 	strcat(savename,"sv");
 				
-	FILE *fp = fopen(savename,"r");
+	FILE *fp = fopen(savename,"rb");
 	
 	// if file doesn't exist just ignore it
 	if(fp != NULL)
 	{
-		
-		
 		fread(cpu.ram_banks,sizeof(uint8_t),(0x2000*cpu.rom_info.noRamBanks),fp);
 		fclose(fp);
-		
 	}
 	
 	free(savename);
 	savename = NULL;
 	fp = NULL;
 	
-/*//----------------------------------------------------------	
-	// memcpy our boot rom over this (we gonna find the bugs)
-	// read in the rom
-	FILE *fp = fopen("dmg_boot.bin", "rb");
-	
-	if(fp == NULL)
-	{
-		fprintf(stderr, "Failed to open file: %s","dmg_bot.bin");
-		exit(1);
-	}
 
-	fseek(fp, 0, SEEK_END); // get file size and set it to len
-	int len = ftell(fp); // get length of file
-	printf("Rom length is %d (bytes)\n", len );
-	rewind(fp); // go to start of file
-	
-	
-	uint8_t *rom = malloc(len * sizeof(uint8_t));
-	
-	fread(rom, sizeof(uint8_t), len, fp); // load file into array buffer
-	
-	
-	memcpy(cpu.mem,rom,len);
-	cpu.pc = 0;
-	cpu.de.reg = 0;
-	cpu.af.reg = 0;
-	cpu.sp = 0;
-	cpu.bc.reg = 0;
-	
-//-------------------------------------------------------------------- */
 	
 	/* sdl setup */
 	
@@ -155,8 +114,9 @@ int main(int argc, char *argv[])
 		SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STATIC, X, Y);
 	memset(cpu.screen ,255,Y * X *  4 * sizeof(uint8_t));
 	
-	
-
+	#ifdef DEBUG
+		bool speed_up = false;
+	#endif
 	
 	
 	for(;;)
@@ -184,18 +144,24 @@ int main(int argc, char *argv[])
 				
 				strcat(savename,"sv");
 				
-				fp = fopen(savename,"w");
-				
+				fp = fopen(savename,"wb");
+				if(fp == NULL)
+				{
+					printf("Error opening save file %s for saving\n",savename);
+					free(savename);
+					goto done;
+				}
 				
 				
 				fwrite(cpu.ram_banks,sizeof(uint8_t),(0x2000*cpu.rom_info.noRamBanks),fp);
 				
 				
-				//fwrite(&cpu.mem[0xa000],1,0x2000,fp);
+
 				
 				free(savename);
 				fclose(fp);
 				
+				done:
 				// should clean up our state here too 
 				SDL_DestroyRenderer(renderer);
 				SDL_DestroyWindow(window);
@@ -206,8 +172,11 @@ int main(int argc, char *argv[])
 				
 
 				// clean up
-				free(cpu.mem);
-				free(cpu.ram_banks);
+
+				if(cpu.ram_banks != NULL)
+				{
+					free(cpu.ram_banks);
+				}
 				free(cpu.rom_mem);
 				return 0;
 			}	
@@ -232,7 +201,15 @@ int main(int argc, char *argv[])
 					{
 						// enable the debug console by setting a breakpoint at this pc
 						cpu.breakpoint = cpu.pc;
+						break;
 					}
+
+					case SDLK_l:
+					{
+						speed_up = !speed_up;
+						break;
+					}
+
 					#endif
 				}
 				if(key != -1)
@@ -271,8 +248,11 @@ int main(int argc, char *argv[])
 		{
 			int cycles = step_cpu(&cpu);
 			cycles_this_update += cycles;
-			update_timers(&cpu,cycles); // <--- update timers 
-			update_graphics(&cpu,cycles); // handle the lcd emulation
+
+			// now done in the opcode execution
+			//update_timers(&cpu,cycles); // <--- update timers 
+			//update_graphics(&cpu,cycles); // handle the lcd emulation
+			
 			do_interrupts(&cpu); // handle interrupts 
 			
 			// now we need to test if an ei or di instruction
@@ -289,8 +269,9 @@ int main(int argc, char *argv[])
 				// but before we service interrupts				
 				cpu.interrupt_enable = true;
 				cycles_this_update += cycles;
-				update_timers(&cpu,cycles); // <--- update timers 
-				update_graphics(&cpu,cycles); // handle the lcd emulation
+				// now done in the opcode execution
+				//update_timers(&cpu,cycles); // <--- update timers 
+				//update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- not sure what should happen here		
 				
 			}
@@ -302,8 +283,9 @@ int main(int argc, char *argv[])
 				// we have executed another instruction now deset ime
 				cpu.interrupt_enable = false;
 				cycles_this_update += cycles;
-				update_timers(&cpu,cycles); // <--- update timers 
-				update_graphics(&cpu,cycles); // handle the lcd emulation
+				// now done in the opcode execution
+				//update_timers(&cpu,cycles); // <--- update timers 
+				//update_graphics(&cpu,cycles); // handle the lcd emulation
 				do_interrupts(&cpu); // handle interrupts <-- what should happen here?
 			}
 			
@@ -313,22 +295,21 @@ int main(int argc, char *argv[])
 			// until an interrupt occurs and wakes it up 
 			
 			
-			if(cpu.halt) // halt  <-- bugged as hell 
+			if(cpu.halt) // halt occured in prev instruction
 			{
 				
 				cpu.halt = false;
 
-				uint8_t req = cpu.mem[0xff0f]; // req ints 
-				uint8_t enabled = cpu.mem[0xffff]; // enabled interrutps
-				
-				//printf("halt req: %x, enabled: %x, ime: %x\n",req,enabled,cpu.interrupt_enable);
-				
-				
+				uint8_t req = cpu.io[IO_IF]; // requested ints 
+				uint8_t enabled = cpu.io[IO_IE]; // enabled interrutps
+		
 				// halt bug
 				// halt state not entered and the pc fails to increment for
 				// one instruction read 
 				
 				// appears to detect when it happens but does not emulate the behavior properly
+				
+
 				
 				if( (cpu.interrupt_enable == false) &&  (req & enabled & 0x1f) != 0)
 				{
@@ -336,32 +317,58 @@ int main(int argc, char *argv[])
 				}
 
 				
+				// not sure what defined behaviour is here
+				else if(enabled == 0)
+				{
+						
+				}
+				
 				// normal halt
 				
 				else 
 				{
 					while( ( req & enabled & 0x1f) == 0)
 					{
-						cycles = 1; // just go a cycle at a time
-						cycles_this_update += cycles;
-						update_timers(&cpu,cycles); // <--- update timers 
-						update_graphics(&cpu,cycles); // handle the lcd emulation
+						// just go a cycle at a time
+						cycles_this_update += 1;
+						// just tick it
+						//update_timers(&cpu,1); // <--- update timers 
+						//update_graphics(&cpu,1); // handle the lcd emulation
 							
-						req = cpu.mem[0xff0f];
-						enabled = cpu.mem[0xffff];
+						req = cpu.io[IO_IF];
+						enabled = cpu.io[IO_IE];
 					}
 					do_interrupts(&cpu); // handle interrupts
 				}	
-			}
+			} 
 		}
 		
+		// do our screen blit
 		SDL_UpdateTexture(texture, NULL, &cpu.screen,  4 * X * sizeof(uint8_t));
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
 		SDL_RenderPresent(renderer);
 
 
-		//SDL_Delay(time_left());
+		// delay to keep our emulator running at the correct speed
+		// if in debug mode the l key toggles speedup
+		#ifdef DEBUG
+		if(speed_up)
+		{
+			SDL_Delay(time_left() / 8);
+		}
+
+		else
+		{
+			SDL_Delay(time_left());
+		}
+
+		#else
+		
+		
+		SDL_Delay(time_left());
+		
+		#endif		
 		next_time += screen_ticks_per_frame;
 	}
 

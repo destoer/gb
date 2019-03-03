@@ -101,13 +101,25 @@ typedef struct
 	uint16_t sp; // stack pointer	
 	uint16_t pc;
 	int tacfreq; // frequency at which tima increases
-	uint8_t *mem; // main cpu mem 
+	//uint8_t *mem; // main cpu mem 
+
+
+	// memory
+	uint8_t vram[0x2000];
+	uint8_t wram[0x2000];
+	uint8_t oam[0x100];
+	uint8_t io[0x100]; // hram and io registers
+
 	uint8_t *rom_mem; // rom 
 	bool interrupt_enable; // affected by di and ei instr
+	
+	// ppu
 	int scanline_counter;
 	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
+	uint8_t screenp[Y][X];
+	bool signal;
+	
 	uint8_t joypad_state; // has state of held down buttons
-	int cycles;
 	// banking
 	
 	uint8_t *ram_banks; // 4 banks max
@@ -151,6 +163,8 @@ typedef struct
 	// timers
 	int timer_counter;
 	int div_counter;
+	uint16_t internal_timer;
+	bool timer_reloading;
 	
 } Cpu;
 
@@ -165,13 +179,17 @@ Cpu init_cpu(void); // returns an initial cpu state
 void update_timers(Cpu *cpu, int cycles); // update the cpu timers
 void do_interrupts(Cpu *cpu);
 void update_graphics(Cpu *cpu, int cycles);
-uint8_t read_mem(uint16_t address, Cpu *cpu);
 bool is_set(uint8_t reg, uint8_t bit);
 uint16_t read_word(int address, Cpu *cpu);
-void write_mem(Cpu *cpu,uint16_t address,int data);
 void write_word(Cpu *cpu,uint16_t address,int data);
 void write_stack(Cpu *cpu, uint8_t data);
 void write_stackw(Cpu *cpu,uint16_t data);
 uint8_t read_stack(Cpu *cpu);
 uint16_t read_stackw(Cpu *cpu);
 void request_interrupt(Cpu * cpu,int interrupt);
+int set_clock_freq(Cpu *cpu);
+void cycle_tick(Cpu *cpu,int cycles);
+uint16_t read_wordt(int address, Cpu *cpu);
+void write_wordt(Cpu *cpu,uint16_t address,int data);
+uint8_t read_memt(int address, Cpu *cpu);
+void write_memt(Cpu *cpu,uint16_t address,int data);

@@ -5,11 +5,9 @@
 #include "headers/lib.h"
 #include "headers/memory.h"
 
-//add line 154 behaviour where it hits end of 153 but then waits an extra 114 cycles
 
-// our new screen driver implementation causes screen tearing in Pokemon
-// the current one on github where we dont just handle signals on mode changes
-// also outdated from the linux one so merge with it
+
+
 
 // metroid 2 final boss
 
@@ -44,8 +42,7 @@ bool is_lcd_enabled(Cpu *cpu)
 {
 	return ( is_set(cpu->io[IO_LCDC],7) );	
 }
-/* old implentation in ppu_signal passing irq test but doesent seem right
-   and causes screen tearing in many games */
+
 void update_stat(Cpu *cpu)
 {
 	//-----------------------
@@ -53,8 +50,8 @@ void update_stat(Cpu *cpu)
 	// and trigger interrupts	
 	
 	// read out current stat reg and mask the mode
-	uint8_t status = cpu->io[IO_STAT];	
-	status &= ~0x3;
+	uint8_t status = cpu->io[IO_STAT] & ~3;	
+	
 	// mode is one if lcd is disabled
 	if(!is_lcd_enabled(cpu)) // <-- should re enable on a delay?
 	{
@@ -66,17 +63,19 @@ void update_stat(Cpu *cpu)
 	}
 	
 
-
+	// save our current signal state
+	bool signal_old = cpu->signal;
 
 	uint8_t ly = cpu->io[IO_LY];
 
 	
-	uint8_t mode = 0;
+	
 	
 	// vblank (mode 1)
 	if(ly >= 144)
 	{
-		mode = 1;
+		status |= 1; // set mode 1
+		cpu->signal = is_set(status,4);
 	}
 	
 	
@@ -88,34 +87,22 @@ void update_stat(Cpu *cpu)
 		// oam search (mode 2)
 		if(cpu->scanline_counter <= 20)
 		{
-			mode = 2;
+			status |= 2; // set mode 2
+			cpu->signal = is_set(status,5);
 		}
 		
 		// pixel transfer (mode 3)
 		else if(cpu->scanline_counter <= 63) 
 		{
-			mode = 3;
+			status |= 3; // set mode 3
 		}
 		
 		// hblank mode 0
 		else
 		{ 
-			mode = 0;
+			cpu->signal = is_set(status,3);	
 		}
 	}
-	
-	// save our current signal state
-	bool signal_old = cpu->signal;
-
-	
-	switch(mode)
-	{
-		case 0: cpu->signal = is_set(status,3); break;
-		case 1: cpu->signal = is_set(status,4); break;
-		case 2: cpu->signal = is_set(status,5); break;
-		default: cpu->signal = false; break;
-	}
-	
 	
 
 
@@ -123,6 +110,7 @@ void update_stat(Cpu *cpu)
 	// check coincidence  (lyc == ly)
 	uint8_t lyc = cpu->io[IO_LYC];
 	
+
 
 	// line 153 can be treated as zero 
 	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
@@ -148,19 +136,17 @@ void update_stat(Cpu *cpu)
 
 	// if we have changed from 0 to 1 for signal(signal edge)
 	// request a stat interrupt
-	if(!signal_old && cpu->signal)
+	if(signal_old == false && cpu->signal)
 	{
 		request_interrupt(cpu,1);	
 	}
 	
 	// update our status reg
-	cpu->io[IO_STAT] = status | 128 | mode;
+	cpu->io[IO_STAT] = status | 128;
 }
 
 void update_graphics(Cpu *cpu, int cycles)
 {
-	
-	
 	// update the stat register
 	update_stat(cpu);
 
@@ -171,9 +157,7 @@ void update_graphics(Cpu *cpu, int cycles)
 	
 	//--------------------
 	// tick the ppu
-	cpu->scanline_counter += cycles; // advance the cycle counter
-	
-	
+
 	// read out current stat reg
 	uint8_t status = cpu->io[IO_STAT];
 	
@@ -182,7 +166,7 @@ void update_graphics(Cpu *cpu, int cycles)
 
 	uint8_t ly = cpu->io[IO_LY];
 
-	
+	cpu->scanline_counter += cycles; // advance the cycle counter
 
 
 	// we have finished drawing a line 
@@ -200,7 +184,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		cpu->io[IO_LY] = ly;
 		
 		// reset the counter extra cycles should tick over
-		cpu->scanline_counter = 0;
+		cpu->scanline_counter = cpu->scanline_counter - 114;
 
 		// vblank has been entered
 		if(ly == 144)
@@ -221,8 +205,8 @@ void update_graphics(Cpu *cpu, int cycles)
 		// if past 153 reset ly
 		else if(ly > 153)
 		{
-			//cpu->io[IO_STAT] &= ~3;
-			//cpu->io[IO_STAT] |= 2;
+			cpu->io[IO_STAT] &= ~3;
+			cpu->io[IO_STAT] |= 2;
 			cpu->io[IO_LY] = 0;	
 		}
 
@@ -341,7 +325,6 @@ void render_tiles(Cpu *cpu)
 	for(uint8_t pixel = 0; pixel < 160; pixel++)
 	{
 		uint8_t x_pos = pixel;
-		
 		if(!using_window) // <-- dont think this is correct
 		{
 			x_pos += scroll_x;
@@ -475,33 +458,7 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
 }
 
 
-typedef struct
-{
-	int index;
-	int x_pos;
-} Obj;
-
-
-
-int cmpfunc(const void *A, const void *B)
-{
-	const Obj* a = A;
-	const Obj* b = B;
-
-	// sort by the oam index
-	if(a->x_pos == b->x_pos)
-	{
-		return -(a->index - b->index);
-	}
-
-	// sort by the x posistion
-	else
-	{
-		return(a->x_pos - b->x_pos);
-	}
-}
-
-
+// add sprite precedence behaviour
 void render_sprites(Cpu *cpu) 
 {
 	
@@ -509,44 +466,21 @@ void render_sprites(Cpu *cpu)
 
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 	
-	uint8_t scanline = read_mem(0xff44,cpu);
-
-	Obj objects_priority[10];
-	int x = 0;
-	for(int sprite = 0; sprite < 40; sprite++)
-	{
-		uint8_t y_pos = (read_mem(0xfe00+sprite*4,cpu));
-		if( scanline -(y_size - 16) < y_pos  && scanline + 16 >= y_pos )
-		{
-			// intercepts with the line
-			objects_priority[x].index = sprite*4; // save the index
-			// and the x pos
-			objects_priority[x].x_pos = read_mem(0xfe00+(sprite*4)+1,cpu)-8;
-			x += 1;
-			if(x == 10) { break; } // only draw a max of 10 sprites per line
-		}
-	}
-
-
-	// sort the array
-	// if x cords are same use oam as priority lower indexes draw last
-	// else use the x cordinate again lower indexes draw last
-	// this means they will draw on top of other sprites
-	qsort(&objects_priority,x,sizeof(Obj),cmpfunc);
-	
-
-
-	for(int i = 0; i < x; i++)
+	for(int sprite = 39; sprite >= 0; sprite--) // more efficent to count loop down instead of up this ruins sprite ordering but we aint emulating it anyways
 	{
 		// sprite takes 4 bytes in the sprite attributes table
-		uint8_t sprite_index = objects_priority[i].index;
-		uint8_t y_pos = (read_mem(0xfe00+sprite_index,cpu));
-		uint8_t x_pos = objects_priority[i].x_pos;
-		uint8_t sprite_location = read_mem(0xfe00+sprite_index+2,cpu);
-		uint8_t attributes = read_mem(0xfe00+sprite_index+3, cpu);
+		uint8_t index = sprite*4; 
+		uint8_t y_pos = (read_mem(0xfe00+index,cpu));
+		uint8_t x_pos = read_mem(0xfe00+index+1, cpu)-8;
+		uint8_t sprite_location = read_mem(0xfe00+index+2,cpu);
+		uint8_t attributes = read_mem(0xfe00+index+3, cpu);
 		
 		bool y_flip = is_set(attributes,6);
 		bool x_flip = is_set(attributes,5);
+		
+		uint8_t scanline = read_mem(0xff44,cpu);
+		
+
 		
 		
 		// does this sprite  intercept with the scanline

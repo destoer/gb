@@ -394,31 +394,23 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x34: // inc (hl)
-			
-			cbop = read_memt(cpu->hl.reg,cpu); // use to store (hl)
+			cbop = read_mem(cpu->hl.reg,cpu); // use to store (hl)
 			
 			inc(cpu,cbop++); // inc 
 			
-			write_memt(cpu,cpu->hl.reg,cbop); // and write back
-			cycle_tick(cpu,1);
-			return mcycles[opcode];
+			write_mem(cpu,cpu->hl.reg,cbop); // and write back
 			break;
 		
 		case 0x35: // dec (hl)
-			cbop = read_memt(cpu->hl.reg,cpu);
+			cbop = read_mem(cpu->hl.reg,cpu);
 			dec(cpu,cbop--); // dec it
 			
-			write_memt(cpu,cpu->hl.reg,cbop); // and write straight back
-			cycle_tick(cpu,1);
-			return mcycles[opcode];
+			write_mem(cpu,cpu->hl.reg,cbop); // and write straight back
 			break;
 			
 		
 		case 0x36: // ld (hl), n 
-			//cycle_tick(cpu,1); // tick the instruction fetch
-			write_memt(cpu,cpu->hl.reg,read_memt(cpu->pc++,cpu));
-			cycle_tick(cpu,1);
-			return mcycles[opcode];
+			write_mem(cpu,cpu->hl.reg,read_mem(cpu->pc++,cpu));
 			break;
 		
 		case 0x37: // scf
@@ -1114,10 +1106,8 @@ int step_cpu(Cpu * cpu)
 			
 			cbop = read_mem(cpu->pc++, cpu); // fetch the opcode
 			decode_cb(cbop,cpu); // exec it 
-
-
-			return cbmcycles[cbop];
-			//return cbmcycles[cbop]; // update machine cylces for cb prefix
+			cycle_tick(cpu,cbmcycles[cbop]);
+			return cbmcycles[cbop]; // update machine cylces for cb prefix
 			break; 
 		
 		
@@ -1154,7 +1144,6 @@ int step_cpu(Cpu * cpu)
 			if(!is_set(cpu->af.lb,C))
 			{
 				cpu->pc = read_stackw(cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			break;
@@ -1168,7 +1157,6 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			
@@ -1184,7 +1172,6 @@ int step_cpu(Cpu * cpu)
 				write_log("call nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return  mtcycles[opcode];
 			}
 			
@@ -1211,7 +1198,6 @@ int step_cpu(Cpu * cpu)
 			if(is_set(cpu->af.lb,C))
 			{
 				cpu->pc = read_stackw(cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			break;
@@ -1226,7 +1212,6 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			
@@ -1242,7 +1227,6 @@ int step_cpu(Cpu * cpu)
 				write_log("call c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
-				cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			
@@ -1263,10 +1247,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xE0: // ld (ff00+n),a
-			//cycle_tick(cpu,1);
-			write_memt(cpu,(0xff00+read_memt(cpu->pc++,cpu)),cpu->af.hb);
-			cycle_tick(cpu,1);
-			return mcycles[opcode];
+			write_mem(cpu,(0xff00+read_mem(cpu->pc++,cpu)),cpu->af.hb);
 			break;
 
 		case 0xe1: // pop hl
@@ -1292,7 +1273,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xe8: // add sp, i8 <--- verify
-			cpu->sp = addi(cpu,cpu->sp, ((int8_t)read_mem(cpu->pc++,cpu)) ); 
+			cpu->sp = addi(cpu,cpu->sp, ((int8_t)read_mem(cpu->pc++,cpu)) );
 			break;
 		
 		case 0xe9: // jp hl
@@ -1301,10 +1282,8 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xea: // ld (nnnn), a
-			write_memt(cpu,read_wordt(cpu->pc,cpu),cpu->af.hb);
-			cycle_tick(cpu,1);
+			write_mem(cpu,read_word(cpu->pc,cpu),cpu->af.hb);
 			cpu->pc += 2;
-			return mcycles[opcode];
 			break;
 		
 		case 0xee: // xor a, nn
@@ -1317,9 +1296,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xF0: // ld a, (ff00+n)
-			cpu->af.hb = read_memt(0xff00+read_memt(cpu->pc++, cpu),cpu);
-			cycle_tick(cpu,1);
-			return mcycles[opcode];
+			cpu->af.hb = read_mem(0xff00+read_mem(cpu->pc++, cpu),cpu);
 			break;
 		
 		case 0xf1: // pop af
@@ -1360,10 +1337,8 @@ int step_cpu(Cpu * cpu)
 		
 		case 0xfa: // ld a (nn) <-- 16 bit address
 			//cpu->af.hb = read_mem(cpu->mem,read_word(cpu->mem,cpu->pc));
-			cycle_tick(cpu,1);
-			cpu->af.hb = read_memt(read_wordt(cpu->pc,cpu),cpu);
+			cpu->af.hb = read_mem(read_word(cpu->pc,cpu),cpu);
 			cpu->pc += 2;
-			return mcycles[opcode];
 			break;
 		
 		case 0xfb: 
@@ -1399,7 +1374,6 @@ int step_cpu(Cpu * cpu)
 			break;
 	}
 	
-	int cycles = mcycles[opcode];
-	cycle_tick(cpu,cycles);
-    return cycles; // update the machine cycles		
+	cycle_tick(cpu,mcycles[opcode]);
+    return mcycles[opcode]; // update the machine cycles		
 }
