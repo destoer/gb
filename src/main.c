@@ -31,9 +31,9 @@ uint32_t time_left(void)
 }
 /* TODO */
 // implement the internal timer
-// then get mem timing tests passing <-- passing but the cycle tick after at end instead of after the fetch seems wrong.....
-// probably due to not emulating the behavior for stack or register based reads......
-// Kirby dream land 2 is broken now as well investigate... likely related to di / ei order again... 
+// then get mem timing tests passing but breaks a couple games remove the last traces of read_mem from opcode.c tomorrow
+// and do it for stack + jp + call + ret behavior
+// Kirby dream land 2 is broken now as well investigate... likely related to di / ei order again... (outright emulator lockup)
 // then the ppu ones <---
 
 int main(int argc, char *argv[])
@@ -332,8 +332,8 @@ int main(int argc, char *argv[])
 						// just go a cycle at a time
 						cycles_this_update += 1;
 						// just tick it
-						//update_timers(&cpu,1); // <--- update timers 
-						//update_graphics(&cpu,1); // handle the lcd emulation
+						update_timers(&cpu,1); // <--- update timers 
+						update_graphics(&cpu,1); // handle the lcd emulation
 							
 						req = cpu.io[IO_IF];
 						enabled = cpu.io[IO_IE];
