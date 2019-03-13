@@ -42,7 +42,7 @@ void set_lcd_status(Cpu *cpu);
 
 bool is_lcd_enabled(Cpu *cpu)
 {
-	return ( is_set(cpu->io[IO_LCDC],7) );	
+	return ( is_set(read_mem(0xff40,cpu),7) );	
 }
 /* old implentation in ppu_signal passing irq test but doesent seem right
    and causes screen tearing in many games */
@@ -159,13 +159,10 @@ void update_stat(Cpu *cpu)
 
 void update_graphics(Cpu *cpu, int cycles)
 {
-	
-	
-	// update the stat register
-	update_stat(cpu);
 
 	if(!is_lcd_enabled(cpu))
 	{
+		update_stat(cpu);	
 		return;
 	}
 	
@@ -173,6 +170,8 @@ void update_graphics(Cpu *cpu, int cycles)
 	// tick the ppu
 	cpu->scanline_counter += cycles; // advance the cycle counter
 	
+	// update the stat register
+	update_stat(cpu);	
 	
 	// read out current stat reg
 	uint8_t status = cpu->io[IO_STAT];
@@ -198,6 +197,11 @@ void update_graphics(Cpu *cpu, int cycles)
 		ly += 1;
 		
 		cpu->io[IO_LY] = ly;
+		
+		//set stat to mode 2(oam search)  <-- may not be correct?
+		status &= ~3;
+		status |= 2;
+		cpu->io[IO_STAT] = status;
 		
 		// reset the counter extra cycles should tick over
 		cpu->scanline_counter = 0;
@@ -235,6 +239,9 @@ void update_graphics(Cpu *cpu, int cycles)
 
 void draw_scanline(Cpu *cpu)
 {
+	bool save = cpu->oam_dma_active;
+
+	cpu->oam_dma_active = false;
 	
 	// get lcd control reg
 	uint8_t  control = read_mem(0xff40,cpu);
@@ -248,6 +255,8 @@ void draw_scanline(Cpu *cpu)
 	{
 		render_sprites(cpu);
 	}
+	
+	cpu->oam_dma_active = save;
 }
 
 

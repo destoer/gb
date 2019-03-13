@@ -35,6 +35,14 @@ uint32_t time_left(void)
 // and do it for stack + jp + call + ret behavior
 // Kirby dream land 2 is broken now as well investigate... likely related to di / ei order again... (outright emulator lockup)
 // then the ppu ones <---
+// implement oam bug and timing <- timing is done but not sure about the read blocking
+// when tests are passing factor out all the extra cycle ticks and returns in opcode.c <-------
+// fix enable interrupt and disable interrupt timing (does not handle rapid toggles)
+
+
+// F-1 race 
+
+// 1ece not reached
 
 int main(int argc, char *argv[])
 {
@@ -211,6 +219,11 @@ int main(int argc, char *argv[])
 					}
 
 					#endif
+					
+
+					
+					
+					
 				}
 				if(key != -1)
 				{
@@ -231,6 +244,74 @@ int main(int argc, char *argv[])
 					case SDLK_LEFT: key = 1; break;
 					case SDLK_UP: key = 2; break;
 					case SDLK_DOWN: key = 3; break;
+					
+					// stating prone to crashing atm
+					
+					case SDLK_0: // save state
+					{
+						puts("Saved state!");
+						char *savestname = calloc(strlen(argv[1])+5,1);
+						strcpy(savestname,argv[1]);
+	
+						strcat(savestname,"svt");
+						
+
+						FILE *savstate = fopen(savestname,"wb");
+						free(savestname);
+						if(savstate == NULL)
+						{
+							puts("Failed to save state!");
+							break;
+						}
+						
+						
+						fwrite(&cpu,sizeof(Cpu),1,savstate);
+
+						fwrite(cpu.vram,1,0x2000,savstate);
+						fwrite(cpu.wram,1,0x2000,savstate);
+						fwrite(cpu.oam,1,0x100,savstate);
+						fwrite(cpu.io,1,0x100,savstate);
+						fwrite(cpu.screen,4,X*Y,savstate);
+						fwrite(cpu.screenp,1,X*Y,savstate);
+						fwrite(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
+						fclose(savstate);
+						break;
+					}
+					
+					case SDLK_9: // load sate
+					{
+						puts("Loaded state!");
+						char *savestname = calloc(strlen(argv[1])+5,1);
+						strcpy(savestname,argv[1]);
+	
+						strcat(savestname,"svt");
+						
+
+						FILE *savstate = fopen(savestname,"rb");
+						free(savestname);
+						
+						// free our pointer as we will have to reallocate them 
+						// as our saved struct probably contains invalid pointers
+						free(cpu.rom_mem); // loaded below
+						free(cpu.ram_banks);
+						
+						fread(&cpu,sizeof(Cpu),1,savstate);
+						
+						cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
+						
+						
+						
+						fread(cpu.vram,1,0x2000,savstate);
+						fread(cpu.wram,1,0x2000,savstate);
+						fread(cpu.oam,1,0x100,savstate);
+						fread(cpu.io,1,0x100,savstate);
+						fread(cpu.screen,4,X*Y,savstate);
+						fread(cpu.screenp,1,X*Y,savstate);
+						fread(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
+						cpu.rom_mem = load_rom(argv[1]); 
+						fclose(savstate);
+						break;
+					}
 				}
 				if(key != -1)
 				{
@@ -297,7 +378,7 @@ int main(int argc, char *argv[])
 			
 			if(cpu.halt) // halt occured in prev instruction
 			{
-				
+			
 				cpu.halt = false;
 
 				uint8_t req = cpu.io[IO_IF]; // requested ints 
@@ -327,20 +408,21 @@ int main(int argc, char *argv[])
 				
 				else 
 				{
-					while( ( req & enabled & 0x1f) == 0)
+					while( ( req & enabled & 0x1f) == 0) // <--- needs debugger access or a bailout condition
 					{
 						// just go a cycle at a time
 						cycles_this_update += 1;
 						// just tick it
 						update_timers(&cpu,1); // <--- update timers 
 						update_graphics(&cpu,1); // handle the lcd emulation
-							
+											// may need to tick dma here....
+												
 						req = cpu.io[IO_IF];
 						enabled = cpu.io[IO_IE];
 					}
 					do_interrupts(&cpu); // handle interrupts
-				}	
-			} 
+				}
+			}	
 		}
 		
 		// do our screen blit

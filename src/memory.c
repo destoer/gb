@@ -34,6 +34,28 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	}
 	#endif
 
+
+/*	// only allow reads from hram or from dma reg 
+	if(cpu->oam_dma_active)
+	{
+			if(address >= 0xFF80 && address <= 0xFFFE)
+			{
+				// allow the read to hram
+				
+			}
+			
+			// dma reg
+			else if(address == 0xff46)
+			{
+				do_dma(cpu,address); // restart dma
+				cpu->io[IO_DMA] = data;
+			}
+			
+			// block do nothing
+			return;
+	}
+*/
+
 	// handle banking 
 	if(address < 0x8000)
 	{
@@ -92,6 +114,8 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	{
 		uint8_t status = read_mem(0xff41,cpu);
 		status &= 3; // get just the mode
+		// should be blocked during dma but possibly not to the ppu
+		//if(status <= 1 && !cpu->oam_dma_active)
 		if(status <= 1)
 		{
 			cpu->oam[address & 0xff] = data;
@@ -220,7 +244,6 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 			case IO_DIV:
 			{
 				cpu->io[IO_DIV] = 0;
-				//cpu->io[IO_TIMA] = 0;
 				cpu->internal_timer = 0;
 				return;
 			}
@@ -373,6 +396,21 @@ void do_dma(Cpu *cpu, uint8_t data)
 			write_mem(cpu,0xfe00+i, read_mem(dma_address+i,cpu));
 		}
 	}
+
+
+	// tell the emulator to start ticking the dma transfer
+	// source must be below 0xe000 <-- playing like hell fix later
+	
+	// technically dma should take a cycle before it starts
+	/*
+	if(dma_address <= 0xe000)
+	{
+		cpu->oam_dma_active = true; // indicate a dma is active and to lock memory
+		cpu->oam_dma_address = dma_address; // the source address
+		cpu->oam_dma_index = 0; // how far along the dma transfer we are
+	}
+	*/
+
 }
 
 
@@ -397,6 +435,25 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	}
 	#endif
 
+
+/*	// only allow reads from hram or from dma reg 
+	if(cpu->oam_dma_active)
+	{
+			if(address >= 0xFF80 && address <= 0xFFFE)
+			{
+				return cpu->io[address & 0xff];
+			}
+			
+			// dma reg
+			else if(address == 0xff46)
+			{
+				return cpu->io[IO_DMA];
+			}
+			
+			// block do nothing
+			return 0xff;
+	}
+*/
 	// rom bank 0
 	if(address < 0x4000)
 	{
@@ -462,6 +519,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	{
 		uint8_t status = read_mem(0xff41,cpu);
 		status &= 3; // get just the mode
+		//if(status <= 1 && !cpu->oam_dma_active) // cant access during dma? but ppu should?
 		if(status <= 1)
 		{
 			return cpu->oam[address & 0xff];

@@ -166,6 +166,12 @@ typedef struct
 	uint16_t internal_timer;
 	bool timer_reloading;
 	
+	// is a oam dma active
+	bool oam_dma_active;
+	uint16_t oam_dma_address;
+	int oam_dma_index; // how far along the dma transfer we are
+	
+	
 } Cpu;
 
 // hb = high order byte
@@ -193,3 +199,8 @@ uint16_t read_wordt(int address, Cpu *cpu);
 void write_wordt(Cpu *cpu,uint16_t address,int data);
 uint8_t read_memt(int address, Cpu *cpu);
 void write_memt(Cpu *cpu,uint16_t address,int data);
+void write_stackwt(Cpu *cpu,uint16_t data);
+void write_stackt(Cpu *cpu,uint8_t data);
+uint8_t read_stackt(Cpu *cpu);
+uint16_t read_stackwt(Cpu *cpu);
+void tick_dma(Cpu *cpu, int cycles);

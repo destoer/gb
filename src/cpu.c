@@ -131,10 +131,12 @@ void do_interrupts(Cpu *cpu)
 	if(cpu->interrupt_enable)
 	{	
 		// get the set requested interrupts
-		uint8_t req = cpu->io[IO_IF];
+		//uint8_t req = cpu->io[IO_IF];
 		// checked that the interrupt is enabled from the ie reg 
-		uint8_t enabled = cpu->io[IO_IE];
+		//uint8_t enabled = cpu->io[IO_IE];
+		uint8_t req = read_mem(0xff0f,cpu);
 		
+		uint8_t enabled = read_mem(0xffff,cpu);	
 		if(req > 0)
 		{
 			// priority for servicing starts at interrupt 0
@@ -167,9 +169,9 @@ void service_interrupt(Cpu *cpu,int interrupt)
 	cpu->interrupt_enable = false; // disable interrupts now one is serviced
 		
 	// reset the bit of in the if to indicate it has been serviced
-	uint8_t req = read_mem(0xff0f,cpu);
+	uint8_t req = cpu->io[IO_IF];
 	deset_bit(req,interrupt);
-	write_mem(cpu,0xff0f,req);
+	cpu->io[IO_IF] = req;
 		
 	// push the current pc on the stack to save it
 	// it will be pulled off by reti or ret later
@@ -253,6 +255,12 @@ void write_stack(Cpu *cpu, uint8_t data)
 
 }
 
+void write_stackt(Cpu *cpu, uint8_t data)
+{
+	cpu->sp -= 1; // dec stack pointer before writing mem for push
+	write_memt(cpu,cpu->sp,data); // write to stack
+
+}
 
 void write_stackw(Cpu *cpu,uint16_t data)
 {
@@ -260,10 +268,24 @@ void write_stackw(Cpu *cpu,uint16_t data)
 	write_stack(cpu,(data &0x00ff));
 }
 
+void write_stackwt(Cpu *cpu,uint16_t data)
+{
+	write_stackt(cpu,(data & 0xff00) >> 8);
+	write_stackt(cpu,(data & 0x00ff));
+}
+
 uint8_t read_stack(Cpu *cpu)
 {
 	
 	uint8_t data = read_mem(cpu->sp,cpu);
+	cpu->sp += 1;
+	return data;
+}
+
+uint8_t read_stackt(Cpu *cpu)
+{
+	
+	uint8_t data = read_memt(cpu->sp,cpu);
 	cpu->sp += 1;
 	return data;
 }
@@ -275,10 +297,22 @@ uint16_t read_stackw(Cpu *cpu)
 }
 
 
+uint16_t read_stackwt(Cpu *cpu)
+{
+	return read_stackt(cpu) | (read_stackt(cpu) << 8);
+}
+
 void cycle_tick(Cpu *cpu,int cycles)
 {
 	update_timers(cpu,cycles); // <--- update timers 
-	update_graphics(cpu,cycles); // handle the lcd emulation		
+	update_graphics(cpu,cycles); // handle the lcd emulation
+	
+	// if dma transfer is active tick it 
+	
+	if(cpu->oam_dma_active)
+	{
+		tick_dma(cpu, cycles);
+	}
 }
 
 
@@ -291,6 +325,7 @@ void cycle_tick(Cpu *cpu,int cycles)
 // updates the timers
 void update_timers(Cpu *cpu, int cycles)
 {
+	
 	// timer requires a reload?
 	//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
 	//{
@@ -366,6 +401,52 @@ void update_timers(Cpu *cpu, int cycles)
 	// div value is msb of internal timer
 	cpu->io[IO_DIV] = (cpu->internal_timer & 0xff00) >> 8;
 }
+
+void tick_dma(Cpu *cpu, int cycles)
+{
+	// lie so we can freely access memory 
+	cpu->oam_dma_active = false;
+
+	if(cpu->oam_dma_index > 0xa0)
+	{
+		cpu->oam_dma_index += cycles;
+		if( cpu->oam_dma_index >= 0xa2) // now its done 
+		{
+			return;
+		}
+		
+	}
+
+	
+	for(int i = 0; i < cycles; i++)
+	{
+		
+		write_mem(cpu,(0xfe00+cpu->oam_dma_index), read_mem((cpu->oam_dma_address+cpu->oam_dma_index),cpu));
+		cpu->oam_dma_index += 1; // go to next one
+		// We are done with our dma
+		if(cpu->oam_dma_index > 0xa0) 
+		{ 
+			//cpu->oam_dma_active = false;
+			
+			// get ready to add cycles as 2 extra are used for start / stop
+			cycles -= i+1;
+		}
+	}
+	
+	if(cpu->oam_dma_index > 0xa0)
+	{
+		cpu->oam_dma_index += cycles;
+		if( cpu->oam_dma_index >= 0xa2) // now its done 
+		{
+			cpu->oam_dma_active = false;
+			return;
+		}
+		
+	}
+	
+	cpu->oam_dma_active = true;  // continue the dma
+}
+
 
 
 // implement internal timer behavior with div and tima
