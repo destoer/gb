@@ -11,9 +11,9 @@
 #include "headers/debug.h"
 #include "headers/ppu.h"
 #include "headers/memory.h"
+#include "headers/apu.h"
 
-
-
+void cycle_tick(Cpu *cpu,int cycles);
 
 uint8_t read_mem(uint16_t address, Cpu *cpu);
 bool is_set(uint8_t reg, uint8_t bit);
@@ -98,6 +98,21 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.halt = false;
 	cpu.halt_bug = false;
 	
+	
+	cpu.hblank = false;
+	cpu.tile_ready = false;
+	cpu.x_cord = 0;
+	cpu.pixel_count = 0;
+	cpu.tile_cord = 0;
+	cpu.sprite_drawn = false;
+	cpu.window_start = false;
+	// tile fetcher will only have tiles
+	// from one loc atleast on dmg
+	for(int i = 0; i < 8; i++)
+	{
+		cpu.fetcher_tile[i].source = TILE;
+	}
+	
 	#ifdef DEBUG
 	// debugging vars 
 	cpu.breakpoint = 0x100;
@@ -107,7 +122,14 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.memw_value = -1;
 	#endif
 
-
+	//cpu.hblank = false;
+	
+	
+	// sound 
+	cpu.sequencer_cycles = 0;
+	cpu.sequencer_step = 0;
+	cpu.sound_enabled = true;
+	cpu.sweep_enabled = false;
 	return cpu;
 }
 
@@ -126,15 +148,17 @@ void request_interrupt(Cpu * cpu,int interrupt)
 
 void do_interrupts(Cpu *cpu)
 {
-	//int cycles = 0;
+	int cycles = 0;
 	// if interrupts are enabled
 	if(cpu->interrupt_enable)
 	{	
 		// get the set requested interrupts
-		uint8_t req = cpu->io[IO_IF];
+		//uint8_t req = cpu->io[IO_IF];
 		// checked that the interrupt is enabled from the ie reg 
-		uint8_t enabled = cpu->io[IO_IE];
+		//uint8_t enabled = cpu->io[IO_IE];
+		uint8_t req = read_mem(0xff0f,cpu);
 		
+		uint8_t enabled = read_mem(0xffff,cpu);	
 		if(req > 0)
 		{
 			// priority for servicing starts at interrupt 0
@@ -148,16 +172,16 @@ void do_interrupts(Cpu *cpu)
 					if(is_set(enabled,i))
 					{
 						service_interrupt(cpu,i);
-						//cycles += 5;
+						cycles += 5; // every interrupt service costs 5 M cycles
 					}
 				}
 			}
 		}
 	}
-	//if(cycles > 0)
-	//{
-		//update_timers(cpu,cycles);
-	//}
+	if(cycles > 0)
+	{
+		cycle_tick(cpu,cycles);
+	}
 }
 
 void service_interrupt(Cpu *cpu,int interrupt)
@@ -167,9 +191,9 @@ void service_interrupt(Cpu *cpu,int interrupt)
 	cpu->interrupt_enable = false; // disable interrupts now one is serviced
 		
 	// reset the bit of in the if to indicate it has been serviced
-	uint8_t req = read_mem(0xff0f,cpu);
+	uint8_t req = cpu->io[IO_IF];
 	deset_bit(req,interrupt);
-	write_mem(cpu,0xff0f,req);
+	cpu->io[IO_IF] = req;
 		
 	// push the current pc on the stack to save it
 	// it will be pulled off by reti or ret later
@@ -195,9 +219,21 @@ void service_interrupt(Cpu *cpu,int interrupt)
 
 
 
+// writes
 
 
 
+void write_wordt(Cpu *cpu,uint16_t address,int data) // <- verify 
+{
+	write_memt(cpu,address+1,((data & 0xff00) >> 8));
+	write_memt(cpu,address,(data & 0x00ff));
+}
+
+void write_memt(Cpu *cpu,uint16_t address,int data)
+{
+	write_mem(cpu,address,data);
+	cycle_tick(cpu,1); // update cycles for memory write
+}
 
 void write_word(Cpu *cpu,uint16_t address,int data) // <- verify 
 {
@@ -209,11 +245,27 @@ void write_word(Cpu *cpu,uint16_t address,int data) // <- verify
 
 
 
+
 // checked memory reads
 uint16_t read_word(int address, Cpu *cpu)
 {
 	return read_mem(address,cpu) | (read_mem(address+1,cpu) << 8);
 }
+
+
+uint8_t read_memt(int address, Cpu *cpu)
+{
+	uint8_t val = read_mem(address,cpu);
+	cycle_tick(cpu,1); // update cycles for memory read
+	return val;
+}
+
+
+uint16_t read_wordt(int address, Cpu *cpu)
+{
+	return read_memt(address,cpu) | (read_memt(address+1,cpu) << 8);
+}
+
 
 // implement the memory stuff for stack minips
 
@@ -225,6 +277,12 @@ void write_stack(Cpu *cpu, uint8_t data)
 
 }
 
+void write_stackt(Cpu *cpu, uint8_t data)
+{
+	cpu->sp -= 1; // dec stack pointer before writing mem for push
+	write_memt(cpu,cpu->sp,data); // write to stack
+
+}
 
 void write_stackw(Cpu *cpu,uint16_t data)
 {
@@ -232,10 +290,24 @@ void write_stackw(Cpu *cpu,uint16_t data)
 	write_stack(cpu,(data &0x00ff));
 }
 
+void write_stackwt(Cpu *cpu,uint16_t data)
+{
+	write_stackt(cpu,(data & 0xff00) >> 8);
+	write_stackt(cpu,(data & 0x00ff));
+}
+
 uint8_t read_stack(Cpu *cpu)
 {
 	
 	uint8_t data = read_mem(cpu->sp,cpu);
+	cpu->sp += 1;
+	return data;
+}
+
+uint8_t read_stackt(Cpu *cpu)
+{
+	
+	uint8_t data = read_memt(cpu->sp,cpu);
 	cpu->sp += 1;
 	return data;
 }
@@ -247,18 +319,35 @@ uint16_t read_stackw(Cpu *cpu)
 }
 
 
+uint16_t read_stackwt(Cpu *cpu)
+{
+	return read_stackt(cpu) | (read_stackt(cpu) << 8);
+}
+
+void cycle_tick(Cpu *cpu,int cycles)
+{
+	update_timers(cpu,cycles); // <--- update timers 
+	update_graphics(cpu,cycles); // handle the lcd emulation
+	tick_apu(cpu,cycles); // advance the ppu state
+	// if dma transfer is active tick it 
+	
+	if(cpu->oam_dma_active)
+	{
+		tick_dma(cpu, cycles);
+	}
+}
 
 
 
 
 
-/*
 // implement internal timer behavior with div and tima
 // being one reg 
 
 // updates the timers
 void update_timers(Cpu *cpu, int cycles)
 {
+	
 	// timer requires a reload?
 	//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
 	//{
@@ -280,7 +369,7 @@ void update_timers(Cpu *cpu, int cycles)
 	// if timer is enabled 
 	if(is_set(cpu->io[IO_TMC],2))
 	{	
-		for(int i = 0; i < cycles_to_add; i++)
+		while(cycles_to_add != 0)
 		{
 			// timer requires a reload?
 			//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
@@ -293,8 +382,8 @@ void update_timers(Cpu *cpu, int cycles)
 			uint8_t bit;	
 			switch(freq)
 			{
-				case 1: bit = 9; break;
-				case 0: bit = 3; break;
+				case 1: bit = 3; break;
+				case 0: bit = 9; break;
 				case 2: bit = 5; break;
 				case 3: bit = 7; break;
 			}
@@ -304,8 +393,8 @@ void update_timers(Cpu *cpu, int cycles)
 
 			
 			
-			// if our bit is set and it was not before inc tima
-			if(is_set(cpu->internal_timer,bit) && !bit_set)
+			// if our bit is deset and it was before (falling edge)
+			if(!is_set(cpu->internal_timer,bit) && bit_set)
 			{
 
 				// timer about to overflow
@@ -322,6 +411,7 @@ void update_timers(Cpu *cpu, int cycles)
 					cpu->io[IO_TIMA]++;
 				}
 			}
+			cycles_to_add -= 1;
 		}
 	}
 	
@@ -334,11 +424,63 @@ void update_timers(Cpu *cpu, int cycles)
 	cpu->io[IO_DIV] = (cpu->internal_timer & 0xff00) >> 8;
 }
 
-*/
+
+
+
+
+
+
+void tick_dma(Cpu *cpu, int cycles)
+{
+	// lie so we can freely access memory 
+	cpu->oam_dma_active = false;
+
+	if(cpu->oam_dma_index > 0xa0)
+	{
+		cpu->oam_dma_index += cycles;
+		if( cpu->oam_dma_index >= 0xa2) // now its done 
+		{
+			return;
+		}
+		
+	}
+
+	
+	for(int i = 0; i < cycles; i++)
+	{
+		
+		//write_mem(cpu,(0xfe00+cpu->oam_dma_index), read_mem((cpu->oam_dma_address+cpu->oam_dma_index),cpu));
+		cpu->oam_dma_index += 1; // go to next one
+		// We are done with our dma
+		if(cpu->oam_dma_index > 0xa0) 
+		{ 
+			//cpu->oam_dma_active = false;
+			
+			// get ready to add cycles as 2 extra are used for start / stop
+			cycles -= i+1;
+		}
+	}
+	
+	if(cpu->oam_dma_index > 0xa0)
+	{
+		cpu->oam_dma_index += cycles;
+		if( cpu->oam_dma_index >= 0xa2) // now its done 
+		{
+			cpu->oam_dma_active = false;
+			return;
+		}
+		
+	}
+	
+	cpu->oam_dma_active = true;  // continue the dma
+}
+
+
+
 // implement internal timer behavior with div and tima
 // being one reg 
 
-// updates the timers
+/*// updates the timers
 void update_timers(Cpu *cpu, int cycles)
 {	
 	
@@ -376,7 +518,7 @@ void update_timers(Cpu *cpu, int cycles)
 			}
 		}
 	}
-}
+}*/
 
 int set_clock_freq(Cpu *cpu)
 {
