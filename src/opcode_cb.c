@@ -12,6 +12,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 			// figure out instruction bits and decode fields
 			// unless u want 100s of switch statements 
 			// ^ not going with above may resort to later
+			uint8_t opcode = cbop;
 			switch(cbop)
 			{
 				
@@ -40,9 +41,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 					
 				case 0x6: // rlc (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = rlc(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 					
 				case 0x7: // rlc a
@@ -74,9 +75,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xe: // rrc (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = rrc(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xf: // rrc a
@@ -108,9 +109,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x16: // rl (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = rl(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x17: // rl a
@@ -142,9 +143,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x1e: // rr (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = rr(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x1f: // rr a
@@ -177,9 +178,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x26: // sla (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = sla(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x27: // sla a
@@ -211,9 +212,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x2e: // sra (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = sra(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 					
 				case 0x2f: // sra a
@@ -245,9 +246,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 					
 				case 0x36: // swap (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = swap(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x37: // swap a 
@@ -279,9 +280,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x3e: // srl (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					cbop = srl(cpu,cbop);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x3f: // srl a
@@ -314,7 +315,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					
 				
 				case 0x46: // bit 0, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					bit(cpu,cbop,0);
 					break;
 				
@@ -347,7 +348,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x4e: // bit 1, (hl)
-					bit(cpu,read_mem(cpu->hl.reg,cpu),1);
+					bit(cpu,read_memt(cpu->hl.reg,cpu),1);
 					break;
 				
 				case 0x4f: // bit 1, a
@@ -378,8 +379,8 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					bit(cpu,cpu->hl.lb,2);
 					break;
 				
-				case 0x56: // bit 2, (hl) 
-					bit(cpu,read_mem(cpu->hl.reg,cpu),2);
+				case 0x56: // bit 2, (hl)
+					bit(cpu,read_memt(cpu->hl.reg,cpu),2);
 					break;
 				
 				case 0x57: // bit 2, a
@@ -412,7 +413,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x5e: // bit 3, (hl)
-					bit(cpu,read_mem(cpu->hl.reg,cpu),3);
+					bit(cpu,read_memt(cpu->hl.reg,cpu),3);
 					break;
 				
 				
@@ -446,8 +447,8 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					bit(cpu,cpu->hl.lb,4);
 					break;
 				
-				case 0x66: // bit 4, (hl) 
-					bit(cpu,read_mem(cpu->hl.reg,cpu),4);
+				case 0x66: // bit 4, (hl)
+					bit(cpu,read_memt(cpu->hl.reg,cpu),4);
 					break;
 				
 				case 0x67: // bit 4, a  
@@ -480,7 +481,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x6e: // bit 5, (hl) 
-					bit(cpu,read_mem(cpu->hl.reg,cpu),5);
+					bit(cpu,read_memt(cpu->hl.reg,cpu),5);
 					break;
 				
 				case 0x6f: // bit 5, a
@@ -511,8 +512,8 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					bit(cpu,cpu->hl.lb,6);
 					break;
 				
-				case 0x76: // bit 6, (hl) 
-					bit(cpu,read_mem(cpu->hl.reg,cpu),6);
+				case 0x76: // bit 6, (hl)
+					bit(cpu,read_memt(cpu->hl.reg,cpu),6);
 					break;
 				
 				case 0x77: // bit 6, a
@@ -545,7 +546,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 			
 			
 				case 0x7e: // bit 7, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					bit(cpu,cbop,7);
 					break;
 					
@@ -579,9 +580,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;	
 					
 				case 0x86: // res 0, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,0);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x87: //res 0,a
@@ -615,9 +616,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 				
 				
 				case 0x8e: // res 1, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,1);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x8f: // res 1, a 
@@ -649,9 +650,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0x96: // res 2, (hl) 
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,2);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0x97: // res 2, a  
@@ -686,9 +687,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 
 				
 				case 0x9e: // res 3, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,3);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break; 				
 				
 				case 0x9f: // res 3, a
@@ -720,9 +721,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 					
 				case 0xa6: // res 4, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,4);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xa7: // res 4, a 
@@ -754,9 +755,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xae: // res 5, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,5);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xaf: // res 5, a 
@@ -788,9 +789,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xb6: // res 6, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,6);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xb7: // res 6,a 
@@ -822,9 +823,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xbe: // res 7, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					deset_bit(cbop,7);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break; 
 				
 				case 0xbf: // res 7, a  
@@ -856,9 +857,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xc6: // set 0, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,0);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xc7: // set 0, a 
@@ -890,9 +891,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xce: // set 1, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,1);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xcf: // set 1, a 
@@ -924,9 +925,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 					
 				case 0xd6: // set 2, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,2);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xd7: // set 2 a 
@@ -957,10 +958,10 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					set_bit(cpu->hl.lb,3);
 					break;
 				
-				case 0xde: // set 3, (hl)	
-					cbop = read_mem(cpu->hl.reg,cpu);
+				case 0xde: // set 3, (hl)
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,3);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xdf: // set 3, a 
@@ -992,9 +993,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xe6: // set 4, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,4);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xe7: // set 4, a 
@@ -1026,9 +1027,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xee: // set 5, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,5);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xef: // set 5, a
@@ -1060,9 +1061,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xf6: // set 6, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,6);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xf7: // set 6, a 
@@ -1094,9 +1095,9 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					break;
 				
 				case 0xfe: // set 7, (hl)
-					cbop = read_mem(cpu->hl.reg,cpu);
+					cbop = read_memt(cpu->hl.reg,cpu);
 					set_bit(cbop,7);
-					write_mem(cpu,cpu->hl.reg,cbop);
+					write_memt(cpu,cpu->hl.reg,cbop);
 					break;
 				
 				case 0xff: // set 7,a 

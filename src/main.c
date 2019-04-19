@@ -31,8 +31,58 @@ uint32_t time_left(void)
 }
 /* TODO */
 // implement the internal timer
-// then get mem timing tests passing
-// then the ppu ones
+// Kirby dream land 2 is broken now as well investigate... likely related to di / ei order again... (outright emulator lockup)
+// then the ppu ones <---
+// implement oam bug and look at memory blocking during dma transfer
+// fix enable interrupt and disable interrupt timing (does not handle rapid toggles)
+
+
+// F-1 race 
+
+// 1ece not reached
+
+// kirby's dream land two also broken by memory accuracy?
+
+
+
+// scx timings need to be done for the ppu 
+
+// todo
+// sound -> sgb -> cgb
+// pass sound trigger test
+
+
+
+// in need of a refactor and profiling as its unoptimised atm
+// the interpreter could be doing some basic optimisaitons
+// http://blargg.8bitalley.com/nes-emu/6502.html <-- this gives a good idea of the type of stuff
+// ^ that can be done
+
+// eg defering flag calcs
+// (a ^ b ^ result) & 0x10 for half carry
+
+// a big one is that sound vars should be kept in an internal representation
+// as all the manual bit twiddling is slow as hell
+
+// and doing stuff like opimising busy waits in loops
+
+// not ticking until the device state will change 
+
+
+// i.e not wriitg out the value of div to memory 
+// and just returning it directly in read_mem from the internal timer
+
+
+// optimsing some instrs out to contants (i.e xor a, a)
+// not ticking mid instruciton when it is not required
+// i.e instrucitons that 
+
+
+// optimising the instr.c functiosn that the instrucitons 
+// actually use
+// the ppu likely has quite a few slowdowns now
+// optimisng banking with a function pointer
+// should probably be dumping ram banks on the stack as they are small enough
 
 int main(int argc, char *argv[])
 {
@@ -103,7 +153,7 @@ int main(int argc, char *argv[])
 	
 	// initialize our window
 	SDL_Window * window = SDL_CreateWindow("GEMBOY",
-		SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,X,Y,0);
+		SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,X*2,Y*2,0);
 	
 	// set a render for our window
 	SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -116,6 +166,7 @@ int main(int argc, char *argv[])
 		bool speed_up = false;
 	#endif
 	
+
 	
 	for(;;)
 	{
@@ -159,7 +210,7 @@ int main(int argc, char *argv[])
 				free(savename);
 				fclose(fp);
 				
-				done:
+				done: // skip saving 
 				// should clean up our state here too 
 				SDL_DestroyRenderer(renderer);
 				SDL_DestroyWindow(window);
@@ -209,6 +260,11 @@ int main(int argc, char *argv[])
 					}
 
 					#endif
+					
+
+					
+					
+					
 				}
 				if(key != -1)
 				{
@@ -229,6 +285,72 @@ int main(int argc, char *argv[])
 					case SDLK_LEFT: key = 1; break;
 					case SDLK_UP: key = 2; break;
 					case SDLK_DOWN: key = 3; break;
+					
+					// stating prone to crashing atm
+					// seems to work fine before an emulator reboot..
+					case SDLK_0: // save state
+					{
+						puts("Saved state!");
+						char *savestname = calloc(strlen(argv[1])+5,1);
+						strcpy(savestname,argv[1]);
+	
+						strcat(savestname,"svt");
+						
+
+						FILE *savstate = fopen(savestname,"wb");
+						free(savestname);
+						if(savstate == NULL)
+						{
+							puts("Failed to save state!");
+							break;
+						}
+						
+						
+						fwrite(&cpu,sizeof(Cpu),1,savstate);
+
+						fwrite(cpu.vram,1,0x2000,savstate);
+						fwrite(cpu.wram,1,0x2000,savstate);
+						fwrite(cpu.oam,1,0x100,savstate);
+						fwrite(cpu.io,1,0x100,savstate);
+						fwrite(cpu.screen,4,X*Y,savstate);
+						fwrite(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
+						fclose(savstate);
+						break;
+					}
+					
+					case SDLK_9: // load sate
+					{
+						puts("Loaded state!");
+						char *savestname = calloc(strlen(argv[1])+5,1);
+						strcpy(savestname,argv[1]);
+	
+						strcat(savestname,"svt");
+						
+
+						FILE *savstate = fopen(savestname,"rb");
+						free(savestname);
+						
+						// free our pointer as we will have to reallocate them 
+						// as our saved struct probably contains invalid pointers
+						free(cpu.rom_mem); // loaded below
+						free(cpu.ram_banks);
+						
+						fread(&cpu,sizeof(Cpu),1,savstate);
+						
+						cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
+						
+						
+						
+						fread(cpu.vram,1,0x2000,savstate);
+						fread(cpu.wram,1,0x2000,savstate);
+						fread(cpu.oam,1,0x100,savstate);
+						fread(cpu.io,1,0x100,savstate);
+						fread(cpu.screen,4,X*Y,savstate);
+						fread(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
+						cpu.rom_mem = load_rom(argv[1]); 
+						fclose(savstate);
+						break;
+					}
 				}
 				if(key != -1)
 				{
@@ -244,10 +366,11 @@ int main(int argc, char *argv[])
 		int cycles_this_update = 0;	
 		while(cycles_this_update < MAXCYCLES)
 		{
-			int cycles = step_cpu(&cpu);
+			int cycles = step_cpu(&cpu); // will  exec the instruction tick timers gfx apu etc
 			cycles_this_update += cycles;
-			update_timers(&cpu,cycles); // <--- update timers 
-			update_graphics(&cpu,cycles); // handle the lcd emulation
+
+			// now done in the opcode execution
+			
 			do_interrupts(&cpu); // handle interrupts 
 			
 			// now we need to test if an ei or di instruction
@@ -261,25 +384,25 @@ int main(int argc, char *argv[])
 				cycles = step_cpu(&cpu);
 				// we have done an instruction now set ime
 				// needs to be just after the instruction service
-				// but before we service interrupts				
-				cpu.interrupt_enable = true;
-				cycles_this_update += cycles;
-				update_timers(&cpu,cycles); // <--- update timers 
-				update_graphics(&cpu,cycles); // handle the lcd emulation
-				do_interrupts(&cpu); // handle interrupts <-- not sure what should happen here		
+				// but before we service interrupts
+				if(!cpu.di) // if the next instruction executed is a di no interrupts should be enabled
+				{
+					cpu.interrupt_enable = true;
+				}
 				
+				else
+				{
+					cpu.di = false; // turn di off so it doesent immediately trigger 
+				}
+				
+				cycles_this_update += cycles;
+				do_interrupts(&cpu); // handle interrupts 
 			}
 			
 			if(cpu.di) // di
 			{
 				cpu.di = false;
-				cycles = step_cpu(&cpu);
-				// we have executed another instruction now deset ime
-				cpu.interrupt_enable = false;
-				cycles_this_update += cycles;
-				update_timers(&cpu,cycles); // <--- update timers 
-				update_graphics(&cpu,cycles); // handle the lcd emulation
-				do_interrupts(&cpu); // handle interrupts <-- what should happen here?
+				cpu.interrupt_enable = false; // di should disable immediately unlike ei!
 			}
 			
 			
@@ -290,7 +413,7 @@ int main(int argc, char *argv[])
 			
 			if(cpu.halt) // halt occured in prev instruction
 			{
-				
+			
 				cpu.halt = false;
 
 				uint8_t req = cpu.io[IO_IF]; // requested ints 
@@ -313,31 +436,33 @@ int main(int argc, char *argv[])
 				// not sure what defined behaviour is here
 				else if(enabled == 0)
 				{
-						
+	
 				}
 				
 				// normal halt
 				
 				else 
 				{
-					while( ( req & enabled & 0x1f) == 0)
+					while( ( req & enabled & 0x1f) == 0) // <--- needs debugger access or a bailout condition
 					{
 						// just go a cycle at a time
 						cycles_this_update += 1;
+						// just tick it
 						update_timers(&cpu,1); // <--- update timers 
 						update_graphics(&cpu,1); // handle the lcd emulation
-							
+											// may need to tick dma here....
+												
 						req = cpu.io[IO_IF];
 						enabled = cpu.io[IO_IE];
 					}
 					do_interrupts(&cpu); // handle interrupts
-				}	
-			}
+				}
+			}	
 		}
 		
 		// do our screen blit
 		SDL_UpdateTexture(texture, NULL, &cpu.screen,  4 * X * sizeof(uint8_t));
-		SDL_RenderClear(renderer);
+		//SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
 		SDL_RenderPresent(renderer);
 
@@ -347,7 +472,7 @@ int main(int argc, char *argv[])
 		#ifdef DEBUG
 		if(speed_up)
 		{
-			SDL_Delay(time_left() / 8);
+			//SDL_Delay(time_left() / 8);
 		}
 
 		else
@@ -362,6 +487,7 @@ int main(int argc, char *argv[])
 		
 		#endif		
 		next_time += screen_ticks_per_frame;
+		cycles_this_update = 0;
 	}
 
 }

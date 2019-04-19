@@ -174,6 +174,13 @@ void write_addr(char *token, Cpu* cpu)
 		write_mem(cpu,addr,val);
 	}
 
+	// write to bank 0
+	if(addr <= 0x4000)
+	{
+		cpu->rom_mem[addr] = val;
+	}
+
+
 	if(addr >= 0x4000 && addr < 0x8000)
 	{
 		// write to rom we will bypass checks

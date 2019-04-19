@@ -91,6 +91,13 @@ typedef union
 
 
 
+typedef struct {
+	int lengthc;
+	bool length_enabled;
+	
+	
+} Sqaure;
+
 
 typedef struct 
 {
@@ -116,8 +123,23 @@ typedef struct
 	// ppu
 	int scanline_counter;
 	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
-	uint8_t screenp[Y][X];
 	bool signal;
+	
+	
+	// fetcher
+	bool hblank;
+	int x_cord; // current x cord of the ppu
+	Pixel_Obj ppu_fifo[16];
+	uint8_t ppu_cyc; // how far for a tile fetch is
+	uint8_t ppu_scyc; // how far along a sprite fetch is
+	int pixel_count; // how many pixels are in the fifo
+	Pixel_Obj fetcher_tile[8];
+	int tile_cord;
+	bool tile_ready; // is the tile fetch ready to go into the fio 
+	Obj objects_priority[10]; // sprites for the current scanline
+	int no_sprites; // how many sprites
+	bool sprite_drawn;
+	bool window_start;
 	
 	uint8_t joypad_state; // has state of held down buttons
 	// banking
@@ -130,13 +152,42 @@ typedef struct
 	bool rtc_enabled;
 	RomInfo rom_info;
 
+
+	// ------------- sound ------------------------
 	
-	// sound 
+	bool sound_enabled; // is sound enabled in nr52 or not?
+/*	
+	int nr1_lengthc; //  NR1 internal length counter
+	int nr1_cyc; // nr1 cycle counter (ticks to 4096) then incs the internal length counter
 	
+	
+	int nr2_lengthc; //  NR2 internal length counter
+	int nr2_cyc; // nr2 cycle counter (ticks to 4096) then incs the internal length counter
+	
+	
+	int nr3_lengthc; //  NR3 internal length counter
+	int nr3_cyc; // nr3 cycle counter (ticks to 4096) then incs the internal length counter
+	
+	
+	int nr4_lengthc; //  NR4 internal length counter
+	int nr4_cyc; // nr4 cycle counter (ticks to 4096) then incs the internal length counter
+*/
+
+
+	int sequencer_cycles; // keeps track of cycles for frame sequencer when it his 8192 inc the seq step
+	int sequencer_step; // keeps track of the current set goes from 0-8 and loops back around
+
+
+	
+	Sqaure square[4]; // holds common variables for sqaure channels
 
 	
 	
-	
+	// Sweep
+	bool sweep_enabled;
+	int sweep_shadow;
+	int sweep_period;
+	int sweep_timer;
 	// rtc 
 
 	
@@ -166,6 +217,12 @@ typedef struct
 	uint16_t internal_timer;
 	bool timer_reloading;
 	
+	// is a oam dma active
+	bool oam_dma_active;
+	uint16_t oam_dma_address;
+	int oam_dma_index; // how far along the dma transfer we are
+	
+	
 } Cpu;
 
 // hb = high order byte
@@ -188,3 +245,13 @@ uint8_t read_stack(Cpu *cpu);
 uint16_t read_stackw(Cpu *cpu);
 void request_interrupt(Cpu * cpu,int interrupt);
 int set_clock_freq(Cpu *cpu);
+void cycle_tick(Cpu *cpu,int cycles);
+uint16_t read_wordt(int address, Cpu *cpu);
+void write_wordt(Cpu *cpu,uint16_t address,int data);
+uint8_t read_memt(int address, Cpu *cpu);
+void write_memt(Cpu *cpu,uint16_t address,int data);
+void write_stackwt(Cpu *cpu,uint16_t data);
+void write_stackt(Cpu *cpu,uint8_t data);
+uint8_t read_stackt(Cpu *cpu);
+uint16_t read_stackwt(Cpu *cpu);
+void tick_dma(Cpu *cpu, int cycles);

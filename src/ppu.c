@@ -71,7 +71,6 @@ void update_stat(Cpu *cpu, int cycles)
 	{
 		cpu->scanline_counter = 0; // counter is reset?
 		cpu->io[IO_LY] = 0; // reset ly
-		//status &= ~3; // stat mode 0 ^ done by default as it needs to be done anyways
 		cpu->io[IO_STAT] = status; 
 		return; // can exit if ppu is disabled nothing else to do
 	}
@@ -119,7 +118,7 @@ void update_stat(Cpu *cpu, int cycles)
 		// hblank mode 0
 		else if(cpu->hblank);
 		{ 
-			mode = 0;
+			mode = 0; 
 		}
 	}
 	
@@ -364,19 +363,23 @@ void tick_fetcher(Cpu *cpu) {
 	int window_y  = cpu->io[IO_WY];
 	int window_x = cpu->io[IO_WX];
 	
-	// if window has just started completly restart the fetcher
+	// if window has just started completly restart the tile fetcher
+	// causes visual bugs currently...
+	// maybye this should be done just after the xcord is incremented?
+	/*
 	if(!cpu->window_start && is_set(control,5))
 	{
 		// starts now
-		if(scanline == window_y && window_x == cpu->x_cord)
+		if(scanline == window_y && (window_x+7) == cpu->x_cord)
 		{
 			// reset the fifo
 			cpu->window_start = true;
 			cpu->ppu_cyc = 0;
 			cpu->pixel_count = 0;
+			cpu->tile_ready = false; 
 		}
 	}
-	
+	*/
 
 	// advance the fetcher if we dont have a tile dump waiting
 
@@ -498,9 +501,11 @@ void tick_fetcher(Cpu *cpu) {
 }	
 	
 
-void draw_scanline(Cpu *cpu, int cycles)
+void draw_scanline(Cpu *cpu, int cycles) 
 {
-	for(int i = cycles*2; i--; i != 0) // runs at 4 mhz
+	// https://forums.nesdev.com/viewtopic.php?f=23&t=16612
+	// we use M cycles so * 4
+	for(int i = cycles*4; i--; i != 0) // one pixel per clock?
 	{
 		tick_fetcher(cpu); // the ppu pipeline
 		if(cpu->hblank) { return; } // we are done
@@ -761,13 +766,6 @@ void read_sprites(Cpu *cpu)
 			cpu->objects_priority[x].index = sprite*4; // save the index
 			// and the x pos
 			cpu->objects_priority[x].x_pos = read_mem(0xfe00+(sprite*4)+1,cpu)-8;
-		/*	if(cpu->objects_priority[x].x_pos + 8 > 255) 
-			{ 
-				uint8_t test = cpu->objects_priority[x].x_pos;
-				test += 8;
-				cpu->objects_priority[x].x_pos = test;
-			}
-		*/
 			x += 1;
 			if(x == 10) { break; } // only draw a max of 10 sprites per line
 		}

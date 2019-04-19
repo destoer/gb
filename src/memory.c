@@ -1,8 +1,3 @@
-
-// memory accesses (READ THE PANCDOCS ON MEMORY MAP)
-// may need access to information structs
-
-// needs ones related to banking
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -14,6 +9,8 @@
 #include "headers/instr.h"
 #include "headers/debug.h"
 #include "headers/ppu.h"
+
+
 void write_mem(Cpu *cpu,uint16_t address,int data);
 uint8_t read_mem(uint16_t address, Cpu *cpu);
 void do_dma(Cpu *cpu, uint8_t data);
@@ -33,6 +30,28 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		}
 	}
 	#endif
+
+
+/*	// only allow reads from hram or from dma reg 
+	if(cpu->oam_dma_active)
+	{
+			if(address >= 0xFF80 && address <= 0xFFFE)
+			{
+				// allow the read to hram
+				
+			}
+			
+			// dma reg
+			else if(address == 0xff46)
+			{
+				do_dma(cpu,address); // restart dma
+				cpu->io[IO_DMA] = data;
+			}
+			
+			// block do nothing
+			return;
+	}
+*/
 
 	// handle banking 
 	if(address < 0x8000)
@@ -92,7 +111,8 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	{
 		uint8_t status = read_mem(0xff41,cpu);
 		status &= 3; // get just the mode
-		if(status <= 1)
+		// should be blocked during dma but possibly not to the ppu
+		if(status <= 1 && !cpu->oam_dma_active)
 		{
 			cpu->oam[address & 0xff] = data;
 		}
@@ -220,31 +240,353 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 			case IO_DIV:
 			{
 				cpu->io[IO_DIV] = 0;
-				cpu->io[IO_TIMA] = 0;
+				cpu->internal_timer = 0;
 				return;
 			}
 			
 			
 
+			// sound registers
+			
 			// nr 10
 			case IO_NR10:
 			{
-				cpu->io[IO_NR10] = data | 128;
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR10] = data | 128;
+					//cpu->sweep_period = (cpu->io[IO_NR10] >> 4) & 7;
+				}
 				return;
 			}
 
-
+			
+			// nr 11
+			case IO_NR11:
+			{
+				if(cpu->sound_enabled)
+				{
+					// bottom 6 bits are length data 
+					// set the internal counter to 64 - bottom 6 bits of data
+					cpu->square[0].lengthc = 64 - (data & 63);
+					
+					
+					cpu->io[IO_NR11] = data;
+				}
+				return;
+			}
+			
+			// nr 12
+			case IO_NR12:
+			{
+				if(cpu->sound_enabled)
+				{
+					
+					// if the top 5 bits are deset (channel dac)
+					// disable the channel
+					if((data & 248) == 0)
+					{
+						deset_bit(cpu->io[IO_NR52],0);
+					}
+					
+					
+					cpu->io[IO_NR12] = data;
+				}
+				return;
+			}
+			
+			// nr 13
+			case IO_NR13:
+			{
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR13] = data;
+				}
+				return;
+			}
+			
+			// nr 14
+			case IO_NR14: 
+			{
+				if(cpu->sound_enabled)
+				{
+					// Trigger event
+					// if the data is set to 7 it should enable Sound for nr1
+					// in nr52
+					if(is_set(data,7))
+					{	
+						set_bit(cpu->io[IO_NR52],0); // enable channel
+						
+						
+						// if the length counter is 0 it should be loaded with max upon a trigger event
+						if(cpu->square[0].lengthc == 0)
+						{
+							cpu->square[0].lengthc = 64;
+							
+							// disable the chan 
+							// if the value enables the length this will cause an extra tick :P
+							deset_bit(cpu->io[IO_NR14],6); 
+						}
+						
+						
+						
+						// Handle the trigger events for the frequency sweep
+						
+						/*
+						Square 1's frequency is copied to the shadow register.
+						The sweep timer is reloaded.
+						The internal enabled flag is set if either the sweep period or shift are non-zero, cleared otherwise.
+						If the sweep shift is non-zero, frequency calculation and the overflow check are performed immediately.
+						*/
+					
+						
+						
+						// Copy the freq to the shadow reg
+						cpu->sweep_shadow =  cpu->io[IO_NR13]; // lower 8
+						cpu->sweep_shadow |= (data & 0x7) << 8; // upper 3
+						
+						
+						// reload the sweep timer
+						cpu->sweep_period = (cpu->io[IO_NR10] >> 4) & 7;
+						if(cpu->sweep_period == 0) { cpu->sweep_period = 8; } // see obscure behaviour
+						cpu->sweep_timer = cpu->sweep_period;
+						
+						
+						// if sweep period or shift are non zero set the internal flag 
+						// else clear it
+						// 0x77 is both shift and peroid
+						if((cpu->io[IO_NR10] &  0x77))
+						{
+							cpu->sweep_enabled = true;
+						}
+						
+						else 
+						{
+							cpu->sweep_enabled = false;
+						}
+						
+						
+						//exit(1);
+						
+						
+						// if the sweep shift is non zero 
+						// perform the overflow check and freq calc immediately 
+						if((cpu->io[IO_NR10] & 0x7))
+						{
+							// we aernt going to use it if it fails 
+							// as it will get disabled immediately
+							cpu->sweep_shadow = calc_freqsweep(cpu);
+							if(cpu->sweep_shadow > 0x7ff)
+							{
+								cpu->sweep_timer = 0;
+								deset_bit(cpu->io[IO_NR52],0);
+								cpu->sweep_enabled = false;	
+							}
+						}
+					}
+					
+					
+					// if previously clear and now is enabled 
+					// + next step doesent clock, clock the length counter
+					if(!is_set(cpu->io[IO_NR14],6) && is_set(data,6) && !(cpu->sequencer_step & 1))
+					{
+						// if not zero decrement
+						if(cpu->square[0].lengthc != 0)
+						{
+							cpu->square[0].lengthc -= 1;
+							
+							// if now zero and there is no trigger 
+							// switch the channel off
+							if(cpu->square[0].lengthc == 0)
+							{
+								if(is_set(data,7)) 
+								{ 
+									// if we have hit a trigger it should be max len - 1
+									cpu->square[0].lengthc = 0x3f;
+								}
+								
+								else
+								{
+									deset_bit(cpu->io[IO_NR52],0);
+								}
+								
+							}	
+						}	
+					}
+					
+					
+					// after all the trigger events have happend
+					// if the dac is off switch channel off
+					if((cpu->io[IO_NR12] & 248) == 0) // if dac  disabled
+					{
+						deset_bit(cpu->io[IO_NR52],0); // turn nr1 off 
+					}
+					
+					
+					cpu->io[IO_NR14] = data;
+					cpu->square[0].length_enabled = is_set(data,6);
+				}
+				return;
+			}
+			
+			
+			// nr21
+			case IO_NR21:
+			{
+				if(cpu->sound_enabled)
+				{
+					
+					// bottom 6 bits are length data 
+					// set the internal counter to 64 - bottom 6 bits of data
+					cpu->square[1].lengthc = 64 - (data & 63);
+					
+					cpu->io[IO_NR21] = data;
+				}
+				return;
+			}
+			
+			// nr 22
+			case IO_NR22:
+			{
+				if(cpu->sound_enabled)
+				{
+					
+					// if the top 5 bits are deset (channel dac)
+					// disable the channel
+					if((data & 248) == 0)
+					{
+						deset_bit(cpu->io[IO_NR52],1);
+					}
+					cpu->io[IO_NR22] = data;
+				}
+				return;
+			}
+			
+			// nr 23
+			case IO_NR23:
+			{
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR23] = data;
+				}
+				return;
+			}
+			
+			// nr 24
+			case IO_NR24: // <--- does not pass trigger test
+			{	
+				if(cpu->sound_enabled)
+				{
+					// Trigger event
+					// if the data is set to 7 it should enable Sound for nr2
+					// in nr52
+					if(is_set(data,7))
+					{
+						set_bit(cpu->io[IO_NR52],1); // enable channel
+						
+						// if the length counter is 0 it should be loaded with max upon a trigger event
+						if(cpu->square[1].lengthc == 0)
+						{
+							cpu->square[1].lengthc = 64;
+							
+							// disable the chan 
+							// if the value enables the length this will cause an extra tick :P
+							deset_bit(cpu->io[IO_NR24],6); 
+						}
+					}
+					
+					
+					// if previously clear and now is enabled 
+					// + next step doesent clock, clock the length counter
+					if(!is_set(cpu->io[IO_NR24],6) && is_set(data,6) && !(cpu->sequencer_step & 1))
+					{
+						// if not zero decrement
+						if(cpu->square[1].lengthc != 0)
+						{
+							cpu->square[1].lengthc -= 1;
+							
+							// if now zero and there is no trigger 
+							// switch the channel off
+							if(cpu->square[1].lengthc == 0)
+							{
+								if(is_set(data,7)) 
+								{
+									// if we have hit a trigger it should be max len - 1
+									cpu->square[1].lengthc = 0x3f;
+								}
+								
+								else
+								{
+									deset_bit(cpu->io[IO_NR52],1); // disable square 2
+								}	
+							}	
+						}
+					}
+					
+					
+					// after all the trigger events have happened
+					// if the dac is off switch channel off
+					if((cpu->io[IO_NR22] & 248) == 0) // if dac  disabled
+					{
+						deset_bit(cpu->io[IO_NR52],1);
+					}
+					
+					
+					cpu->io[IO_NR24] = data;
+					cpu->square[1].length_enabled = is_set(data,6);
+				}
+				return;
+			}
+			
 			// nr 30
 			case IO_NR30:
 			{
-				cpu->io[IO_NR30] = (data & 128) | 127;
+				if(cpu->sound_enabled)
+				{
+					
+					// if the top bit is deset (special for nr3) (channel dac)
+					// disable the channel
+					if(!is_set(data,7))
+					{
+						deset_bit(cpu->io[IO_NR52],2);
+					}
+					
+					cpu->io[IO_NR30] = data | 127;
+				}
 				return;
 			}
+			
+			// nr 31
+			case IO_NR31:
+			{
+				if(cpu->sound_enabled)
+				{
+					// whole of the nr31 is length for the wave channel
+					cpu->square[2].lengthc = 256 - data;
+					
+					cpu->io[IO_NR31] = data;
+				}
+				return;
+				
+			}	
+			
 
 			// nr 32
 			case IO_NR32:
 			{
-				cpu->io[IO_NR32] = data | 159;
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR32] = data | 159;
+				}
+				return;
+			}
+
+			// nr 33
+			case IO_NR33:
+			{
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR33] = data;
+				}
 				return;
 			}
 
@@ -252,34 +594,226 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 			// nr 34
 			case IO_NR34:
 			{
-				cpu->io[IO_NR34] = data | (16 + 32 + 8);
+				if(cpu->sound_enabled)
+				{
+					// Trigger event
+					// if the data is set to 7 it should enable Sound for nr2
+					// in nr52
+					if(is_set(data,7))
+					{
+						set_bit(cpu->io[IO_NR52],2); // enable channel
+						
+						// if the length counter is 0 it should be loaded with max upon a trigger event
+						if(cpu->square[2].lengthc == 0)
+						{
+							cpu->square[2].lengthc = 256;
+							
+							// disable the chan 
+							// if the value enables the length this will cause an extra tick :P
+							deset_bit(cpu->io[IO_NR34],6); 
+						}
+					}
+					
+					
+					// if previously clear and now is enabled 
+					// + next step doesent clock, clock the length counter
+					if(!is_set(cpu->io[IO_NR34],6) && is_set(data,6) && !(cpu->sequencer_step & 1))
+					{
+						// if not zero decrement
+						if(cpu->square[2].lengthc != 0)
+						{
+							cpu->square[2].lengthc -= 1;
+							
+							// if now zero and there is no trigger 
+							// switch the channel off
+							if(cpu->square[2].lengthc == 0)
+							{
+								if(is_set(data,7)) 
+								{
+									// if we have hit a trigger it should be max len - 1
+									cpu->square[2].lengthc = 255;
+								}
+								
+								else
+								{
+									deset_bit(cpu->io[IO_NR52],2); // disable square 2
+								}	
+							}	
+						}
+					}					
+					
+				
+					
+					cpu->square[2].length_enabled = is_set(data,6);
+					cpu->io[IO_NR34] = data | (16 + 32 + 8);
+					if(!is_set(cpu->io[IO_NR30],7)) 
+					{
+						deset_bit(cpu->io[IO_NR52],2);
+					}
+				}
 				return;
 			}
 			
 			
 			// nr 41	
-			case 0x20:
+			case IO_NR41:
 			{
-				cpu->io[0x20] = data | 192;
+				if(cpu->sound_enabled)
+				{
+					
+					// bottom 6 bits are length data 
+					// set the internal counter to 64 - bottom 6 bits of data
+					cpu->square[3].lengthc = 64 - (data & 63);
+					
+					cpu->io[IO_NR41] = data | 192;
+				}
 				return;
 			}
+			
+			// nr 42
+			case IO_NR42:
+			{
+				if(cpu->sound_enabled)
+				{
+					
+					// if the top 5 bits are deset (channel dac)
+					// disable the channel
+					if((data & 248) == 0)
+					{
+						deset_bit(cpu->io[IO_NR52],3);
+					}
+					cpu->io[IO_NR42] = data;
+				}
+				return;
+			}
+			
 
+			// NR 43
+			case IO_NR43:
+			{
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR43] = data;
+				}
+				return;
+			}			
+			
+			
 			// nr 44
 			case IO_NR44:
 			{
-				cpu->io[IO_NR44] = data | 63;
+				if(cpu->sound_enabled)
+				{
+					
+					
+					// if the data is set to 7 it should enable Sound for nr4
+					// in nr52
+					if(is_set(data,7))
+					{
+						
+						
+						set_bit(cpu->io[IO_NR52],3);
+						
+						
+						// if the length counter is 0 it should be loaded with max upon a trigger event
+						if(cpu->square[3].lengthc == 0)
+						{
+							cpu->square[3].lengthc = 64;
+							deset_bit(cpu->io[IO_NR44],6);
+						}
+						
+					}
+					
+					// if previously clear and now is enabled 
+					// + next step doesent clock, clock the length counter
+					if(!is_set(cpu->io[IO_NR44],6) && is_set(data,6) && !(cpu->sequencer_step & 1))
+					{
+						// if not zero decrement
+						if(cpu->square[3].lengthc != 0)
+						{
+							cpu->square[3].lengthc -= 1;
+							
+							// if now zero and there is no trigger 
+							// switch the channel off
+							if(cpu->square[3].lengthc == 0)
+							{
+								if(is_set(data,7)) 
+								{
+									// if we have hit a trigger it should be max len - 1
+									cpu->square[3].lengthc = 0x3f;
+								}
+								
+								else
+								{
+									deset_bit(cpu->io[IO_NR52],3); // disable square 4
+								}	
+							}	
+						}
+					}
+					
+					if((cpu->io[IO_NR42] & 248) == 0) // if dac  disabled
+					{
+						deset_bit(cpu->io[IO_NR52],3);
+					}
+					
+					cpu->square[3].length_enabled = is_set(data,6);
+					cpu->io[IO_NR44] = data | 63;
+				}
+				return;
+			}
+
+			// nr 50
+			case IO_NR50:
+			{
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR50] = data;
+				}
 				return;
 			}
 
 			
-
-
+			case IO_NR51:
+			{
+				if(cpu->sound_enabled)
+				{
+					cpu->io[IO_NR51] = data;
+				}
+				return;
+			}			
+			
 			// nr 52 // bits 0-3 read only 7 r/w 4-6 unused
 			case IO_NR52:
 			{
-				cpu->io[IO_NR52] = cpu->io[IO_NR52] & 0xf;
+				cpu->io[IO_NR52] &= 0xf; //  0xf (cant emulate the bottom bits for now mask them out for now to make this simple)
 				cpu->io[IO_NR52] |= 112;
-				cpu->io[IO_NR52] |= data & 128; 
+
+			
+				
+				
+				// if we have disabled sound we should
+				// zero all the registers (nr10-nr51) 
+				// and lock writes until its on
+				if(!is_set(data,7))
+				{
+					// set nr10-nr51 regs to 0
+					for(int i = 0xff10; i < 0xff26; i++)
+					{
+						write_mem(cpu,i,0);
+					}
+					
+					cpu->io[IO_NR52] = 112; // need to write the unused bits and just zero everything else
+					
+					// now lock writes
+					cpu->sound_enabled = false;
+				}
+			
+				else // its enabled
+				{
+					cpu->sound_enabled = true;
+					cpu->io[IO_NR52] |= 0x80; // data had 0x80 so write back
+				}
+			
 				return;
 			}
 
@@ -298,7 +832,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 			}
 
 
-			// lcd stat <-- writes can trigger intterupts?
+			// lcd stat <-- writes can trigger interrupts?
 			case IO_STAT:
 			{
 				// delete writeable bits
@@ -365,6 +899,7 @@ void do_dma(Cpu *cpu, uint8_t data)
 	*/
 
 	// source must be below 0xe000
+	// tick immediatly but keep the timing
 	if(dma_address < 0xe000)
 	{
 		for(int i = 0; i < 0xA0; i++)
@@ -372,6 +907,21 @@ void do_dma(Cpu *cpu, uint8_t data)
 			write_mem(cpu,0xfe00+i, read_mem(dma_address+i,cpu));
 		}
 	}
+
+
+	// tell the emulator to start ticking the dma transfer
+	// source must be below 0xe000 <-- playing like hell fix later
+	
+	// technically dma should take a cycle before it starts
+	
+	if(dma_address <= 0xe000)
+	{
+		cpu->oam_dma_active = true; // indicate a dma is active and to lock memory
+		cpu->oam_dma_address = dma_address; // the source address
+		cpu->oam_dma_index = 0; // how far along the dma transfer we are
+	}
+	
+
 }
 
 
@@ -396,6 +946,25 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	}
 	#endif
 
+
+/*	// only allow reads from hram or from dma reg 
+	if(cpu->oam_dma_active)
+	{
+			if(address >= 0xFF80 && address <= 0xFFFE)
+			{
+				return cpu->io[address & 0xff];
+			}
+			
+			// dma reg
+			else if(address == 0xff46)
+			{
+				return cpu->io[IO_DMA];
+			}
+			
+			// block do nothing
+			return 0xff;
+	}
+*/
 	// rom bank 0
 	if(address < 0x4000)
 	{
@@ -461,12 +1030,18 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	{
 		uint8_t status = read_mem(0xff41,cpu);
 		status &= 3; // get just the mode
-		if(status <= 1)
+		if(status <= 1 && !cpu->oam_dma_active) // cant access during dma? but ppu should?
 		{
 			return cpu->oam[address & 0xff];
 		}
 		
 		return 0xff; // cant read so return ff
+	}
+	
+	// restricted 
+	else if( (address >= 0xFEA0) && (address <= 0xFEFF) )
+	{
+		return 0xff;
 	}
 	
 	// io mem
@@ -503,7 +1078,11 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 			}	
 			
 			
-
+			case IO_DIV:
+			{
+				// div register is upper 8 bits of the internal timer
+				return (cpu->internal_timer & 0xff00) >> 8;
+			}
 			
 			// sound regs
 			
@@ -519,7 +1098,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 			}
 			
 			// write only
-			case 0x13:
+			case IO_NR13:
 			{
 				return 0xff;
 			}

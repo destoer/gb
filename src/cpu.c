@@ -153,12 +153,12 @@ void do_interrupts(Cpu *cpu)
 	if(cpu->interrupt_enable)
 	{	
 		// get the set requested interrupts
-		//uint8_t req = cpu->io[IO_IF];
+		uint8_t req = cpu->io[IO_IF];
 		// checked that the interrupt is enabled from the ie reg 
-		//uint8_t enabled = cpu->io[IO_IE];
-		uint8_t req = read_mem(0xff0f,cpu);
+		uint8_t enabled = cpu->io[IO_IE];
+		//uint8_t req = read_mem(0xff0f,cpu);
 		
-		uint8_t enabled = read_mem(0xffff,cpu);	
+		//uint8_t enabled = read_mem(0xffff,cpu);	
 		if(req > 0)
 		{
 			// priority for servicing starts at interrupt 0
@@ -359,13 +359,6 @@ void update_timers(Cpu *cpu, int cycles)
 	
 	
 	
-	// divider reg in here for convenience
-	//cpu->internal_timer += cycles*4;
-	
-
-						
-	
-	
 	// if timer is enabled 
 	if(is_set(cpu->io[IO_TMC],2))
 	{	
@@ -419,9 +412,6 @@ void update_timers(Cpu *cpu, int cycles)
 	{
 		cpu->internal_timer += cycles_to_add;	
 	}
-	
-	// div value is msb of internal timer
-	cpu->io[IO_DIV] = (cpu->internal_timer & 0xff00) >> 8;
 }
 
 
@@ -476,49 +466,6 @@ void tick_dma(Cpu *cpu, int cycles)
 }
 
 
-
-// implement internal timer behavior with div and tima
-// being one reg 
-
-/*// updates the timers
-void update_timers(Cpu *cpu, int cycles)
-{	
-	
-	// divider reg in here for convenience
-	cpu->div_counter += cycles;
-	if(cpu->div_counter > 64)
-	{
-		cpu->div_counter = 0; // inc rate
-		cpu->io[IO_DIV]++; // inc the div timer 
-						
-	}
-	
-	// if timer is enabled <--- edge case with timer is failing the timing test
-	if(is_set(cpu->io[IO_TMC],2))
-	{	
-		cpu->timer_counter += cycles;
-		
-		int threshold = set_clock_freq(cpu);
-		
-		// update tima register cycles have elapsed
-		while(cpu->timer_counter >= threshold)
-		{
-			cpu->timer_counter -= threshold;
-			
-			// about to overflow
-			if(cpu->io[IO_TIMA] == 255)
-			{	
-				cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-				request_interrupt(cpu,2); // timer overflow interrupt
-			}
-			
-			else
-			{
-				cpu->io[IO_TIMA]++;
-			}
-		}
-	}
-}*/
 
 int set_clock_freq(Cpu *cpu)
 {

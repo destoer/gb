@@ -15,10 +15,11 @@
 
 inline void write_log(const char *fmt, ...);
 
+// Check every instr from mooneye tests for  order eg condiational calls 
 
 
 
-
+// may be broken for 16 bit operand jumps
 void write_log(const char *fmt, ...)
 {
 /*#ifdef DEBUG
@@ -42,14 +43,6 @@ void write_log(const char *fmt, ...)
 		va_end(args);
 #endif*/
 }
-
-
-
-
-
-
-
-
 
 // potentially need the rominfo too but not needed yet
 int step_cpu(Cpu * cpu)
@@ -81,9 +74,9 @@ int step_cpu(Cpu * cpu)
 	uint8_t opcode;
 	int8_t operand;
 	uint8_t cbop;
-	
+	uint16_t operandw;
 	// normal execution
-	opcode = read_mem(cpu->pc++,cpu);
+	opcode = read_memt(cpu->pc++,cpu);
 	//print cpu state and disassemble the opcode
 	//cpu_state(cpu);
 	//disass_8080(opcode, cpu);		
@@ -99,24 +92,24 @@ int step_cpu(Cpu * cpu)
 	}
 	
 	
-	// decode and execute <-- should not happen in one go 
-	// but its "good" enough
+
 	switch(opcode)
 	{
 		case 0x0: // nop
 			break;
 		
 		case 0x1: // ld bc, nn
-			cpu->bc.reg = read_word(cpu->pc,cpu);
+			cpu->bc.reg = read_wordt(cpu->pc,cpu);
 			cpu->pc += 2;
 			break;
 		
 		case 0x2: // ld (bc), a
-			write_mem(cpu,cpu->bc.reg,cpu->af.hb);
+			write_memt(cpu,cpu->bc.reg,cpu->af.hb);
 			break;
 		
 		case 0x3: // inc bc
 			cpu->bc.reg += 1;
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0x4: // inc b
@@ -129,7 +122,7 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0x6: // ld b, n
-			cpu->bc.hb = read_mem(cpu->pc++,cpu);
+			cpu->bc.hb = read_memt(cpu->pc++,cpu);
 			break;
 			
 		case 0x7: // rlca (rotate a left bit 7 to carry)
@@ -139,23 +132,25 @@ int step_cpu(Cpu * cpu)
 		
 		
 		case 0x8: // ld (nnnn), sp
-			write_word(cpu,read_word(cpu->pc,cpu),cpu->sp);
+			write_wordt(cpu,read_wordt(cpu->pc,cpu),cpu->sp);
 			cpu->pc += 2; // for two immediate ops
 			break;
 		
 		case 0x9: // add hl,bc
 			cpu->hl.reg = addw(cpu,cpu->hl.reg,cpu->bc.reg);
+			cycle_tick(cpu,1); // internal
 			break;
 			
 
 		
 		case 0xa: // ld a, (bc)
-			cpu->af.hb = read_mem(cpu->bc.reg,cpu);
+			cpu->af.hb = read_memt(cpu->bc.reg,cpu);
 			break;
 		
 		
 		case 0xb: // dec bc 
 			cpu->bc.reg -= 1;
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		
@@ -171,7 +166,7 @@ int step_cpu(Cpu * cpu)
 		
 		
 		case 0xe: // ld c, n
-			cpu->bc.lb = read_mem(cpu->pc++,cpu);
+			cpu->bc.lb = read_memt(cpu->pc++,cpu);
 			break;
 
 			
@@ -181,22 +176,24 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 			// most games should never even execute this 
-		case 0x10: // stop <-- FIX THIS LATER
-			puts("fix stop");
+		case 0x10: // stop 
+			puts("fix stop"); // <-- does not emualte teh correct functionalitly of this instr
+			cpu->pc += 1; // skip over next byte
 			//exit(1);
 			break;
 			
 		case 0x11: // ld de, nn
-			cpu->de.reg = read_word(cpu->pc,cpu);
+			cpu->de.reg = read_wordt(cpu->pc,cpu);
 			cpu->pc += 2;
 			break;
 		
 		case 0x12: // ld (de), a
-			write_mem(cpu, cpu->de.reg, cpu->af.hb);
+			write_memt(cpu, cpu->de.reg, cpu->af.hb);
 			break;
 		
 		case 0x13: // inc de
 			cpu->de.reg += 1;
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0x14: // inc d
@@ -208,11 +205,8 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x16: // ld d, nn 
-			cpu->de.hb = read_mem(cpu->pc++,cpu);
+			cpu->de.hb = read_memt(cpu->pc++,cpu);
 			break;
-		
-		
-		
 		
 		case 0x17: // rla (rotate left through carry flag) 
 			cpu->af.hb = rl(cpu,cpu->af.hb);
@@ -220,22 +214,26 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x18: // jr n
-			operand = read_mem(cpu->pc++, cpu);
+			
+			operand = read_memt(cpu->pc++, cpu);
 			write_log("jr n at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+			cycle_tick(cpu,1); // internal delay
 			cpu->pc += operand;
 			break;
 		
 		case 0x19: // add hl, de
 			cpu->hl.reg = addw(cpu,cpu->hl.reg,cpu->de.reg);
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0x1a: // ld a,(de) <--- fix memory reading / writing
-			cpu->af.hb = read_mem(cpu->de.reg,cpu);
+			cpu->af.hb = read_memt(cpu->de.reg,cpu);
 			break;
 		
 
 		case 0x1b: // dec de
 			cpu->de.reg -= 1;
+			cycle_tick(cpu,1); // internal
 			break;
 			
 		case 0x1c: // inc e
@@ -247,7 +245,9 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0x1e: // ld e, n
-			cpu->de.lb = read_mem(cpu->pc++, cpu);
+			
+			cpu->de.lb = read_memt(cpu->pc++, cpu);
+			
 			break;
 		
 		case 0x1f: // rra
@@ -256,26 +256,31 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x20: // jr nz, n
-			operand = read_mem(cpu->pc++, cpu);
+			
+			operand = read_memt(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb, Z))
 			{
 				write_log("jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+				cycle_tick(cpu,1); // internal delay
 				cpu->pc += operand;
+				
+				//cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			break;
 			
 		case 0x21: // ld hl, nn
-			cpu->hl.reg = read_word(cpu->pc,cpu);
+			cpu->hl.reg = read_wordt(cpu->pc,cpu);
 			cpu->pc += 2;
 			break;
 		
 		case 0x22: // ldi (hl), a
-			write_mem(cpu,cpu->hl.reg++,cpu->af.hb);
+			write_memt(cpu,cpu->hl.reg++,cpu->af.hb);
 			break;
 		
 		case 0x23: // inc hl
 			cpu->hl.reg += 1; // increment hl
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0x24: // inc h
@@ -287,14 +292,11 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x26: // ld h, nn
-			cpu->hl.hb = read_mem(cpu->pc++,cpu);
+			cpu->hl.hb = read_memt(cpu->pc++,cpu);
 			break;
 		
 		case 0x27: // daa (lots of edge cases) <-- fix 2morrowh
 			//https://forums.nesdev.com/viewtopic.php?f=20&t=15944
-		
-		
-	
 			if (!is_set(cpu->af.lb,N)) 
 			{  // after an addition, adjust if (half-)carry occurred or if result is out of bounds
 				if (is_set(cpu->af.lb,C)|| cpu->af.hb > 0x99) 
@@ -326,26 +328,34 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0x28: // jr z, n
-			operand = read_mem(cpu->pc++, cpu);
+			
+			operand = read_memt(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb, Z))
 			{
 				write_log("jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+				cycle_tick(cpu,1); // internal delay
 				cpu->pc += operand;
+				//cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
+			
 			break;
 		
 		case 0x29: // add hl, hl
 			cpu->hl.reg = addw(cpu,cpu->hl.reg,cpu->hl.reg);
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		// flags affected by this?
 		case 0x2a: // ldi a, (hl)
-			cpu->af.hb = read_mem(cpu->hl.reg++,cpu);
+			
+			cpu->af.hb = read_memt(cpu->hl.reg++,cpu);
+			
 			break;
 		
 		case 0x2b: // dec hl
 			cpu->hl.reg -= 1;
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0x2c: // inc l
@@ -357,7 +367,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x2e: // ld l, n
-			cpu->hl.lb = read_mem(cpu->pc++, cpu);
+			cpu->hl.lb = read_memt(cpu->pc++, cpu);
 			break;
 			
 		case 0x2f: // cpl (flip bits in a)
@@ -368,46 +378,48 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x30: // jr nc, nn
-			operand = read_mem(cpu->pc++, cpu);
+			
+			operand = read_memt(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb,C))
 			{
 				write_log("jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
+				cycle_tick(cpu,1); // internal delay
+				//cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
+			
 			break;
 		
 		case 0x31: // ld sp, nn
-			cpu->sp = read_word(cpu->pc,cpu);
+			cpu->sp = read_wordt(cpu->pc,cpu);
 			cpu->pc += 2;
 			break;
 		
 		case 0x32: // ldd (hl), a // <--- check memory was written properly
-			write_mem(cpu,cpu->hl.reg--,cpu->af.hb);
+			write_memt(cpu,cpu->hl.reg--,cpu->af.hb);
 			break;
 		
 		case 0x33: // inc sp
 			cpu->sp += 1;
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0x34: // inc (hl)
-			cbop = read_mem(cpu->hl.reg,cpu); // use to store (hl)
-			
+			cbop = read_memt(cpu->hl.reg,cpu); // use to store (hl)
 			inc(cpu,cbop++); // inc 
-			
-			write_mem(cpu,cpu->hl.reg,cbop); // and write back
+			write_memt(cpu,cpu->hl.reg,cbop); // and write back
 			break;
 		
 		case 0x35: // dec (hl)
-			cbop = read_mem(cpu->hl.reg,cpu);
+			cbop = read_memt(cpu->hl.reg,cpu);
 			dec(cpu,cbop--); // dec it
-			
-			write_mem(cpu,cpu->hl.reg,cbop); // and write straight back
+			write_memt(cpu,cpu->hl.reg,cbop); // and write straight back	
 			break;
 			
 		
 		case 0x36: // ld (hl), n 
-			write_mem(cpu,cpu->hl.reg,read_mem(cpu->pc++,cpu));
+			write_memt(cpu,cpu->hl.reg,read_memt(cpu->pc++,cpu));
 			break;
 		
 		case 0x37: // scf
@@ -418,28 +430,30 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x38: // jr c, nnnn
-			operand = read_mem(cpu->pc++, cpu);
+			operand = read_memt(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb,C))
 			{
 				write_log("jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
+				cycle_tick(cpu,1); // internal delay
+				//cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
-			}
+			}	
 			break;
 			
 		case 0x39: // add hl, sp 
 			cpu->hl.reg = addw(cpu,cpu->hl.reg,cpu->sp);
+			cycle_tick(cpu,1); // internal
 			break;	
 			
 		case 0x3a: // ldd a, (hl)
-			cpu->af.hb = read_mem(cpu->hl.reg,cpu);
+			cpu->af.hb = read_memt(cpu->hl.reg,cpu);
 			cpu->hl.reg -= 1; // full reg doesent care about flags
 			break;
 		
-
-		
 		case 0x3b: // dec sp
 			cpu->sp -= 1;
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0x3c: // inc a
@@ -452,7 +466,7 @@ int step_cpu(Cpu * cpu)
 			
 		
 		case 0x3e: // ld a, n
-			cpu->af.hb = read_mem(cpu->pc++, cpu);
+			cpu->af.hb = read_memt(cpu->pc++, cpu);
 			break;
 		
 		case 0x3f: // ccf
@@ -495,7 +509,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x46: // ld b, (hl)
-			cpu->bc.hb = read_mem(cpu->hl.reg,cpu);
+			cpu->bc.hb = read_memt(cpu->hl.reg,cpu);
 			break;
 		
 		case 0x47: // ld b,a
@@ -527,7 +541,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x4e: // ld c, (hl)
-			cpu->bc.lb = read_mem(cpu->hl.reg,cpu);
+			cpu->bc.lb = read_memt(cpu->hl.reg,cpu);
 			break;
 		
 		case 0x4f: // ld c,a
@@ -562,7 +576,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x56: // ld d, (hl)
-			cpu->de.hb = read_mem(cpu->hl.reg,cpu);
+			cpu->de.hb = read_memt(cpu->hl.reg,cpu);
 			break;
 		
 		case 0x57: // ld d, a
@@ -595,7 +609,7 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0x5e: // ld e, (hl)
-			cpu->de.lb = read_mem(cpu->hl.reg,cpu);
+			cpu->de.lb = read_memt(cpu->hl.reg,cpu);
 			break;
 		
 		case 0x5f: // ld e, a
@@ -629,7 +643,7 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0x66: // ld h, (hl)
-			cpu->hl.hb = read_mem(cpu->hl.reg,cpu);
+			cpu->hl.hb = read_memt(cpu->hl.reg,cpu);
 			break;
 		
 		case 0x67: // ld h, a 
@@ -662,7 +676,9 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x6e: // ld l, (hl)
-			cpu->hl.lb = read_mem(cpu->hl.reg,cpu);
+			
+			cpu->hl.lb = read_memt(cpu->hl.reg,cpu);
+			
 			break;
 		
 		case 0x6f: // ld l, a
@@ -670,27 +686,27 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x70: // ld (hl),b
-			write_mem(cpu,cpu->hl.reg,cpu->bc.hb);
+			write_memt(cpu,cpu->hl.reg,cpu->bc.hb);
 			break;
 		
 		case 0x71: // ld (hl), c
-			write_mem(cpu,cpu->hl.reg, cpu->bc.lb);
+			write_memt(cpu,cpu->hl.reg, cpu->bc.lb);
 			break;
 		
 		case 0x72: // ld (hl), d
-			write_mem(cpu,cpu->hl.reg,cpu->de.hb);
+			write_memt(cpu,cpu->hl.reg,cpu->de.hb);
 			break;
 		
 		case 0x73: // ld (hl), e
-			write_mem(cpu,cpu->hl.reg,cpu->de.lb);
+			write_memt(cpu,cpu->hl.reg,cpu->de.lb);
 			break;
 		
 		case 0x74: // ld (hl), h
-			write_mem(cpu,cpu->hl.reg,cpu->hl.hb);
+			write_memt(cpu,cpu->hl.reg,cpu->hl.hb);
 			break;
 		
 		case 0x75: // ld (hl), l
-			write_mem(cpu,cpu->hl.reg,cpu->hl.lb);
+			write_memt(cpu,cpu->hl.reg,cpu->hl.lb);
 			break;
 		
 		case 0x76: // halt 
@@ -699,7 +715,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x77: // ld (hl), a 
-			write_mem(cpu,cpu->hl.reg,cpu->af.hb);
+			write_memt(cpu,cpu->hl.reg,cpu->af.hb);
 			break;
 		
 		case 0x78: // ld a, b
@@ -729,7 +745,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x7e: // ld a, (hl)
-			cpu->af.hb = read_mem(cpu->hl.reg,cpu);
+			cpu->af.hb = read_memt(cpu->hl.reg,cpu);
 			break;
 		
 		case 0x7f: // ld a, a
@@ -761,7 +777,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x86: // add a, (hl)
-			cbop = read_mem(cpu->hl.reg,cpu);
+			cbop = read_memt(cpu->hl.reg,cpu);
 			add(cpu,cbop);
 			break;
 		
@@ -795,8 +811,8 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x8e: // adc (hl)
-			cbop = read_mem(cpu->hl.reg,cpu);
-			 adc(cpu,cbop);
+			cbop = read_memt(cpu->hl.reg,cpu);
+			adc(cpu,cbop);
 			break;
 		
 		case 0x8f: // adc a
@@ -828,7 +844,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x96: // sub (hl)
-			cbop = read_mem(cpu->hl.reg,cpu);
+			cbop = read_memt(cpu->hl.reg,cpu);
 			sub(cpu,cbop);
 			break;
 		
@@ -861,7 +877,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x9e: // sbc a, (hl)
-			cbop = read_mem(cpu->hl.reg,cpu);
+			cbop = read_memt(cpu->hl.reg,cpu);
 			sbc(cpu,cbop);
 			break;
 		
@@ -894,7 +910,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xa6: // and (hl)
-			and(cpu,read_mem(cpu->hl.reg,cpu));
+			and(cpu,read_memt(cpu->hl.reg,cpu));
 			break;
 		
 		case 0xa7: // and a
@@ -927,7 +943,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xae: // xor (hl)
-			cbop = read_mem(cpu->hl.reg,cpu);
+			cbop = read_memt(cpu->hl.reg,cpu);
 			xor(cpu,cbop);
 			break;
 		
@@ -962,7 +978,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xb6: // or (hl)
-			or(cpu,read_mem(cpu->hl.reg,cpu));
+			or(cpu,read_memt(cpu->hl.reg,cpu));
 			break;
 		
 		case 0xb7: // or a
@@ -994,7 +1010,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xbe: // cp (hl)
-			cbop = read_mem(cpu->hl.reg,cpu);
+			cbop = read_memt(cpu->hl.reg,cpu);
 			cp(cpu,cbop);
 			break;
 		
@@ -1003,268 +1019,279 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xc0: // ret nz
+			cycle_tick(cpu,1); //// internal
 			if(!is_set(cpu->af.lb,Z))
 			{
-				cpu->pc = read_stackw(cpu);
+				cpu->pc = read_stackwt(cpu);
+				cycle_tick(cpu,1);  // internal
 				return mtcycles[opcode];
 			}
 			break;
 	
 		case 0xc1: // pop bc
-			cpu->bc.reg = read_stackw(cpu);
+			
+			cpu->bc.reg = read_stackwt(cpu);
+			
 			break;
 		
 		case 0xc2: // jp nz, nnnn
-		
+			operandw =  read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(!is_set(cpu->af.lb,Z))
 			{
-				write_log("jp nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-				cpu->pc = read_word(cpu->pc,cpu);
+				write_log("jp nz at %x -> %x\n",cpu->pc-3,operandw);
+				cpu->pc = operandw;
+				cycle_tick(cpu,1); // internal delay
 				return mtcycles[opcode];
-			}
-			
-			else 
-			{
-				cpu->pc += 2;
 			}
 			break;
 			
 		case 0xc3: // jump
-			cpu->pc = read_word(cpu->pc,cpu);
+			
+			cpu->pc = read_wordt(cpu->pc,cpu);
+			cycle_tick(cpu,1); // internal
+			
 			break;
 		
 		
 		case 0xc4: // call nz
+			operandw = read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(!is_set(cpu->af.lb,Z))
 			{
-				write_log("call nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-				write_stackw(cpu,cpu->pc+2);
-				cpu->pc = read_word(cpu->pc, cpu);
+				cycle_tick(cpu,1); // internal
+				write_log("call nz at %x -> %x\n",cpu->pc-3,operandw);
+				write_stackwt(cpu,cpu->pc);
+				cpu->pc = operandw;
 				return mtcycles[opcode];
-			}
-			
-			else 
-			{
-				cpu->pc += 2;
 			}
 			break;
 		
-		case 0xc5: // push bc 
-			write_stackw(cpu,cpu->bc.reg);
+		case 0xc5: // push bc 	
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->bc.reg);
 			break;
 		
 		
 		case 0xc6: // add a, nn
-			add(cpu,read_mem(cpu->pc++,cpu));
+			add(cpu,read_memt(cpu->pc++,cpu));
 			break;
 		
 		case 0xc7: // rst 00
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0;
 			break;
 		
 		case 0xc8: // ret z
+			cycle_tick(cpu,1); // internal delay
 			if(is_set(cpu->af.lb,Z))
 			{
-				cpu->pc = read_stackw(cpu);
+				cpu->pc = read_stackwt(cpu);
+				cycle_tick(cpu,1); // internal delay
 				return mtcycles[opcode];
 			}
 			break;
 		
 		case 0xc9: // ret 
-			cpu->pc = read_stackw(cpu);
+			cpu->pc = read_stackwt(cpu);
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0xca: // jp z, nnnn
+			operandw = read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(is_set(cpu->af.lb, Z))
 			{
-				write_log("jp z at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-				cpu->pc = read_word(cpu->pc,cpu);
+				write_log("jp z at %x -> %x\n",cpu->pc-3,operandw);
+				cpu->pc = operandw;
+				cycle_tick(cpu,1); // internal
 				return mtcycles[opcode];
-			}
-			
-			else
-			{
-				cpu->pc += 2; // skip jump opcodes
-			
 			}
 			break;
 			
 		// return early from here and return the cycles
 		// from the cb prefix table (could error with interrupt enable before it as edge case...)
-		case 0xcb: // multi len opcode (cb prefix)
-		
-			
-			cbop = read_mem(cpu->pc++, cpu); // fetch the opcode
+		case 0xcb: // multi len opcode (cb prefix) // <-- need to fix the ticks inside here 
+			cbop = read_memt(cpu->pc++, cpu); // fetch the opcode
+			 // tick our instr fetch for cb
 			decode_cb(cbop,cpu); // exec it 
 
-			return cbmcycles[cbop]; // update machine cylces for cb prefix
+			return cbmcycles[cbop];
+			//return cbmcycles[cbop]; // update machine cylces for cb prefix
 			break; 
 		
 		
-		case 0xcc:
+		case 0xcc: // call z <-- needs logging added
+			operandw = read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(is_set(cpu->af.lb,Z))
 			{
-				write_stackw(cpu,cpu->pc+2);
-				cpu->pc = read_word(cpu->pc,cpu);
+				cycle_tick(cpu,1);  // internal delay
+				write_stackwt(cpu,cpu->pc);
+				cpu->pc = operandw;
 				return  mtcycles[opcode];
-			}
-			
-			else
-			{
-				cpu->pc += 2;
 			}
 			break;
 		
 		case 0xCD: // call nn <-- verify
-			write_log("call at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-			write_stackw(cpu,cpu->pc+2);
-			cpu->pc = read_word(cpu->pc, cpu);
+			operandw = read_wordt(cpu->pc, cpu);
+			cpu->pc += 2;
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
+			write_log("call at %x -> %x\n",cpu->pc-3,operandw);
+			cpu->pc = operandw;
 			break;
 
 		case 0xce: // adc a, nn
-			adc(cpu,read_mem(cpu->pc++,cpu));
+			adc(cpu,read_memt(cpu->pc++,cpu));
 			break;
 		
 		case 0xcf: // rst 08
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0x8;
 			break;
 		
 		case 0xd0: // ret nc
+			cycle_tick(cpu,1); // internal delay
 			if(!is_set(cpu->af.lb,C))
 			{
-				cpu->pc = read_stackw(cpu);
+				cpu->pc = read_stackwt(cpu);
+				cycle_tick(cpu,1); // internal delay
 				return mtcycles[opcode];
 			}
 			break;
 		
 		case 0xd1: // pop de
-			cpu->de.reg = read_stackw(cpu);
+			cpu->de.reg = read_stackwt(cpu);
 			break;
 		
 		case 0xd2: // jp nc u16
+			operandw = read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(!is_set(cpu->af.lb,C))
 			{
-				write_log("jp nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-				cpu->pc = read_word(cpu->pc,cpu);
+				write_log("jp nc at %x -> %x\n",cpu->pc-3,operandw);
+				cpu->pc = operandw;
+				cycle_tick(cpu,1);// internal
 				return mtcycles[opcode];
-			}
-			
-			else
-			{
-				cpu->pc += 2;
 			}
 			break;
 		
 		case 0xd4: // call nc nnnn
+			operandw = read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(!is_set(cpu->af.lb,C))
 			{
-				write_log("call nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-				write_stackw(cpu,cpu->pc+2);
-				cpu->pc = read_word(cpu->pc, cpu);
+				write_log("call nc at %x -> %x\n",cpu->pc-3,operandw);
+				cycle_tick(cpu,1); // internal delay
+				write_stackwt(cpu,cpu->pc);
+				cpu->pc = operandw;
 				return  mtcycles[opcode];
-			}
-			
-			else 
-			{
-				cpu->pc += 2;
 			}
 			break;			
 		
 		case 0xD5: // push de
-			write_stackw(cpu,cpu->de.reg);
+			cycle_tick(cpu,1); // internal delay 
+			write_stackwt(cpu,cpu->de.reg);
 			break;
 		
 		case 0xd6: // sub a, nn
-			sub(cpu,read_mem(cpu->pc++,cpu));
+			sub(cpu,read_memt(cpu->pc++,cpu));
 			break;
 		
 		case 0xd7: // rst 10
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0x10;
 			break;
 		
 		case 0xd8: // ret c
+			cycle_tick(cpu,1); // internal delay
 			if(is_set(cpu->af.lb,C))
 			{
-				cpu->pc = read_stackw(cpu);
+				cpu->pc = read_stackwt(cpu);
+				cycle_tick(cpu,1); // internal delay
 				return mtcycles[opcode];
 			}
 			break;
 			
 		case 0xd9: // reti
-			cpu->pc = read_stackw(cpu);
+			cpu->pc = read_stackwt(cpu);
+			cycle_tick(cpu,1);// internal
 			cpu->interrupt_enable = true; // re-enable interrupts
 			break;
 		
 		case 0xda: // jp c, u16
+			operandw = read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(is_set(cpu->af.lb,C))
 			{
-				write_log("jp c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-				cpu->pc = read_word(cpu->pc,cpu);
+				write_log("jp c at %x -> %x\n",cpu->pc-3,operandw);
+				cpu->pc = operandw;
+				cycle_tick(cpu,1); // internal
 				return mtcycles[opcode];
-			}
-			
-			else
-			{
-				cpu->pc += 2;
 			}
 			break;
 		
 		case 0xdc: // call c, u16
+			operandw = read_wordt(cpu->pc,cpu);
+			cpu->pc += 2;
 			if(is_set(cpu->af.lb,C))
 			{
-				write_log("call c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
-				write_stackw(cpu,cpu->pc+2);
-				cpu->pc = read_word(cpu->pc,cpu);
+				write_log("call c at %x -> %x\n",cpu->pc-3,operandw);
+				cycle_tick(cpu,1); // internal 
+				write_stackwt(cpu,cpu->pc);
+				cpu->pc = operandw;
 				return mtcycles[opcode];
-			}
-			
-			else
-			{
-				cpu->pc += 2;
 			}
 			break;
 		
 		case 0xde: // sbc a, n
-			sbc(cpu,read_mem(cpu->pc++,cpu));
+			
+			sbc(cpu,read_memt(cpu->pc++,cpu));
+			
 			break;
 		
 		
 		case 0xdf: // rst 18
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0x18;
 			break;
 		
 		case 0xE0: // ld (ff00+n),a
-			write_mem(cpu,(0xff00+read_mem(cpu->pc++,cpu)),cpu->af.hb);
+			write_memt(cpu,(0xff00+read_memt(cpu->pc++,cpu)),cpu->af.hb);
 			break;
 
 		case 0xe1: // pop hl
-			cpu->hl.reg = read_stackw(cpu);
+			cpu->hl.reg = read_stackwt(cpu);
 			break;
 			
 		case 0xE2: // LD ($FF00+C),A
-			write_mem(cpu,0xff00 + cpu->bc.lb, cpu->af.hb);
+			write_memt(cpu,0xff00 + cpu->bc.lb, cpu->af.hb);
 			break;
 
 		case 0xe5: // push hl
-			write_stackw(cpu, cpu->hl.reg);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu, cpu->hl.reg);
 			break;
 		
 
 		case 0xe6: // and a, n
-			and(cpu, read_mem(cpu->pc++,cpu));
+			and(cpu, read_memt(cpu->pc++,cpu));
 			break;
 		
 		case 0xe7: // rst 20
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0x20;
 			break;
 		
 		case 0xe8: // add sp, i8 <--- verify
-			cpu->sp = addi(cpu,cpu->sp, ((int8_t)read_mem(cpu->pc++,cpu)) );
+			cpu->sp = addi(cpu,cpu->sp, ((int8_t)read_memt(cpu->pc++,cpu)) );
+			cycle_tick(cpu,2); // internal delay (unsure)
 			break;
 		
 		case 0xe9: // jp hl
@@ -1273,30 +1300,31 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xea: // ld (nnnn), a
-			write_mem(cpu,read_word(cpu->pc,cpu),cpu->af.hb);
+			write_memt(cpu,read_wordt(cpu->pc,cpu),cpu->af.hb);
 			cpu->pc += 2;
 			break;
 		
 		case 0xee: // xor a, nn
-			xor(cpu,read_mem(cpu->pc++,cpu));
+			xor(cpu,read_memt(cpu->pc++,cpu));
 			break;
 		
 		case 0xef: // rst 28
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0x28;
 			break;
 		
 		case 0xF0: // ld a, (ff00+n)
-			cpu->af.hb = read_mem(0xff00+read_mem(cpu->pc++, cpu),cpu);
+			cpu->af.hb = read_memt(0xff00+read_memt(cpu->pc++, cpu),cpu);
 			break;
 		
 		case 0xf1: // pop af
-			cpu->af.reg = read_stackw(cpu);
-			cpu->af.reg &= 0xfff0; // mask bottom 4 bits at they go unused 
+			cpu->af.reg = read_stackwt(cpu);
+			cpu->af.reg &= 0xfff0; // mask bottom 4 bits at they go unused
 			break;
 		
 		case 0xf2: // ld a, (ff00+c)
-			cpu->af.hb = read_mem(0xff00 + cpu->bc.lb ,cpu);
+			cpu->af.hb = read_memt(0xff00 + cpu->bc.lb ,cpu);
 			break;
 		
 		case 0xf3: // disable interrupt
@@ -1306,29 +1334,32 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xf5: // push af
-			write_stackw(cpu,cpu->af.reg);
+			cycle_tick(cpu,1); // internal delay
+			write_stackwt(cpu,cpu->af.reg);
 			break;
 		
 		case 0xf6: // or a, nn
-			or(cpu, read_mem(cpu->pc++,cpu));
+			or(cpu, read_memt(cpu->pc++,cpu));
 			break;
 		
 		case 0xf7: // rst 30
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0x30;
 			break;
 		
 		case 0xf8: // ld hl, sp + i8 <--- verify 
-			cpu->hl.reg = addi(cpu,cpu->sp,(int8_t)read_mem(cpu->pc++,cpu));
+			cpu->hl.reg = addi(cpu,cpu->sp,(int8_t)read_memt(cpu->pc++,cpu));
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0xf9: // ld sp, hl
 			cpu->sp = cpu->hl.reg;
+			cycle_tick(cpu,1); // internal
 			break;
 		
 		case 0xfa: // ld a (nn) <-- 16 bit address
-			//cpu->af.hb = read_mem(cpu->mem,read_word(cpu->mem,cpu->pc));
-			cpu->af.hb = read_mem(read_word(cpu->pc,cpu),cpu);
+			cpu->af.hb = read_memt(read_wordt(cpu->pc,cpu),cpu);
 			cpu->pc += 2;
 			break;
 		
@@ -1338,14 +1369,13 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xFE: // cp a, n (do a sub and discard result)
-			cp(cpu,read_mem(cpu->pc++,cpu));
-		//	cpu_state(cpu);
-		//	print_flags(cpu); exit(1);
+			cp(cpu,read_memt(cpu->pc++,cpu));
 			break;
 			
 		
 		case 0xff: // rst 38
-			write_stackw(cpu,cpu->pc);
+			cycle_tick(cpu,1); // internal 
+			write_stackwt(cpu,cpu->pc);
 			cpu->pc = 0x38;
 			break;
 		
@@ -1365,5 +1395,6 @@ int step_cpu(Cpu * cpu)
 			break;
 	}
 	
-    return mcycles[opcode]; // update the machine cycles		
+	int cycles = mcycles[opcode];
+    return cycles; // update the machine cycles		
 }
