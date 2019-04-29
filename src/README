@@ -1,5 +1,5 @@
 apu.c - functions realted to sound emulation (unfinished)
-ppu.c - pixel processing unit emulation (screen driver)
+ppu.c - pixel processing unit emulation (screen driver - ppu pipeline still needs some slight work)
 cpu.c - handles cpu events interrupts timers etc
 memory.c - handles the gameboys memory map
 instr.c - functions for the instruction set of the sm83 (add, div etc)
