@@ -5,7 +5,7 @@ memory.c - handles the gameboys memory map
 instr.c - functions for the instruction set of the sm83 (add, div etc)
 disass.c - disassembler used for the debugger (does not support the full instruciton set yet)
 joypad.c - handles input for the emulator
-opcode.c - main emulation of instrucitons exectues opcodes
+opcode.c - main emulation of instrucitons executes opcodes
 opcode_cb.c ^ same but for instructions prefixed with 0xcb
 rom.c - handles loading the rom and pulling information out of the header the emulator requires
 banking.c - handles banking switching for the rom
