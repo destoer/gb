@@ -5,6 +5,18 @@
 #include "headers/lib.h"
 #include "headers/memory.h"
 
+
+
+// <--- look at the timers in draw_scanline as they are off 
+// and figure out how many cycles need to be passed
+// should pass the lcdon tests first (as it is the first part that other tests rely on...)
+// add the direct vram and oam reads instead of lying about the mode the ppu is in 
+
+// <-- consider caching ly as it is read alot and memory writes do not affect it....
+
+// need to get the ppu timings passing (at the very least ones that dont use scx as it may be the source of issues)
+// mooneye-gb_hwtests\acceptance\ppu\intr_2_0_timing.gb appears to behave VERY strangely...
+
 // after sound the fetcher + pixel fifo needs implementing 
 // if this doesent fix screen tears look elsewhere....
 
@@ -70,7 +82,7 @@ void update_stat(Cpu *cpu, int cycles)
 	if(!is_lcd_enabled(cpu)) // <-- should re enable on a delay?
 	{
 		cpu->scanline_counter = 0; // counter is reset?
-		cpu->io[IO_LY] = 0; // reset ly
+		cpu->current_line = 0; // reset ly
 		cpu->io[IO_STAT] = status; 
 		return; // can exit if ppu is disabled nothing else to do
 	}
@@ -78,13 +90,13 @@ void update_stat(Cpu *cpu, int cycles)
 
 
 
-	uint8_t ly = cpu->io[IO_LY];
+
 
 	
 	uint8_t mode = 0;
 	
 	// vblank (mode 1)
-	if(ly >= 144)
+	if(cpu->current_line >= 144)
 	{
 		mode = 1;
 	}
@@ -116,8 +128,10 @@ void update_stat(Cpu *cpu, int cycles)
 		}
 		
 		// hblank mode 0
-		else if(cpu->hblank);
+		//else if(cpu->hblank)
+		else
 		{ 
+			//exit(1);
 			mode = 0; 
 		}
 	}
@@ -145,7 +159,7 @@ void update_stat(Cpu *cpu, int cycles)
 	// line 153 can be treated as zero 
 	// see https://forums.nesdev.com/viewtopic.php?f=20&t=13727
 	//if( lyc == ly || (lyc == 0 && ly == 153) )
-	if(lyc == ly)
+	if(lyc == cpu->current_line)
 	{
 		set_bit(status,2); // toggle coincidence bit
 	}
@@ -198,24 +212,24 @@ void update_graphics(Cpu *cpu, int cycles)
 	// save our current signal state
 	bool signal_old = cpu->signal;
 
-	uint8_t ly = cpu->io[IO_LY];
+	
 
 	
 
 
 	// we have finished drawing a line 
-	if(cpu->scanline_counter >= 114) // <-- > or >=?
+	if(cpu->scanline_counter >= 114) 
 	{
 		// reset the counter extra cycles should tick over
 		cpu->scanline_counter = 0;
 
 		
 		
-		// inc the save ly and write it back 
-		ly += 1;
+		
+		cpu->current_line++;
+
 		
 		// reset our fetcher :)
-		cpu->io[IO_LY] = ly;
 		cpu->x_cord = 0;
 		cpu->tile_ready = false;
 		cpu->pixel_count = 0;
@@ -226,7 +240,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		cpu->ppu_scyc = 0;
 		
 		// vblank has been entered
-		if(ly == 144)
+		if(cpu->current_line == 144)
 		{
 			request_interrupt(cpu,0); // vblank interrupt
 			
@@ -244,13 +258,21 @@ void update_graphics(Cpu *cpu, int cycles)
 		// if past 153 reset ly
 		// need to emulate the difference 
 		// on the first line properly here
-		else if(ly > 153)
+		else if(cpu->current_line > 153)
 		{
 			cpu->io[IO_STAT] &= ~3;
 			cpu->io[IO_STAT] |= 2;
-			cpu->io[IO_LY] = 0;	
-		}
+			cpu->current_line = 0;
 
+			if(is_set(status,5))
+			{
+				if(signal_old == false)
+				{
+					request_interrupt(cpu,1);
+				}
+				cpu->signal = true;
+			}
+		}
 	}	
 }
 
@@ -303,7 +325,7 @@ void push_pixel(Cpu *cpu)
 	
 	
 	// read the scanline 
-	int scanline = cpu->io[IO_LY];
+	int scanline = cpu->current_line;
 	
 	
 	int col = get_colour(cpu,col_num,colour_address); 
@@ -359,7 +381,7 @@ void tick_fetcher(Cpu *cpu) {
 	// get lcd control reg
 	int control = cpu->io[IO_LCDC];
 	
-	int scanline = cpu->io[IO_LY];
+	int scanline = cpu->current_line;
 	int window_y  = cpu->io[IO_WY];
 	int window_x = cpu->io[IO_WX];
 	
@@ -380,7 +402,6 @@ void tick_fetcher(Cpu *cpu) {
 		}
 	}
 	*/
-
 	// advance the fetcher if we dont have a tile dump waiting
 
 
@@ -525,6 +546,7 @@ void draw_scanline(Cpu *cpu, int cycles)
 
 void tile_fetch(Cpu *cpu)
 {
+
 	uint16_t tile_data = 0;
 	uint16_t background_mem = 0;
 	bool unsig = true;
@@ -540,7 +562,7 @@ void tile_fetch(Cpu *cpu)
 	
 	bool using_window = false;
 	
-	int scanline = cpu->io[IO_LY];
+	int scanline = cpu->current_line;
 	
 	// is the window enabled check in lcd control
 	if(is_set(lcd_control,5)) 
@@ -642,11 +664,11 @@ void tile_fetch(Cpu *cpu)
 		uint16_t tile_address = background_mem + tile_row+tile_col;
 		if(unsig)
 		{
-			tile_num = (uint8_t)read_mem(tile_address,cpu);
+			tile_num = (uint8_t)read_vram(tile_address,cpu);
 		}
 		else
 		{
-			tile_num = (int8_t)read_mem(tile_address,cpu);
+			tile_num = (int8_t)read_vram(tile_address,cpu);
 		}
 	
 		// deduce where this tile identifier is in memory
@@ -666,8 +688,8 @@ void tile_fetch(Cpu *cpu)
 	
 		uint8_t line = y_pos % 8;
 		line *= 2; // each line takes up two bytes of mem
-		uint8_t data1 = read_mem(tile_location + line,cpu);
-		uint8_t data2 = read_mem(tile_location + line+1,cpu);
+		uint8_t data1 = read_vram(tile_location + line,cpu);
+		uint8_t data2 = read_vram(tile_location + line+1,cpu);
 	
 	
 		// pixel 0 in the tile is bit 7 of data1 and data2
@@ -748,24 +770,24 @@ int cmpfunc(const void *A, const void *B)
 // called when when enter pixel transfer
 void read_sprites(Cpu *cpu)
 {
-	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
+	uint8_t lcd_control = cpu->io[IO_LCDC]; // get lcd control reg
 
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 	
-	uint8_t scanline = read_mem(0xff44,cpu);
+	uint8_t scanline = cpu->current_line;
 
 	memset(&cpu->objects_priority,0,sizeof(Obj) * 10);
 	int x = 0;
 
 	for(int sprite = 0; sprite < 40; sprite++) // should fetch all these as soon as we leave oam search
 	{
-		uint8_t y_pos = (read_mem(0xfe00+sprite*4,cpu));
+		uint8_t y_pos = read_oam(0xfe00+sprite*4,cpu);
 		if( scanline -(y_size - 16) < y_pos  && scanline + 16 >= y_pos )
 		{
 			// intercepts with the line
 			cpu->objects_priority[x].index = sprite*4; // save the index
 			// and the x pos
-			cpu->objects_priority[x].x_pos = read_mem(0xfe00+(sprite*4)+1,cpu)-8;
+			cpu->objects_priority[x].x_pos = read_oam(0xfe00+(sprite*4)+1,cpu)-8;
 			x += 1;
 			if(x == 10) { break; } // only draw a max of 10 sprites per line
 		}
@@ -778,8 +800,7 @@ void read_sprites(Cpu *cpu)
 	// this means they will draw on top of other sprites
 	qsort(&cpu->objects_priority,x,sizeof(Obj),cmpfunc);	
 	
-	cpu->no_sprites = x; // save how many sprites we have
-	
+	cpu->no_sprites = x; // save how many sprites we have	
 }
 
 
@@ -788,11 +809,12 @@ void read_sprites(Cpu *cpu)
 // because we will delay if they have been
 bool sprite_fetch(Cpu *cpu) 
 {
+	
 	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
 
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 
-	int scanline = cpu->io[IO_LY];
+	int scanline = cpu->current_line;
 
 	bool did_draw = false;
 	
@@ -840,11 +862,11 @@ bool sprite_fetch(Cpu *cpu)
 		
 		// sprite takes 4 bytes in the sprite attributes table
 		uint8_t sprite_index = cpu->objects_priority[i].index;
-		uint8_t y_pos = (read_mem(0xfe00+sprite_index,cpu));
+		uint8_t y_pos = read_oam(0xfe00+sprite_index,cpu);
 		
 		
-		uint8_t sprite_location = read_mem(0xfe00+sprite_index+2,cpu);
-		uint8_t attributes = read_mem(0xfe00+sprite_index+3, cpu);
+		uint8_t sprite_location = read_oam(0xfe00+sprite_index+2,cpu);
+		uint8_t attributes = read_oam(0xfe00+sprite_index+3, cpu);
 		
 		bool y_flip = is_set(attributes,6);
 		bool x_flip = is_set(attributes,5);
@@ -868,8 +890,8 @@ bool sprite_fetch(Cpu *cpu)
 			
 			line *= 2; // same as for tiles
 			uint16_t data_address = (0x8000 + (sprite_location * 16 )) + line;
-			uint8_t data1 = read_mem(data_address,cpu);
-			uint8_t data2 = read_mem(data_address+1,cpu);
+			uint8_t data1 = read_vram(data_address,cpu);
+			uint8_t data2 = read_vram(data_address+1,cpu);
 			
 			// eaiser to read in from right to left as pixel 0
 			// is bit 7 in the color data pixel 1 is bit 6 etc 
@@ -936,7 +958,7 @@ bool sprite_fetch(Cpu *cpu)
 				}
 			}
 		}
-	} 			
+	}
 }
 
 

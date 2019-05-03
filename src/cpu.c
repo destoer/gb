@@ -89,6 +89,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.tacfreq = 256; // number of machine cycles till update
 	cpu.div_counter = 0;
 	cpu.scanline_counter = 0;
+	cpu.current_line = 0;
 	cpu.signal = false;
 	cpu.joypad_state = 0xff;
 	cpu.interrupt_enable = false;
@@ -242,7 +243,12 @@ void write_word(Cpu *cpu,uint16_t address,int data) // <- verify
 }
 
 
-
+uint8_t read_iot(uint16_t address, Cpu *cpu)
+{
+	uint8_t val = read_io(address,cpu);
+	cycle_tick(cpu,1);
+	return val;
+}
 
 
 
@@ -264,6 +270,12 @@ uint8_t read_memt(int address, Cpu *cpu)
 uint16_t read_wordt(int address, Cpu *cpu)
 {
 	return read_memt(address,cpu) | (read_memt(address+1,cpu) << 8);
+}
+
+void write_iot(Cpu *cpu,uint16_t address, int data)
+{
+	write_io(cpu,address,data);
+	cycle_tick(cpu,1);
 }
 
 

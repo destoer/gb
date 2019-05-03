@@ -124,7 +124,7 @@ typedef struct
 	int scanline_counter;
 	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
 	bool signal;
-	
+	int current_line;
 	
 	// fetcher
 	bool hblank;
@@ -140,6 +140,8 @@ typedef struct
 	int no_sprites; // how many sprites
 	bool sprite_drawn;
 	bool window_start;
+	bool x_scroll_tick;
+	int scx_cnt;
 	
 	uint8_t joypad_state; // has state of held down buttons
 	// banking
@@ -252,6 +254,8 @@ uint8_t read_memt(int address, Cpu *cpu);
 void write_memt(Cpu *cpu,uint16_t address,int data);
 void write_stackwt(Cpu *cpu,uint16_t data);
 void write_stackt(Cpu *cpu,uint8_t data);
+void write_iot(Cpu *cpu,uint16_t address, int data);
+uint8_t read_iot(uint16_t address, Cpu *cpu);
 uint8_t read_stackt(Cpu *cpu);
 uint16_t read_stackwt(Cpu *cpu);
 void tick_dma(Cpu *cpu, int cycles);

@@ -385,7 +385,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				cycle_tick(cpu,1); // internal delay
-				//cycle_tick(cpu,mtcycles[opcode]);
 				return mtcycles[opcode];
 			}
 			
@@ -947,7 +946,7 @@ int step_cpu(Cpu * cpu)
 			xor(cpu,cbop);
 			break;
 		
-		// shortcut case end up with just zero flag being set <-- should be optimise later
+		// shortcut case end up with just zero flag being set <-- should be optimized later
 		case 0xaf: // xor a, a
 			xor(cpu,cpu->af.hb);
 			//cpu->af.reg = 128; 
@@ -1047,10 +1046,8 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0xc3: // jump
-			
 			cpu->pc = read_wordt(cpu->pc,cpu);
 			cycle_tick(cpu,1); // internal
-			
 			break;
 		
 		
@@ -1118,7 +1115,6 @@ int step_cpu(Cpu * cpu)
 			decode_cb(cbop,cpu); // exec it 
 
 			return cbmcycles[cbop];
-			//return cbmcycles[cbop]; // update machine cylces for cb prefix
 			break; 
 		
 		
@@ -1262,7 +1258,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xE0: // ld (ff00+n),a
-			write_memt(cpu,(0xff00+read_memt(cpu->pc++,cpu)),cpu->af.hb);
+			write_iot(cpu,(0xff00+read_memt(cpu->pc++,cpu)),cpu->af.hb);
 			break;
 
 		case 0xe1: // pop hl
@@ -1270,7 +1266,7 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0xE2: // LD ($FF00+C),A
-			write_memt(cpu,0xff00 + cpu->bc.lb, cpu->af.hb);
+			write_iot(cpu,0xff00 + cpu->bc.lb, cpu->af.hb);
 			break;
 
 		case 0xe5: // push hl
@@ -1315,7 +1311,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xF0: // ld a, (ff00+n)
-			cpu->af.hb = read_memt(0xff00+read_memt(cpu->pc++, cpu),cpu);
+			cpu->af.hb = read_iot(0xff00+read_memt(cpu->pc++, cpu),cpu);
 			break;
 		
 		case 0xf1: // pop af
@@ -1324,7 +1320,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xf2: // ld a, (ff00+c)
-			cpu->af.hb = read_memt(0xff00 + cpu->bc.lb ,cpu);
+			cpu->af.hb = read_iot(0xff00 + cpu->bc.lb ,cpu);
 			break;
 		
 		case 0xf3: // disable interrupt

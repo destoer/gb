@@ -25,9 +25,14 @@ uint32_t time_left(void)
 	
 	now = SDL_GetTicks();
 	if(next_time <= now)
+	{
 		return 0;
-	else 
+	}
+	
+	else
+	{
 		return next_time - now;
+	}
 }
 /* TODO */
 // implement the internal timer
@@ -174,7 +179,7 @@ int main(int argc, char *argv[])
 
 		
 		const int fps = 60; // approximation <--- could use float at 59.73
-		const int screen_ticks_per_frame = 1000 / fps; // <-- no idea why it is the four times 
+		const int screen_ticks_per_frame = 1000 / fps;
 		// what it should be but ok
 		
 		next_time = SDL_GetTicks() + screen_ticks_per_frame;

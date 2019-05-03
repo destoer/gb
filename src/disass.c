@@ -16,6 +16,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 	uint8_t operand = read_mem(cpu->pc,cpu);
 	uint16_t operandw = read_word(cpu->pc,cpu);
 	// disass the opcode
+	printf("%04x: ", cpu->pc-1);
 	switch(opcode)
 	{
 		case 0x0: // NOP
@@ -49,10 +50,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 		case 0x7: // rlca
 			puts("rlca");
 			break;
-		
-		case 0xa: // ld a, (de)
-			puts("ld a, (bc)");
-			break;
+
 		
 		case 0x08: // ld (nnnn), sp
 			printf("ld (%x), sp\n",operandw);
@@ -61,7 +59,12 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 		case 0x9: // add hl, bc
 			puts("add hl, bc");
 			break;
+
 		
+		case 0xa: // ld a, (bc)
+			puts("ld a, (bc)");
+			break;
+			
 		case 0xb: // dec bc
 			puts("dec bc");
 			break;

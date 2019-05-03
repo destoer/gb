@@ -108,20 +108,23 @@ uint16_t calc_freqsweep(Cpu *cpu)
 // disable chan if it overflows
 void do_freqsweep(Cpu *cpu)
 {
-	
-	//puts("FREQSWEEP");
-	
 	uint16_t temp = calc_freqsweep(cpu);
 	
 	// if it is <= 2047 and shift is non 0
 	// write it back to freq regs
 	// and then do the calc again without writing the value back
-	
-	
-	// sweep shift not zero
-	if(temp <= 0x7ff && (cpu->io[IO_NR10] &  0x7))
+	if(temp > 0x7ff)
 	{
+		cpu->sweep_timer = 0;
+		deset_bit(cpu->io[IO_NR52],0);
+		cpu->sweep_enabled = false;
+		return;
 		
+	}
+	
+	// sweep shift not zero (can be assumed its <= 0x7ff for first calc now)
+	if(cpu->io[IO_NR10] &  0x7)
+	{
 		// write back to shadow
 		cpu->sweep_shadow = temp;
 		
@@ -136,19 +139,14 @@ void do_freqsweep(Cpu *cpu)
 		
 		// reperform the calc + overflow check (but dont write back)
 		temp = calc_freqsweep(cpu);
-	}
-	
-	// over 2047 turn off square 1
-	//if(temp > 2047)
-	if(temp > 0x7ff)
-	{
-		cpu->sweep_timer = 0;
-		deset_bit(cpu->io[IO_NR52],0);
-		cpu->sweep_enabled = false;
 		
+		if(temp > 0x7ff)
+		{
+			cpu->sweep_timer = 0;
+			deset_bit(cpu->io[IO_NR52],0);
+			cpu->sweep_enabled = false;
+		}	
 	}
-	
-	
 }
 
 // not sure how the sweep timer is meant to be used?
@@ -164,7 +162,9 @@ void clock_sweep(Cpu *cpu)
 	
 	//if(!cpu->sweep_period) { return; }
 	
-	if(cpu->sweep_enabled && cpu->sweep_timer && !--cpu->sweep_timer)
+	if(!cpu->sweep_enabled) { return; }
+	
+	if(cpu->sweep_period && cpu->sweep_timer && !--cpu->sweep_timer)
 	{
 		// if elapsed do the actual "sweep"
 		do_freqsweep(cpu);
