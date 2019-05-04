@@ -123,15 +123,24 @@ void update_stat(Cpu *cpu, int cycles)
 			{
 				read_sprites(cpu);	
 			}
+
+			/*
+			; Expected behaviour:
+			;   (SCX mod 8) = 0   => LY increments 51 cycles after STAT interrupt
+			;   (SCX mod 8) = 1-4 => LY increments 50 cycles after STAT interrupt
+			; (SCX mod 8) = 5-7 => LY increments 49 cycles after STAT interrupt
+			*/
 			
 			draw_scanline(cpu,cycles);
+			if(cpu->hblank)
+			{
+				mode = 0;
+			}
 		}
 		
 		// hblank mode 0
-		//else if(cpu->hblank)
 		else
 		{ 
-			//exit(1);
 			mode = 0; 
 		}
 	}

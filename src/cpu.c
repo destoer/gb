@@ -157,24 +157,17 @@ void do_interrupts(Cpu *cpu)
 		uint8_t req = cpu->io[IO_IF];
 		// checked that the interrupt is enabled from the ie reg 
 		uint8_t enabled = cpu->io[IO_IE];
-		//uint8_t req = read_mem(0xff0f,cpu);
 		
-		//uint8_t enabled = read_mem(0xffff,cpu);	
 		if(req > 0)
 		{
 			// priority for servicing starts at interrupt 0
 			for(int i = 0; i < 5; i++)
 			{
-				
-				// if requested
-				if(is_set(req,i))
+				// if requested & is enabled
+				if(is_set(req,i) && is_set(enabled,i))
 				{
-					// check that the particular interrupt is enabled
-					if(is_set(enabled,i))
-					{
-						service_interrupt(cpu,i);
-						cycles += 5; // every interrupt service costs 5 M cycles
-					}
+					service_interrupt(cpu,i);
+					cycles += 5; // every interrupt service costs 5 M cycles
 				}
 			}
 		}
@@ -431,7 +424,7 @@ void update_timers(Cpu *cpu, int cycles)
 
 
 
-
+// this needs work
 void tick_dma(Cpu *cpu, int cycles)
 {
 	// lie so we can freely access memory 

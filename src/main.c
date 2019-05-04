@@ -43,8 +43,8 @@ uint32_t time_left(void)
 
 
 // F-1 race 
-
 // 1ece not reached
+// seems the most easy to investigate
 
 // kirby's dream land two also broken by memory accuracy?
 
