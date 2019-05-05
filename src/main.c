@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
 		
 		
 		// number of cycles for a full screen redraw
-		const int MAXCYCLES = (17556);
+		const int MAXCYCLES = (16726); // 17556 was this but this one appears to stop tears?
 		int cycles_this_update = 0;	
 		while(cycles_this_update < MAXCYCLES)
 		{

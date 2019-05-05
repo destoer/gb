@@ -7,10 +7,8 @@
 
 
 
-// <--- look at the timers in draw_scanline as they are off 
-// and figure out how many cycles need to be passed
-// should pass the lcdon tests first (as it is the first part that other tests rely on...)
-// add the direct vram and oam reads instead of lying about the mode the ppu is in 
+
+// <-- get lyc_onoff test passing
 
 // <-- consider caching ly as it is read alot and memory writes do not affect it....
 
