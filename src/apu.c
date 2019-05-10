@@ -20,6 +20,7 @@
 // this works fine for now but implement properly with the desc off the reddit post
 // after finishing up this part and function off the length ticking to a separate part of tick_apu
 // https://www.reddit.com/r/EmuDev/comments/5gkwi5/gb_apu_sound_emulation/
+// ^ look at the github links for help
 
 
 /* Handle the channel dac
@@ -33,7 +34,15 @@ DAC power is controlled by the upper 5 bits of NRx2 (top bit of NR30 for wave ch
 */
 
 
-
+uint16_t get_wave_freq(Cpu *cpu)
+{
+	uint8_t lo = cpu->io[IO_NR33];
+	uint8_t hi = cpu->io[IO_NR34] & 0x3;
+	
+	uint16_t freq = (hi << 8) | lo;
+	
+	return freq;
+}
 
 
 // handle ticking the length counters performed every other step
@@ -44,9 +53,8 @@ void tick_lengthc(Cpu *cpu)
 	{
 		if(cpu->square[i].length_enabled)
 		{
-			cpu->square[i].lengthc -= 1;
-			
-			if(cpu->square[i].lengthc == 0)
+			// tick the length counter if zero deset it
+			if(!--cpu->square[i].lengthc)
 			{
 				deset_bit(cpu->io[IO_NR52],i);
 			}
@@ -58,44 +66,13 @@ void tick_lengthc(Cpu *cpu)
 
 
 
-// find out what the sweep timer / period is used for
-
-
-// .... use blargg gb apu library code as reference
-/*void Gb_Square::clock_sweep()
-{
-	if ( sweep_period && sweep_delay && !--sweep_delay )
-	{
-		sweep_delay = sweep_period;
-		frequency = sweep_freq;
-		
-		period = (2048 - frequency) * 4;
-		
-		int offset = sweep_freq >> sweep_shift;
-		if ( sweep_dir )
-			offset = -offset;
-		sweep_freq += offset;
-		
-		if ( sweep_freq < 0 )
-		{
-			sweep_freq = 0;
-		}
-		else if ( sweep_freq >= 2048 )
-		{
-			sweep_delay = 0;
-			sweep_freq = 2048; // stop sound output
-		}
-	}
-}
-
-*/
-
-
 uint16_t calc_freqsweep(Cpu *cpu)
 {
+	
 	uint16_t shadow_shifted = cpu->sweep_shadow >> (cpu->io[IO_NR10] &  0x7);
 	if(is_set(cpu->io[IO_NR10],3)) // test bit 3 of nr10 if its 1 take them away
 	{
+		cpu->sweep_calced = true; // calc done using negation
 		return cpu->sweep_shadow - shadow_shifted;
 	}
 	
@@ -108,6 +85,9 @@ uint16_t calc_freqsweep(Cpu *cpu)
 // disable chan if it overflows
 void do_freqsweep(Cpu *cpu)
 {
+	// dont calc the freqsweep if sweep peroid is zero or its disabled
+	if(!cpu->sweep_enabled || !cpu->sweep_period ) { return; }
+	
 	uint16_t temp = calc_freqsweep(cpu);
 	
 	// if it is <= 2047 and shift is non 0
@@ -162,9 +142,9 @@ void clock_sweep(Cpu *cpu)
 	
 	//if(!cpu->sweep_period) { return; }
 	
-	if(!cpu->sweep_enabled) { return; }
 	
-	if(cpu->sweep_period && cpu->sweep_timer && !--cpu->sweep_timer)
+	// tick the sweep timer calc when zero
+	if(cpu->sweep_timer && !--cpu->sweep_timer)
 	{
 		// if elapsed do the actual "sweep"
 		do_freqsweep(cpu);
@@ -172,7 +152,8 @@ void clock_sweep(Cpu *cpu)
 		// and reload the timer of course
 		// does this use the value present during the trigger event 
 		// or is it reloaded newly?
-		cpu->sweep_timer = cpu->sweep_period;	
+		cpu->sweep_timer = cpu->sweep_period;
+		if(cpu->sweep_period == 0) cpu->sweep_timer = 8;  // see obscure behaviour		
 	}
 	
 }
@@ -183,8 +164,39 @@ void tick_apu(Cpu *cpu, int cycles)
 {
 	// 4096((4194304 / 256 ) /4) should dec the internal counter every <-- cycles
 	
+	// dec the wave channel timer :) 
 	
+	if(is_set(cpu->io[IO_NR52],2))
+	{
+		cpu->wave_period -= cycles;
+		
+		// reload timer and goto the next sample in the wave table
+		if(cpu->wave_period <= 0)
+		{
+			if(cpu->wave_nibble == 0) // goto the 2nd nibble
+			{
+				cpu->wave_nibble = 1;
+			}
+			
+			
+			// goto next sample
+			else 
+			{
+				cpu->wave_idx++;
+				// loop back around the index
+				if(cpu->wave_idx == 16)
+				{
+					cpu->wave_idx = 0;
+				}
+				cpu->wave_nibble = 0; // reset the nibble
+			}
 
+			// reload the timer
+			// period (2048-frequency)*2
+			uint16_t freq = get_wave_freq(cpu);
+			cpu->wave_period = ((2048-freq)*2) / 4; // may need to be / 4 for M cycles					
+		}
+	}
 	
 	
 

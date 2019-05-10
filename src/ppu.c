@@ -9,11 +9,12 @@
 
 
 // <-- get lyc_onoff test passing
+// need scx & window timings done 
+// and need the lcdon behavior done 
 
-// <-- consider caching ly as it is read alot and memory writes do not affect it....
 
-// need to get the ppu timings passing (at the very least ones that dont use scx as it may be the source of issues)
-// mooneye-gb_hwtests\acceptance\ppu\intr_2_0_timing.gb appears to behave VERY strangely...
+
+
 
 // after sound the fetcher + pixel fifo needs implementing 
 // if this doesent fix screen tears look elsewhere....
@@ -34,12 +35,10 @@
 
 
 
-// gold locking up waiting for a vblank interrupt if left alone for too long ?
-// get the vblank test passing 
+// pokemon gold still has screen tears...
 
 
-// Metroid 2 (both versions) and gold ( with the signal code) have horrible screen tears
-// and links awakening (during scrolls) + more 
+
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 
 

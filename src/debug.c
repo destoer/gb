@@ -428,8 +428,7 @@ void info(char *token, Cpu *cpu)
 	// print various control registers
 	else if(0 == strcmp(token,"control"))
 	{
-		//printf("ly = %x\n",cpu->mem[0xff44]);
-		printf("ly = %x\n",read_mem(0xff44,cpu));
+		printf("ly = %x\n",cpu->io[IO_LY]);
 		printf("div = %x\n",cpu->io[IO_DIV]);
 		printf("tima = %x\n",cpu->io[IO_TIMA]);
 		printf("lcdc = %x\n",cpu->io[0x40]);

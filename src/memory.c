@@ -11,6 +11,14 @@
 #include "headers/ppu.h"
 
 
+
+
+
+
+
+
+
+
 void write_mem(Cpu *cpu,uint16_t address,int data);
 uint8_t read_mem(uint16_t address, Cpu *cpu);
 void do_dma(Cpu *cpu, uint8_t data);
@@ -24,6 +32,22 @@ void write_oam(Cpu *cpu, uint16_t address, int data)
 // needs reindentation
 void write_io(Cpu *cpu,uint16_t address, int data)
 {
+	#ifdef DEBUG
+	// write breakpoint
+	if(address == cpu->memw_breakpoint)
+	{
+		if(cpu-> memw_value == -1 || cpu->memw_value == data)
+		{
+			printf("Write breakpoint (%x)!\n",cpu->memw_breakpoint);
+			printf("data %x\n",data);
+			enter_debugger(cpu);
+		}
+	}
+	#endif
+	
+	
+	
+	
 	switch(address & 0xff)
 	{ 
 		// update the timer freq (tac in gb docs)
@@ -119,7 +143,23 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			return;
 		}	
 			
+		case 0x30 ... 0x3f: // what is the behavior of the write test?
+		{
+			// if wave is on write to current byte
+			if(is_set(cpu->io[IO_NR52],2))
+			{
+				cpu->io[0x30 + cpu->wave_idx] = data;
+				return;
+			}
 			
+			else // if its off allow "free reign" over it
+			{
+				cpu->io[address & 0xff] = data;
+				return;
+			}
+		}
+
+		
 		// unused
 		case 0x4c ... 0x7f:
 		{
@@ -147,6 +187,16 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{
 			if(cpu->sound_enabled)
 			{
+				// if we have used a sweep calc in negation mode 
+				// since the last trigger turn the channel off
+				if(is_set(cpu->io[IO_NR10],3) && !is_set(data,3))
+				{
+					if(cpu->sweep_calced)
+					{
+						deset_bit(cpu->io[IO_NR52],0);
+					}
+				}
+				
 				cpu->io[IO_NR10] = data | 128;
 				cpu->sweep_period = (cpu->io[IO_NR10] >> 4) & 7;
 			}
@@ -232,7 +282,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					If the sweep shift is non-zero, frequency calculation and the overflow check are performed immediately.
 					*/
 					
-						
+					cpu->sweep_calced = false; // indicates no sweep freq calcs have happened since trigger	
 						
 					// Copy the freq to the shadow reg
 					cpu->sweep_shadow =  cpu->io[IO_NR13]; // lower 8
@@ -241,8 +291,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 						
 					// reload the sweep timer
 					cpu->sweep_period = (cpu->io[IO_NR10] >> 4) & 7;
-					if(cpu->sweep_period == 0) { cpu->sweep_period = 8; } // see obscure behaviour
 					cpu->sweep_timer = cpu->sweep_period;
+					if(cpu->sweep_period == 0) cpu->sweep_timer = 8; // see obscure behavior
+					
 						
 						
 					// if sweep period or shift are non zero set the internal flag 
@@ -268,8 +319,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					{
 						// we aernt going to use it if it fails 
 						// as it will get disabled immediately
-						cpu->sweep_shadow = calc_freqsweep(cpu);
-						if(cpu->sweep_shadow > 0x7ff)
+						//cpu->sweep_shadow = calc_freqsweep(cpu);
+						//if(cpu->sweep_shadow > 0x7ff)
+						uint16_t tmp = calc_freqsweep(cpu);
+						if(tmp  > 0x7ff)
 						{
 							cpu->sweep_timer = 0;
 							deset_bit(cpu->io[IO_NR52],0);
@@ -285,12 +338,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				{
 					// if not zero decrement
 					if(cpu->square[0].lengthc != 0)
-					{
-						cpu->square[0].lengthc -= 1;
-							
-						// if now zero and there is no trigger 
+					{	
+						// decrement and if now zero and there is no trigger 
 						// switch the channel off
-						if(cpu->square[0].lengthc == 0)
+						if(!--cpu->square[0].lengthc)
 						{
 							if(is_set(data,7)) 
 							{ 
@@ -394,12 +445,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				{
 					// if not zero decrement
 					if(cpu->square[1].lengthc != 0)
-					{
-						cpu->square[1].lengthc -= 1;
-							
-						// if now zero and there is no trigger 
+					{	
+						// decrement and if now zero and there is no trigger 
 						// switch the channel off
-						if(cpu->square[1].lengthc == 0)
+						if(!--cpu->square[1].lengthc)
 						{
 							if(is_set(data,7)) 
 							{
@@ -440,7 +489,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				// disable the channel
 				if(!is_set(data,7))
 				{
-					deset_bit(cpu->io[IO_NR52],2);
+					deset_bit(cpu->io[IO_NR52],2);	
 				}
 					
 				cpu->io[IO_NR30] = data | 127;
@@ -505,6 +554,16 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 						// if the value enables the length this will cause an extra tick :P
 						deset_bit(cpu->io[IO_NR34],6); 
 					}
+					
+					
+					
+					// wave stuff
+					cpu->wave_idx = 0; // reset the wave index
+					cpu->wave_nibble = 0;
+					// reload the wave peroid 
+					// period (2048-frequency)*2
+					uint16_t freq = get_wave_freq(cpu);
+					cpu->wave_period = ((2048-freq)*2) / 4; // may need to be / 4 for M cycles
 				}
 					
 					
@@ -514,12 +573,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				{
 					// if not zero decrement
 					if(cpu->square[2].lengthc != 0)
-					{
-						cpu->square[2].lengthc -= 1;
-							
-						// if now zero and there is no trigger 
+					{	
+						// decrement and if now zero and there is no trigger 
 						// switch the channel off
-						if(cpu->square[2].lengthc == 0)
+						if(!--cpu->square[2].lengthc)
 						{
 							if(is_set(data,7)) 
 							{
@@ -622,11 +679,11 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					// if not zero decrement
 					if(cpu->square[3].lengthc != 0)
 					{
-						cpu->square[3].lengthc -= 1;
+						
 							
-						// if now zero and there is no trigger 
+						// decrement and if now zero and there is no trigger 
 						// switch the channel off
-						if(cpu->square[3].lengthc == 0)
+						if(!--cpu->square[3].lengthc)
 						{
 							if(is_set(data,7)) 
 							{
@@ -1002,6 +1059,22 @@ uint8_t read_oam(uint16_t address, Cpu *cpu)
 
 uint8_t read_io(uint16_t address, Cpu *cpu)
 {
+	#ifdef DEBUG
+	// read breakpoint
+	if(address == cpu->memr_breakpoint)
+	{
+		int break_backup = cpu->memr_breakpoint;
+		cpu->memr_breakpoint = -1;
+		if(cpu->memr_value == -1 || cpu->memr_value == read_mem(address,cpu))
+		{
+			cpu->memr_breakpoint = break_backup;
+			printf("read breakpoint (%x)!\n",cpu->memr_breakpoint);
+			enter_debugger(cpu);
+		}
+		cpu->memr_breakpoint = break_backup;
+	}
+	#endif
+	
 	switch(address & 0xff)
 	{
 
@@ -1134,7 +1207,21 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 		{
 			return 0xff;
 		}
+		
+		case 0x30 ... 0x3f:
+		{
+			if(is_set(cpu->io[IO_NR52],2)) // wave channel on return current sample
+			{
+				return cpu->io[0x30 + cpu->wave_idx];
+			}
 			
+			else // return normally
+			{
+				return cpu->io[address & 0xff];
+			}
+		}	
+
+		
 		// cgb vram bank unused on dmg
 		case 0x4f:
 		{

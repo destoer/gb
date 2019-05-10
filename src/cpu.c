@@ -37,8 +37,11 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.rom_banking = true; // default
 	cpu.enable_ram = false;
 	cpu.rtc_enabled = false;
-	//different values for the test!?
-	cpu.af.reg = 0x01B0; // <-- correct values
+
+
+	// dmg boot reg values 
+	// need alternate ones for when we switch to cgb
+	cpu.af.reg = 0x01B0; 
 	cpu.bc.reg = 0x0013;
 	cpu.de.reg = 0x00D8;
 	cpu.hl.reg = 0x014d;
@@ -168,6 +171,7 @@ void do_interrupts(Cpu *cpu)
 				{
 					service_interrupt(cpu,i);
 					cycles += 5; // every interrupt service costs 5 M cycles
+					break;
 				}
 			}
 		}

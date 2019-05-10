@@ -35,7 +35,9 @@ uint32_t time_left(void)
 	}
 }
 /* TODO */
-// implement the internal timer
+
+// <----- Work on sound support pass test 04 
+
 // Kirby dream land 2 is broken now as well investigate... likely related to di / ei order again... (outright emulator lockup)
 // then the ppu ones <---
 // implement oam bug and look at memory blocking during dma transfer
@@ -315,7 +317,7 @@ int main(int argc, char *argv[])
 
 						fwrite(cpu.vram,1,0x2000,savstate);
 						fwrite(cpu.wram,1,0x2000,savstate);
-						fwrite(cpu.oam,1,0x100,savstate);
+						fwrite(cpu.oam,1,0xA0,savstate);
 						fwrite(cpu.io,1,0x100,savstate);
 						fwrite(cpu.screen,4,X*Y,savstate);
 						fwrite(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
@@ -323,6 +325,8 @@ int main(int argc, char *argv[])
 						break;
 					}
 					
+					// should do validation on our file so the user knows it is not compatible
+					// rather than just letting it trash the cpu state
 					case SDLK_9: // load sate
 					{
 						puts("Loaded state!");
@@ -348,7 +352,7 @@ int main(int argc, char *argv[])
 						
 						fread(cpu.vram,1,0x2000,savstate);
 						fread(cpu.wram,1,0x2000,savstate);
-						fread(cpu.oam,1,0x100,savstate);
+						fread(cpu.oam,1,0xA0,savstate);
 						fread(cpu.io,1,0x100,savstate);
 						fread(cpu.screen,4,X*Y,savstate);
 						fread(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
@@ -367,7 +371,7 @@ int main(int argc, char *argv[])
 		
 		
 		// number of cycles for a full screen redraw
-		const int MAXCYCLES = (16726); // 17556 was this but this one appears to stop tears?
+		const int MAXCYCLES = (16725); // 17556 was the old one 
 		int cycles_this_update = 0;	
 		while(cycles_this_update < MAXCYCLES)
 		{

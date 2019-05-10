@@ -90,7 +90,8 @@ typedef union
 }Register;
 
 
-
+// should have a bool for the channel being enabled
+// as it is better to cache it
 typedef struct {
 	int lengthc;
 	bool length_enabled;
@@ -114,7 +115,7 @@ typedef struct
 	// memory
 	uint8_t vram[0x2000];
 	uint8_t wram[0x2000];
-	uint8_t oam[0x100];
+	uint8_t oam[0xA0];
 	uint8_t io[0x100]; // hram and io registers
 
 	uint8_t *rom_mem; // rom 
@@ -190,6 +191,15 @@ typedef struct
 	int sweep_shadow;
 	int sweep_period;
 	int sweep_timer;
+	bool sweep_calced;
+	
+	
+	// Wave
+	int wave_period;
+	int wave_idx; // offset into the wave table
+	int wave_nibble; // what nibble
+	
+	
 	// rtc 
 
 	
