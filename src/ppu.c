@@ -966,6 +966,8 @@ bool sprite_fetch(Cpu *cpu)
 			}
 		}
 	}
+	//return did_draw; <-- unsure on sprite timings
+	return false;
 }
 
 

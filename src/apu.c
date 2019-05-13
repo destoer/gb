@@ -358,8 +358,8 @@ void tick_apu(Cpu *cpu, int cycles)
 		// delay execution and let the que drain to approx a frame
 		while(SDL_GetQueuedAudioSize(dev) > (1024 *  sizeof(float)))
 		{
-			printf("%d\n",SDL_GetQueuedAudioSize(dev)); // somehow the audio size keeps fluctuating when it should just go down
-			SDL_Delay(100);
+			printf("samples = %d\n",SDL_GetQueuedAudioSize(dev) / sizeof(float)); // somehow the audio size keeps fluctuating when it should just go down
+			SDL_Delay(1);
 		}
 		
 		//printf("Playing audio! :D\n");
