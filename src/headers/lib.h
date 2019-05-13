@@ -1,6 +1,12 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#ifdef __linux__
+	#include <SDL2/SDL.h>
+#elif _WIN32
+	#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
+	//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h"
+#endif 
 
 // cpu clock speed
 #define CLOCKSPEED 419430

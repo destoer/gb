@@ -10,12 +10,6 @@
 #include "headers/joypad.h"
 #include "headers/opcode.h"
 #include "headers/debug.h"
-#ifdef __linux__
-	#include <SDL2/SDL.h>
-#elif _WIN32
-	#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
-	//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h"
-#endif 
 
 static int next_time;
 
@@ -468,6 +462,8 @@ int main(int argc, char *argv[])
 				}
 			}	
 		}
+		
+		
 		
 		// do our screen blit
 		SDL_UpdateTexture(texture, NULL, &cpu.screen,  4 * X * sizeof(uint8_t));

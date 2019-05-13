@@ -134,6 +134,29 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.sequencer_step = 0;
 	cpu.sound_enabled = true;
 	cpu.sweep_enabled = false;
+	
+	// init sdl sound 
+	// Set up SDL audio spec
+	cpu.audio_spec.freq = 44100;
+	cpu.audio_spec.format = AUDIO_F32SYS;
+	cpu.audio_spec.channels = 2;
+	cpu.audio_spec.samples = 1024;	
+	cpu.audio_spec.callback = NULL; // we will use SDL_QueueAudio()  rather than 
+	cpu.audio_spec.userdata = &cpu; // using a callback :)
+
+	cpu.audio_buf_idx = 0;
+	cpu.down_sample_cnt = 95;
+	
+	if(SDL_OpenAudio(&cpu.audio_spec, NULL) < 0)
+	{
+		fprintf(stderr, "Could not open audio %s", SDL_GetError());
+		exit(1);
+	}
+	
+	// enable playback
+	SDL_PauseAudio(0);	
+	
+	
 	return cpu;
 }
 

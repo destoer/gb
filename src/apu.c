@@ -165,7 +165,10 @@ void tick_apu(Cpu *cpu, int cycles)
 	// 4096((4194304 / 256 ) /4) should dec the internal counter every <-- cycles
 	
 	// dec the wave channel timer :) 
+	// just cheat for now
+	static float wave_vol = 0;
 	
+	// handle wave ticking
 	if(is_set(cpu->io[IO_NR52],2))
 	{
 		cpu->wave_period -= cycles;
@@ -173,29 +176,42 @@ void tick_apu(Cpu *cpu, int cycles)
 		// reload timer and goto the next sample in the wave table
 		if(cpu->wave_period <= 0)
 		{
-			if(cpu->wave_nibble == 0) // goto the 2nd nibble
-			{
-				cpu->wave_nibble = 1;
-			}
-			
-			
-			// goto next sample
-			else 
-			{
-				cpu->wave_idx++;
-				// loop back around the index
-				if(cpu->wave_idx == 16)
-				{
-					cpu->wave_idx = 0;
-				}
-				cpu->wave_nibble = 0; // reset the nibble
-			}
+			cpu->wave_idx  = (cpu->wave_idx + 1) & 0x1f;
 
+			// dac is enabled
+			if(is_set(cpu->io[IO_NR30],7))
+			{
+				int pos = cpu->wave_idx / 2;
+				uint8_t byte = cpu->io[0x30 + pos];
+				
+				if(!(cpu->wave_idx & 0x1)) // access the high nibble first
+				{
+					byte >>= 4;
+				}
+				byte &= 0xf;
+				
+				uint8_t vol = cpu->io[IO_NR32] & 0x3;
+				
+				if(vol) byte >>= vol - 1;
+				else byte = 0;
+				
+				wave_vol = byte;
+				//puts("filling queue!");
+			}
+			
+			else  wave_vol = 0;
+			
+			
 			// reload the timer
 			// period (2048-frequency)*2
 			uint16_t freq = get_wave_freq(cpu);
 			cpu->wave_period = ((2048-freq)*2) / 4; // may need to be / 4 for M cycles					
 		}
+		
+		
+		
+		
+		
 	}
 	
 	
@@ -266,7 +282,7 @@ void tick_apu(Cpu *cpu, int cycles)
 			
 			default:
 			{
-				printf("Error unknown step %d!\n",cpu->sequencer_step);
+				printf("Error unknown sequencer step %d!\n",cpu->sequencer_step);
 				exit(1);
 			}
 		}
@@ -275,4 +291,81 @@ void tick_apu(Cpu *cpu, int cycles)
 		// reset the cycles
 		cpu->sequencer_cycles = 0;
 	}
+	
+	
+	
+	// handle audio output 
+	
+	if(!--cpu->down_sample_cnt)
+	{
+		
+		//printf("Filling audio queue! %x\n",cpu->audio_buf_idx);
+		
+		cpu->down_sample_cnt = 95; // may need adjusting for m cycles 
+		
+		
+		
+		float bufferin0 = 0;
+		float bufferin1 = 0;
+		
+		// left output
+		int volume = (128 * (cpu->io[IO_NR50] & 0x3) ) / 7;
+		// just mix wave for now 
+	
+		//if(is_set(cpu->io[IO_NR50],3))
+		{
+			if(is_set(cpu->io[IO_NR52],2) && is_set(cpu->io[IO_NR51],2))
+			{
+				bufferin1 = wave_vol / 100;
+				printf("%f\n",bufferin1);
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
+				cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
+			}
+			
+			
+			
+		}
+		
+		
+		// right output
+		volume = 128 * (cpu->io[IO_NR50 & 122] >> 5) / 7;
+		printf("vol: %d\n",volume);
+		
+		//printf("%x\n",cpu->io[IO_NR50]);
+		//if(is_set(cpu->io[IO_NR50],7))
+		{
+			if(is_set(cpu->io[IO_NR52],2) && is_set(cpu->io[IO_NR51],6))
+			{
+				bufferin1 = wave_vol / 100;
+				printf("%f\n",bufferin1);
+				//bufferin1 = 0.5f;
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
+				cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
+			}
+			
+			
+				
+		}
+	}
+	
+	if(cpu->audio_buf_idx >= 1024) // dont know what function to call to actually play said buffer... 
+	{
+		//printf("Playing audio! :P\n");
+		cpu->audio_buf_idx = 0;
+		
+		static const SDL_AudioDeviceID dev = 55;
+
+		// delay execution and let the que drain to approx a frame
+		while(SDL_GetQueuedAudioSize(dev) > (1024 *  sizeof(float)))
+		{
+			printf("%d\n",SDL_GetQueuedAudioSize(dev)); // somehow the audio size keeps fluctuating when it should just go down
+			SDL_Delay(100);
+		}
+		
+		//printf("Playing audio! :D\n");
+		//exit(1);
+		SDL_QueueAudio(dev,cpu->audio_buf,1024*sizeof(float));
+	}
+	
+	
 }

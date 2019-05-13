@@ -200,6 +200,15 @@ typedef struct
 	int wave_nibble; // what nibble
 	
 	
+	
+	// SDL SOUND
+	SDL_AudioSpec audio_spec;
+	float audio_buf[1024];
+	int audio_buf_idx; // how fill is the buffer
+	int down_sample_cnt; // counter used to down sample
+	
+	
+	
 	// rtc 
 
 	

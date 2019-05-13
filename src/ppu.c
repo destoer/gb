@@ -8,9 +8,10 @@
 
 
 
-// <-- get lyc_onoff test passing
-// need scx & window timings done 
-// and need the lcdon behavior done 
+// need lcdon test passing 
+// then the lcd timing tests 
+// with scx sprite and window ones done last
+
 
 
 
@@ -386,11 +387,11 @@ void tick_fetcher(Cpu *cpu) {
 
 	// get lcd control reg
 	int control = cpu->io[IO_LCDC];
-	
+/*	
 	int scanline = cpu->current_line;
 	int window_y  = cpu->io[IO_WY];
 	int window_x = cpu->io[IO_WX];
-	
+*/	
 	// if window has just started completly restart the tile fetcher
 	// causes visual bugs currently...
 	// maybye this should be done just after the xcord is incremented?
@@ -421,7 +422,7 @@ void tick_fetcher(Cpu *cpu) {
 	
 	// order may not be right on this to
 	// achieve the correct timing 
-	if(is_set(control,0) && !cpu->tile_ready) // fetch the tile
+	if(!cpu->tile_ready) // fetch the tile
 	{
 		// should fetch the number then low and then high byte
 		// but we will ignore this fact for now
@@ -532,7 +533,7 @@ void draw_scanline(Cpu *cpu, int cycles)
 {
 	// https://forums.nesdev.com/viewtopic.php?f=23&t=16612
 	// we use M cycles so * 4
-	for(int i = cycles*4; i--; i != 0) // one pixel per clock?
+	for(int i = cycles*4; i != 0; i--) // one pixel per clock?
 	{
 		tick_fetcher(cpu); // the ppu pipeline
 		if(cpu->hblank) { return; } // we are done

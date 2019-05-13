@@ -7,7 +7,7 @@ void do_freqsweep(Cpu *cpu);
 uint16_t calc_freqsweep(Cpu *cpu);
 uint16_t get_wave_freq(Cpu *cpu);
 
-const uint8_t duty[] = 
+static const uint8_t duty[] = 
 {
     0,0,0,0,0,0,0,1,    // 12.5
     1,0,0,0,0,0,0,1,   // 25
