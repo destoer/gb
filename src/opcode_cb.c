@@ -7,12 +7,6 @@
 
 void decode_cb(uint8_t cbop, Cpu *cpu)
 {
-	
-			
-			// figure out instruction bits and decode fields
-			// unless u want 100s of switch statements 
-			// ^ not going with above may resort to later
-			uint8_t opcode = cbop;
 			switch(cbop)
 			{
 				

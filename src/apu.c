@@ -169,7 +169,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	static float wave_vol = 0;
 	
 	// handle wave ticking
-	if(is_set(cpu->io[IO_NR52],2))
+	//if(is_set(cpu->io[IO_NR52],2))
 	{
 		cpu->wave_period -= cycles;
 		
@@ -179,22 +179,29 @@ void tick_apu(Cpu *cpu, int cycles)
 			cpu->wave_idx  = (cpu->wave_idx + 1) & 0x1f;
 
 			// dac is enabled
-			if(is_set(cpu->io[IO_NR30],7))
+			if(is_set(cpu->io[IO_NR30],7) && is_set(cpu->io[IO_NR52],2))
 			{
 				int pos = cpu->wave_idx / 2;
-				uint8_t byte = cpu->io[0x30 + pos];
+				int byte = cpu->io[0x30 + pos];
 				
 				if(!(cpu->wave_idx & 0x1)) // access the high nibble first
 				{
 					byte >>= 4;
 				}
+				
 				byte &= 0xf;
 				
-				uint8_t vol = cpu->io[IO_NR32] & 0x3;
+				uint8_t vol = (cpu->io[IO_NR32] >> 5) & 0x3;
 				
-				if(vol) byte >>= vol - 1;
-				else byte = 0;
+				if(vol)
+				{
+					byte >>= vol - 1;
+				}
 				
+				else
+				{
+					byte = 0;
+				}
 				wave_vol = byte;
 				//puts("filling queue!");
 			}
@@ -203,15 +210,10 @@ void tick_apu(Cpu *cpu, int cycles)
 			
 			
 			// reload the timer
-			// period (2048-frequency)*2
+			// period (2048-frequency)*2 (in cpu cycles)
 			uint16_t freq = get_wave_freq(cpu);
 			cpu->wave_period = ((2048-freq)*2) / 4; // may need to be / 4 for M cycles					
-		}
-		
-		
-		
-		
-		
+		}	
 	}
 	
 	
@@ -295,13 +297,13 @@ void tick_apu(Cpu *cpu, int cycles)
 	
 	
 	// handle audio output 
-	
+#ifdef SOUND	// sound is gated as it currently laggy
 	if(!--cpu->down_sample_cnt)
 	{
 		
 		//printf("Filling audio queue! %x\n",cpu->audio_buf_idx);
 		
-		cpu->down_sample_cnt = 95; // may need adjusting for m cycles 
+		cpu->down_sample_cnt = 95 / 4 ; // may need adjusting for m cycles 
 		
 		
 		
@@ -309,7 +311,7 @@ void tick_apu(Cpu *cpu, int cycles)
 		float bufferin1 = 0;
 		
 		// left output
-		int volume = (128 * (cpu->io[IO_NR50] & 0x3) ) / 7;
+		int volume = 128 * (cpu->io[IO_NR50] & 0x7) / 7 ;
 		// just mix wave for now 
 	
 		//if(is_set(cpu->io[IO_NR50],3))
@@ -317,28 +319,24 @@ void tick_apu(Cpu *cpu, int cycles)
 			if(is_set(cpu->io[IO_NR52],2) && is_set(cpu->io[IO_NR51],2))
 			{
 				bufferin1 = wave_vol / 100;
-				printf("%f\n",bufferin1);
+				//printf("%f\n",bufferin1);
 				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
 				cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
 			}
-			
-			
-			
 		}
 		
 		
 		// right output
-		volume = 128 * (cpu->io[IO_NR50 & 122] >> 5) / 7;
-		printf("vol: %d\n",volume);
-		
+		volume = 128 * (cpu->io[IO_NR50 >> 4] & 7) / 7;
+		//printf("vol: %d\n",volume);
+		bufferin0 = 0;
 		//printf("%x\n",cpu->io[IO_NR50]);
 		//if(is_set(cpu->io[IO_NR50],7))
 		{
 			if(is_set(cpu->io[IO_NR52],2) && is_set(cpu->io[IO_NR51],6))
 			{
 				bufferin1 = wave_vol / 100;
-				printf("%f\n",bufferin1);
-				//bufferin1 = 0.5f;
+				//printf("%f\n",bufferin1);
 				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
 				cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
 			}
@@ -346,26 +344,30 @@ void tick_apu(Cpu *cpu, int cycles)
 			
 				
 		}
+		
+		//SDL_QueueAudio(1,&bufferin0,sizeof(float));
+		//SDL_Delay(1);
 	}
 	
-	if(cpu->audio_buf_idx >= 1024) // dont know what function to call to actually play said buffer... 
+	if(cpu->audio_buf_idx >= 1024) // dont know why this completly locks up...
 	{
-		//printf("Playing audio! :P\n");
 		cpu->audio_buf_idx = 0;
 		
-		static const SDL_AudioDeviceID dev = 55;
-
-		// delay execution and let the que drain to approx a frame
-		while(SDL_GetQueuedAudioSize(dev) > (1024 *  sizeof(float)))
+		static const SDL_AudioDeviceID dev = 2; // should get from the cpu function but allow it for now when it doesent even work
+		
+		// legacy interface
+		//static const SDL_AudioDeviceID dev = 1;
+				
+	    // delay execution and let the que drain to approx a frame
+		while(SDL_GetQueuedAudioSize(dev) > (1024 *  sizeof(float))) 
 		{
-			printf("samples = %d\n",SDL_GetQueuedAudioSize(dev) / sizeof(float)); // somehow the audio size keeps fluctuating when it should just go down
 			SDL_Delay(1);
 		}
 		
-		//printf("Playing audio! :D\n");
-		//exit(1);
-		SDL_QueueAudio(dev,cpu->audio_buf,1024*sizeof(float));
+		if(SDL_QueueAudio(dev,cpu->audio_buf,1024*sizeof(float)) < 0 )
+		{
+			printf("%s\n",SDL_GetError()); exit(1);
+		}				
 	}
-	
-	
+#endif	
 }

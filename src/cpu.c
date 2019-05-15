@@ -32,6 +32,9 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 {	
 	Cpu cpu;
 
+	memset(&cpu, 0, sizeof(Cpu));
+
+
 	cpu.currentram_bank = 0;
 	cpu.currentrom_bank = 1; // all ways at least one
 	cpu.rom_banking = true; // default
@@ -102,7 +105,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.halt = false;
 	cpu.halt_bug = false;
 	
-	
+	cpu.oam_dma_active = false;
 	cpu.hblank = false;
 	cpu.tile_ready = false;
 	cpu.x_cord = 0;
@@ -110,6 +113,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.tile_cord = 0;
 	cpu.sprite_drawn = false;
 	cpu.window_start = false;
+	cpu.ppu_cyc = 0;
+	cpu.ppu_scyc = 0;
 	// tile fetcher will only have tiles
 	// from one loc atleast on dmg
 	for(int i = 0; i < 8; i++)
@@ -135,6 +140,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.sound_enabled = true;
 	cpu.sweep_enabled = false;
 	
+	cpu.wave_period = 0;
+
 	// init sdl sound 
 	// Set up SDL audio spec
 	cpu.audio_spec.freq = 44100;
@@ -142,20 +149,65 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.audio_spec.channels = 2;
 	cpu.audio_spec.samples = 1024;	
 	cpu.audio_spec.callback = NULL; // we will use SDL_QueueAudio()  rather than 
-	cpu.audio_spec.userdata = &cpu; // using a callback :)
+	cpu.audio_spec.userdata = NULL; // using a callback :)
 
 	cpu.audio_buf_idx = 0;
 	cpu.down_sample_cnt = 95;
 	
-	if(SDL_OpenAudio(&cpu.audio_spec, NULL) < 0)
+	
+	
+	const int ndev = SDL_GetNumAudioDevices(0);
+	
+	printf("no of audio devices: %d\n",SDL_GetNumAudioDevices(0));
+	
+	bool success = false;
+	int dev = -1;
+	for(int i = 0; i < ndev; i++)
+	{
+		char *device = SDL_GetAudioDeviceName(i,0);
+		printf("device %d: %s\n",i,device);
+		//dev = SDL_OpenAudioDevice(NULL,0,&cpu.audio_spec,NULL,0);
+		dev = SDL_OpenAudioDevice(device,0,&cpu.audio_spec,NULL,0);
+		if(dev >= 0)
+		{
+			printf("opened device %d(%s)!\n",dev,SDL_GetAudioDeviceName(dev,0));
+			success = true; break;
+		}
+	}
+
+	printf("success = %s\n", success ? "true" : "false");
+	
+	//if(SDL_OpenAudio(&cpu.audio_spec, NULL) < 0)
+		
+	if(!success)
 	{
 		fprintf(stderr, "Could not open audio %s", SDL_GetError());
 		exit(1);
 	}
-	
+
 	// enable playback
-	SDL_PauseAudio(0);	
+	SDL_PauseAudioDevice(dev, 0);
+
+
+	// using the legacy interface
 	
+	//int dev = 1;
+	
+	//SDL_OpenAudio(&cpu.audio_spec,NULL);
+	SDL_PauseAudio(0);
+	
+	printf("opened device %d(%s)!\n",dev,SDL_GetAudioDeviceName(dev,0));
+	
+	printf("Device state: ");
+    switch (SDL_GetAudioDeviceStatus(dev))
+    {
+        case SDL_AUDIO_STOPPED: printf("stopped\n"); break;
+        case SDL_AUDIO_PLAYING: printf("playing\n"); break;
+        case SDL_AUDIO_PAUSED: printf("paused\n"); break;
+        default: printf("???"); break;
+    }
+
+	printf("Queued audio: %d!\n",SDL_GetQueuedAudioSize(dev));
 	
 	return cpu;
 }
@@ -404,14 +456,12 @@ void update_timers(Cpu *cpu, int cycles)
 			//}
 			uint8_t freq = cpu->io[IO_TMC] & 0x3;
 					
-			uint8_t bit;	
-			switch(freq)
-			{
-				case 1: bit = 3; break;
-				case 0: bit = 9; break;
-				case 2: bit = 5; break;
-				case 3: bit = 7; break;
-			}
+				
+
+			static const int freq_arr[4] = {9,3,5,7};
+
+			uint8_t bit = freq_arr[freq];
+
 			bool bit_set = is_set(cpu->internal_timer,bit);				
 			cpu->internal_timer += 1;
 			

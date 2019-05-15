@@ -146,7 +146,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			
 		case 0x30 ... 0x3f: // what is the behavior of the write test?
 		{
-			/*
+			
 			// if wave is on write to current byte <-- finish accuracy later
 			if(is_set(cpu->io[IO_NR52],2))
 			{
@@ -155,7 +155,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			}
 			
 			else // if its off allow "free reign" over it
-			*/
+			
 			{
 				cpu->io[address & 0xff] = data;
 				return;
@@ -1213,7 +1213,7 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 		
 		case 0x30 ... 0x3f:
 		{
-			/*
+			
 			if(is_set(cpu->io[IO_NR52],2)) // wave channel on return current sample
 			{
 				return cpu->io[0x30 + (cpu->wave_idx / 2)];
@@ -1221,7 +1221,7 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 			
 			
 			else // return normally
-			*/
+			
 			{
 				return cpu->io[address & 0xff];
 			}

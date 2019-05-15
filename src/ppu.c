@@ -54,6 +54,7 @@ void tile_fetch(Cpu *cpu);
 bool sprite_fetch(Cpu *cpu);
 void set_lcd_status(Cpu *cpu);
 int is_sprite_present(Cpu *cpu);
+void read_sprites(Cpu *cpu);
 
 // probably the largest room for optimization
 
@@ -322,7 +323,7 @@ void push_pixel(Cpu *cpu)
 		colour_address = 0xff49;
 	}
 	
-	if(cpu->ppu_fifo[0].source == SPRITE_ZERO)
+	else //(cpu->ppu_fifo[0].source == SPRITE_ZERO)
 	{
 		colour_address = 0xff48;
 	}
@@ -532,7 +533,7 @@ void tick_fetcher(Cpu *cpu) {
 void draw_scanline(Cpu *cpu, int cycles) 
 {
 	// https://forums.nesdev.com/viewtopic.php?f=23&t=16612
-	// we use M cycles so * 4
+	// we use M cycles so * 4 <-- should be right?
 	for(int i = cycles*4; i != 0; i--) // one pixel per clock?
 	{
 		tick_fetcher(cpu); // the ppu pipeline
@@ -823,7 +824,7 @@ bool sprite_fetch(Cpu *cpu)
 
 	int scanline = cpu->current_line;
 
-	bool did_draw = false;
+	//bool did_draw = false;
 	
 	for(int i = 0; i < cpu->no_sprites; i++)
 	{
@@ -882,7 +883,7 @@ bool sprite_fetch(Cpu *cpu)
 		// does this sprite  intercept with the scanline
 		if( scanline -(y_size - 16) < y_pos  && scanline + 16 >= y_pos )
 		{	
-			did_draw = true;
+			//did_draw = true;
 			y_pos -= 16;
 			uint8_t line = scanline - y_pos; 
 			

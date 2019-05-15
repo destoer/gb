@@ -94,6 +94,13 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "[ERROR] usage: %s <rom to open>",argv[0]);
 		exit(1);
 	}
+
+	if(SDL_Init(SDL_INIT_EVERYTHING) != 0)
+	{
+		printf("Unable to initialize SDL: %s\n", SDL_GetError());
+		return 1;
+	}
+
 	
 	Cpu cpu = init_cpu(); // initalize the cpu
 	cpu.rom_mem = load_rom(argv[1]); // read the rom into a buffer
@@ -121,9 +128,9 @@ int main(int argc, char *argv[])
 	
 	// should be copied back into the ram banks not the memory where
 	// its accessed from
-	
-	char *savename = calloc(strlen(argv[1])+5,1);
-	strcpy(savename,argv[1]);
+	const int romname_len = strlen(argv[1]);
+	char *savename = calloc(romname_len+5,1);
+	strcat(savename,argv[1]);
 	
 	strcat(savename,"sv");
 				
@@ -146,11 +153,6 @@ int main(int argc, char *argv[])
 	
 	// setup sdl
 	 SDL_Event event;
-	if(SDL_Init(SDL_INIT_EVERYTHING) != 0)
-	{
-		printf("Unable to initialize SDL: %s\n", SDL_GetError());
-		return 1;
-	}
 	
 	// initialize our window
 	SDL_Window * window = SDL_CreateWindow("GEMBOY",
@@ -189,7 +191,7 @@ int main(int argc, char *argv[])
 			{
 				// save the ram and load it later
 				// should do detection on the save battery
-				savename = calloc(strlen(argv[1])+5,1);
+				savename = calloc(romname_len+5,1);
 				strcpy(savename,argv[1]);
 				
 				strcat(savename,"sv");
@@ -292,7 +294,7 @@ int main(int argc, char *argv[])
 					case SDLK_0: // save state
 					{
 						puts("Saved state!");
-						char *savestname = calloc(strlen(argv[1])+5,1);
+						char *savestname = calloc(romname_len+5,1);
 						strcpy(savestname,argv[1]);
 	
 						strcat(savestname,"svt");
@@ -308,12 +310,6 @@ int main(int argc, char *argv[])
 						
 						
 						fwrite(&cpu,sizeof(Cpu),1,savstate);
-
-						fwrite(cpu.vram,1,0x2000,savstate);
-						fwrite(cpu.wram,1,0x2000,savstate);
-						fwrite(cpu.oam,1,0xA0,savstate);
-						fwrite(cpu.io,1,0x100,savstate);
-						fwrite(cpu.screen,4,X*Y,savstate);
 						fwrite(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
 						fclose(savstate);
 						break;
@@ -324,7 +320,7 @@ int main(int argc, char *argv[])
 					case SDLK_9: // load sate
 					{
 						puts("Loaded state!");
-						char *savestname = calloc(strlen(argv[1])+5,1);
+						char *savestname = calloc(romname_len+5,1);
 						strcpy(savestname,argv[1]);
 	
 						strcat(savestname,"svt");
@@ -343,12 +339,7 @@ int main(int argc, char *argv[])
 						cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
 						
 						
-						
-						fread(cpu.vram,1,0x2000,savstate);
-						fread(cpu.wram,1,0x2000,savstate);
-						fread(cpu.oam,1,0xA0,savstate);
-						fread(cpu.io,1,0x100,savstate);
-						fread(cpu.screen,4,X*Y,savstate);
+			
 						fread(cpu.ram_banks,1,0x2000*cpu.rom_info.noRamBanks,savstate);
 						cpu.rom_mem = load_rom(argv[1]); 
 						fclose(savstate);
@@ -492,7 +483,6 @@ int main(int argc, char *argv[])
 		
 		#endif		
 		next_time += screen_ticks_per_frame;
-		cycles_this_update = 0;
 	}
 
 }
