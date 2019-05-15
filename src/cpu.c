@@ -140,7 +140,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.sound_enabled = true;
 	cpu.sweep_enabled = false;
 	
-	cpu.wave_period = 0;
+
 
 	// init sdl sound 
 	// Set up SDL audio spec
@@ -152,15 +152,15 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.audio_spec.userdata = NULL; // using a callback :)
 
 	cpu.audio_buf_idx = 0;
-	cpu.down_sample_cnt = 95;
+	cpu.down_sample_cnt = 23;
 	
 	
 	
-	const int ndev = SDL_GetNumAudioDevices(0);
+	//const int ndev = SDL_GetNumAudioDevices(0);
 	
 	printf("no of audio devices: %d\n",SDL_GetNumAudioDevices(0));
 	
-	bool success = false;
+/*	bool success = false;
 	int dev = -1;
 	for(int i = 0; i < ndev; i++)
 	{
@@ -187,13 +187,13 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 
 	// enable playback
 	SDL_PauseAudioDevice(dev, 0);
-
+*/
 
 	// using the legacy interface
 	
-	//int dev = 1;
+	int dev = 1;
 	
-	//SDL_OpenAudio(&cpu.audio_spec,NULL);
+	SDL_OpenAudio(&cpu.audio_spec,NULL);
 	SDL_PauseAudio(0);
 	
 	printf("opened device %d(%s)!\n",dev,SDL_GetAudioDeviceName(dev,0));

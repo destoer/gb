@@ -95,9 +95,18 @@ typedef union
 typedef struct {
 	int lengthc;
 	bool length_enabled;
-	
-	
+	int period; // how long before we move to the next sample
+	float output; // output of the channel
+	int volume; // should have envelope regs here
+	int volume_load;
+	int duty; // current duty 
+	int duty_idx; // current index into duty
+	int freq; // current frequency
+	int env_period; // current timer
+	int env_load; // cached period
 } Sqaure;
+
+
 
 
 typedef struct 
@@ -124,6 +133,7 @@ typedef struct
 	// ppu
 	int scanline_counter;
 	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
+	uint8_t screenp[Y][X];
 	bool signal;
 	int current_line;
 	
@@ -159,29 +169,8 @@ typedef struct
 	// ------------- sound ------------------------
 	
 	bool sound_enabled; // is sound enabled in nr52 or not?
-/*	
-	int nr1_lengthc; //  NR1 internal length counter
-	int nr1_cyc; // nr1 cycle counter (ticks to 4096) then incs the internal length counter
-	
-	
-	int nr2_lengthc; //  NR2 internal length counter
-	int nr2_cyc; // nr2 cycle counter (ticks to 4096) then incs the internal length counter
-	
-	
-	int nr3_lengthc; //  NR3 internal length counter
-	int nr3_cyc; // nr3 cycle counter (ticks to 4096) then incs the internal length counter
-	
-	
-	int nr4_lengthc; //  NR4 internal length counter
-	int nr4_cyc; // nr4 cycle counter (ticks to 4096) then incs the internal length counter
-*/
-
-
 	int sequencer_cycles; // keeps track of cycles for frame sequencer when it his 8192 inc the seq step
 	int sequencer_step; // keeps track of the current set goes from 0-8 and loops back around
-
-
-	
 	Sqaure square[4]; // holds common variables for sqaure channels
 
 	
@@ -193,11 +182,23 @@ typedef struct
 	int sweep_timer;
 	bool sweep_calced;
 	
-	
-	// Wave
-	int wave_period;
-	int wave_idx; // offset into the wave table
-	int wave_nibble; // what nibble
+
+	/*
+	FF22 - NR43 - Channel 4 Polynomial Counter (R/W)
+	The amplitude is randomly switched between high and low at the given frequency. A higher frequency will make the noise to appear 'softer'.
+	When Bit 3 is set, the output will become more regular, and some frequencies will sound more like Tone than Noise.
+
+	  Bit 7-4 - Shift Clock Frequency (s)
+	  Bit 3   - Counter Step/Width (0=15 bits, 1=7 bits)
+	  Bit 2-0 - Dividing Ratio of Frequencies (r)
+	*/
+
+	// NOISE CHANNEL
+	int clock_shift;
+	int counter_width;
+	int divisor_idx; // indexes into divisors table
+	uint16_t shift_reg; // 15 bit reg
+
 	
 	
 	

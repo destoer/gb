@@ -118,12 +118,25 @@ int main(int argc, char *argv[])
 		// dont allow any access
 		cpu.ram_banks = NULL;
 	}
+/*
+	test code to boot a bios	
+		
+	memset(cpu.io,0,0x100);
+	cpu.af.reg = 0;
+	cpu.de.reg = 0;
+	cpu.sp  = 0;
+	cpu.bc.reg = 0;
+	cpu.hl.reg = 0;
 	
-	
-	
+	FILE *fpbin = fopen("dmg_boot.bin","rb");	
 
 
+	fread(cpu.rom_mem,1,256,fpbin);
 
+	fclose(fpbin);
+
+	cpu.pc = 0x0;
+*/
 	// check for a sav batt but for now we just copy the damb thing
 	
 	// should be copied back into the ram banks not the memory where

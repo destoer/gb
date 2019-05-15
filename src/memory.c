@@ -150,7 +150,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			// if wave is on write to current byte <-- finish accuracy later
 			if(is_set(cpu->io[IO_NR52],2))
 			{
-				cpu->io[0x30 + (cpu->wave_idx / 2)] = data;
+				cpu->io[0x30 + (cpu->square[2].duty_idx / 2)] = data;
 				return;
 			}
 			
@@ -216,7 +216,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				// set the internal counter to 64 - bottom 6 bits of data
 				cpu->square[0].lengthc = 64 - (data & 63);
 					
-					
+				cpu->square[0].duty = (data >> 6) & 0x3;	
 				cpu->io[IO_NR11] = data;
 			}
 			return;
@@ -234,7 +234,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				{
 					deset_bit(cpu->io[IO_NR52],0);
 				}
-					
+				cpu->square[0].volume_load = (data >> 4) & 0xf;
+				cpu->square[0].volume = cpu->square[0].volume_load;
+				cpu->square[0].env_load = data & 0x3;					
 					
 				cpu->io[IO_NR12] = data;
 			}
@@ -246,6 +248,8 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{
 			if(cpu->sound_enabled)
 			{
+				cpu->square[0].freq &= ~0xff;
+				cpu->square[0].freq |= data & 0xff;
 				cpu->io[IO_NR13] = data;
 			}
 			return;
@@ -256,6 +260,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{
 			if(cpu->sound_enabled)
 			{
+
+				cpu->square[0].freq = cpu->io[IO_NR13];
+			 	cpu->square[0].freq |= (data & 0x7) << 8;
+
 				// Trigger event
 				// if the data is set to 7 it should enable Sound for nr1
 				// in nr52
@@ -274,7 +282,12 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 						deset_bit(cpu->io[IO_NR14],6); 
 					}
 						
-						
+					// reload period and reset duty
+					cpu->square[0].period = ((2048 - cpu->square[0].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[0].env_period = cpu->square[0].env_load;
+					cpu->square[0].duty_idx = 0; // reset duty					
+					cpu->square[0].volume = cpu->square[0].volume_load;
+	
 						
 					// Handle the trigger events for the frequency sweep
 						
@@ -288,9 +301,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					cpu->sweep_calced = false; // indicates no sweep freq calcs have happened since trigger	
 						
 					// Copy the freq to the shadow reg
-					cpu->sweep_shadow =  cpu->io[IO_NR13]; // lower 8
-					cpu->sweep_shadow |= (data & 0x7) << 8; // upper 3
-						
+					//cpu->sweep_shadow =  cpu->io[IO_NR13]; // lower 8
+					//cpu->sweep_shadow |= (data & 0x7) << 8; // upper 3
+					cpu->sweep_shadow = cpu->square[0].freq;	
 						
 					// reload the sweep timer
 					cpu->sweep_period = (cpu->io[IO_NR10] >> 4) & 7;
@@ -386,6 +399,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				// bottom 6 bits are length data 
 				// set the internal counter to 64 - bottom 6 bits of data
 				cpu->square[1].lengthc = 64 - (data & 63);	
+				cpu->square[1].duty = (data >> 6) & 0x3;
 				cpu->io[IO_NR21] = data;
 			}
 			return;
@@ -403,6 +417,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				{
 					deset_bit(cpu->io[IO_NR52],1);
 				}
+
+				cpu->square[1].volume_load = (data >> 4) & 0x7;
+				cpu->square[1].volume = cpu->square[1].volume_load;
+				cpu->square[1].env_load = data & 0x3;
 				cpu->io[IO_NR22] = data;
 			}
 			return;
@@ -414,6 +432,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			if(cpu->sound_enabled)
 			{
 				cpu->io[IO_NR23] = data;
+				cpu->square[1].freq = (cpu->square[1].freq & 0x700) | data;
 			}
 			return;
 		}
@@ -423,6 +442,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{	
 			if(cpu->sound_enabled)
 			{
+
+				cpu->square[1].freq = (cpu->square[1].freq & 0xff) | ((data & 0x7) << 8);
+
+
 				// Trigger event
 				// if the data is set to 7 it should enable Sound for nr2
 				// in nr52
@@ -439,6 +462,11 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 						// if the value enables the length this will cause an extra tick :P
 						deset_bit(cpu->io[IO_NR24],6); 
 					}
+					// reload period and reset duty
+					cpu->square[1].volume = cpu->square[1].volume_load;
+					cpu->square[1].period = ((2048 - cpu->square[1].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[1].env_period = cpu->square[1].env_load;
+					cpu->square[1].duty_idx = 0; // reset duty
 				}
 					
 					
@@ -520,6 +548,8 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{
 			if(cpu->sound_enabled)
 			{
+				cpu->square[2].volume_load = (data >> 5) & 0x3;
+				cpu->square[2].volume = cpu->square[2].volume_load;
 				cpu->io[IO_NR32] = data | 159;
 			}
 			return;
@@ -531,6 +561,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			if(cpu->sound_enabled)
 			{
 				cpu->io[IO_NR33] = data;
+				cpu->square[2].freq = (cpu->square[2].freq & ~0xff) | data;
 			}
 			return;
 		}
@@ -541,6 +572,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{
 			if(cpu->sound_enabled)
 			{
+				cpu->square[2].freq = (cpu->square[2].freq & 0xff) | ((data & 0x7) << 8);
+
+
+
 				// Trigger event
 				// if the data is set to 7 it should enable Sound for nr2
 				// in nr52
@@ -561,12 +596,11 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					
 					
 					// wave stuff
-					cpu->wave_idx = 0; // reset the wave index
-					cpu->wave_nibble = 0;
+					cpu->square[2].duty_idx = 0; // reset the wave index
 					// reload the wave peroid 
 					// period (2048-frequency)*2
-					uint16_t freq = get_wave_freq(cpu);
-					cpu->wave_period = ((2048-freq)*2) / 4; // may need to be / 4 for M cycles
+					cpu->square[2].period = ((2048 - cpu->square[2].freq)*2) / 4; // may need to be / 4 for M cycles
+					cpu->square[2].volume = cpu->square[2].volume_load;
 				}
 					
 					
@@ -598,6 +632,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				
 					
 				cpu->square[2].length_enabled = is_set(data,6);
+
+	
+			
 				cpu->io[IO_NR34] = data | (16 + 32 + 8);
 				if(!is_set(cpu->io[IO_NR30],7)) 
 				{
@@ -634,6 +671,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				{
 					deset_bit(cpu->io[IO_NR52],3);
 				}
+				cpu->square[3].volume_load = (data >> 4) & 0x7;
+				cpu->square[3].volume = cpu->square[3].volume_load;
+				cpu->square[3].env_load = data & 0x3;
 				cpu->io[IO_NR42] = data;
 			}
 			return;
@@ -646,6 +686,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			if(cpu->sound_enabled)
 			{
 				cpu->io[IO_NR43] = data;
+				cpu->divisor_idx = data & 0x7;
+				cpu->counter_width = is_set(data,3);
+				cpu->clock_shift = (data >> 4) & 0xf;
 			}
 			return;
 		}			
@@ -656,8 +699,6 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{
 			if(cpu->sound_enabled)
 			{
-					
-				
 				// if the data is set to 7 it should enable Sound for nr4
 				// in nr52
 				if(is_set(data,7))
@@ -672,7 +713,15 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 						cpu->square[3].lengthc = 64;
 						deset_bit(cpu->io[IO_NR44],6);
 					}
-						
+					// reload period and reset duty
+					cpu->square[3].volume = cpu->square[3].volume_load;
+					cpu->square[3].period = ((2048 - cpu->square[3].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[3].env_period = cpu->square[3].env_load;	
+
+					// noise channel stuff
+					cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift) / 4;
+					cpu->shift_reg = 0x7fff;
+		
 				}
 					
 				// if previously clear and now is enabled 
@@ -1216,7 +1265,7 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 			
 			if(is_set(cpu->io[IO_NR52],2)) // wave channel on return current sample
 			{
-				return cpu->io[0x30 + (cpu->wave_idx / 2)];
+				return cpu->io[0x30 + (cpu->square[2].duty_idx / 2)];
 			}
 			
 			

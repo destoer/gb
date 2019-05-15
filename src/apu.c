@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "headers/cpu.h"
+#include "headers/apu.h"
 
 
 // sound is very broken atm need to get trigger test passing
@@ -32,17 +33,6 @@ Each channel has a 4-bit digital-to-analog convertor (DAC). This converts the in
 DAC power is controlled by the upper 5 bits of NRx2 (top bit of NR30 for wave channel). If these bits are not all clear, the DAC is on, otherwise it's off and outputs 0 volts. Also, any time the DAC is off the channel is kept disabled (but turning the DAC back on does NOT enable the channel)
 
 */
-
-
-uint16_t get_wave_freq(Cpu *cpu)
-{
-	uint8_t lo = cpu->io[IO_NR33];
-	uint8_t hi = cpu->io[IO_NR34] & 0x3;
-	
-	uint16_t freq = (hi << 8) | lo;
-	
-	return freq;
-}
 
 
 // handle ticking the length counters performed every other step
@@ -158,63 +148,254 @@ void clock_sweep(Cpu *cpu)
 	
 }
 
+
+void clock_envelope(Cpu *cpu)
+{
+	int vol = cpu->square[0].volume;
+	if(!--cpu->square[0].env_period)
+	{
+		if(is_set(cpu->io[IO_NR12],3))
+		{
+			vol += 1;
+		}
+
+		else
+		{
+			vol += 1;
+		}
+
+		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
+		{
+			cpu->square[0].volume = vol;
+		}
+
+		// reload the period
+		if(!cpu->square[0].env_load) // timers treat period of zero as 8
+		{
+			cpu->square[0].env_period = 8; 
+		}
+
+		else
+		{
+			cpu->square[0].env_period = cpu->square[0].env_load;
+		}
+	}
+
+
+
+	vol = cpu->square[1].volume;
+	if(!--cpu->square[1].env_period)
+	{
+		if(is_set(cpu->io[IO_NR22],3))
+		{
+			vol++;
+		}
+
+		else
+		{
+			vol--;
+		}
+
+		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
+		{
+			cpu->square[1].volume = vol;
+		}
+
+		// reload the period
+		if(!cpu->square[1].env_load) // timers treat period of zero as 8
+		{
+			cpu->square[1].env_period = 8; 
+		}
+
+		else
+		{
+			cpu->square[1].env_period = cpu->square[1].env_load;
+		}
+	}
+
+
+	vol = cpu->square[3].volume;
+	if(!--cpu->square[3].env_period)
+	{
+		if(is_set(cpu->io[IO_NR42],3))
+		{
+			vol++;
+		}
+
+		else
+		{
+			vol--;
+		}
+
+		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
+		{
+			cpu->square[3].volume = vol;
+		}
+
+		// reload the period
+		if(!cpu->square[3].env_load) // timers treat period of zero as 8
+		{
+			cpu->square[3].env_period = 8; 
+		}
+
+		else
+		{
+			cpu->square[3].env_period = cpu->square[3].env_load;
+		}
+	}
+
+}
+
 // currently this just ticks the length counter
 // we want to use the proper stepping from 0-8
 void tick_apu(Cpu *cpu, int cycles)
 {
 	// 4096((4194304 / 256 ) /4) should dec the internal counter every <-- cycles
 	
-	// dec the wave channel timer :) 
-	// just cheat for now
-	static float wave_vol = 0;
-	
-	// handle wave ticking
-	//if(is_set(cpu->io[IO_NR52],2))
-	{
-		cpu->wave_period -= cycles;
-		
-		// reload timer and goto the next sample in the wave table
-		if(cpu->wave_period <= 0)
-		{
-			cpu->wave_idx  = (cpu->wave_idx + 1) & 0x1f;
 
-			// dac is enabled
-			if(is_set(cpu->io[IO_NR30],7) && is_set(cpu->io[IO_NR52],2))
-			{
-				int pos = cpu->wave_idx / 2;
-				int byte = cpu->io[0x30 + pos];
-				
-				if(!(cpu->wave_idx & 0x1)) // access the high nibble first
-				{
-					byte >>= 4;
-				}
-				
-				byte &= 0xf;
-				
-				uint8_t vol = (cpu->io[IO_NR32] >> 5) & 0x3;
-				
-				if(vol)
-				{
-					byte >>= vol - 1;
-				}
-				
-				else
-				{
-					byte = 0;
-				}
-				wave_vol = byte;
-				//puts("filling queue!");
-			}
-			
-			else  wave_vol = 0;
-			
-			
-			// reload the timer
-			// period (2048-frequency)*2 (in cpu cycles)
-			uint16_t freq = get_wave_freq(cpu);
-			cpu->wave_period = ((2048-freq)*2) / 4; // may need to be / 4 for M cycles					
-		}	
+	// refactor to use a function for first two squares
+
+	// square 1
+	cpu->square[0].period -= cycles;
+
+	if(cpu->square[0].period <= 0)
+	{
+		// advance the duty
+		cpu->square[0].duty_idx = (cpu->square[0].duty_idx + 1) & 0x7;
+		cpu->square[0].period = ((2048 - cpu->square[0].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+
+		// if channel and dac is enabled
+		if(is_set(cpu->io[IO_NR52],0) && (cpu->io[IO_NR12] & 248))
+		{
+			cpu->square[0].output = cpu->square[0].volume;
+		}
+		
+		else
+		{
+			cpu->square[0].output = 0;
+		}		
+
+		// if the duty is on a low posistion there is no output
+		// (vol is multiplied by duty but its only on or off)
+		if(!duty[cpu->square[0].duty][cpu->square[0].duty_idx])
+			cpu->square[0].output = 0;
 	}
+
+
+
+	// square 2
+	cpu->square[1].period -= cycles;
+
+	if(cpu->square[1].period <= 0)
+	{
+		// advance the duty
+		cpu->square[1].duty_idx = (cpu->square[1].duty_idx + 1) & 0x7;
+		cpu->square[1].period = ((2048 - cpu->square[1].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+
+		// if channel and dac is enabled
+		if(is_set(cpu->io[IO_NR52],1) && (cpu->io[IO_NR22] & 248))
+		{
+			cpu->square[1].output = cpu->square[1].volume;
+		}
+		
+		else
+		{
+			cpu->square[1].output = 0;
+		}		
+
+		// if the duty is on a low posistion there is no output
+		if(!duty[cpu->square[1].duty][cpu->square[1].duty_idx])
+		{
+			cpu->square[1].output = 0;
+		}
+	}
+
+	// handle wave ticking (square 3)	
+	cpu->square[2].period -= cycles;
+		
+	// reload timer and goto the next sample in the wave table
+	if(cpu->square[2].period <= 0)
+	{
+		// duty is the wave table index for wave channel 
+		cpu->square[2].duty_idx  = (cpu->square[2].duty_idx + 1) & 0x1f; 
+
+		// dac is enabled
+		if(is_set(cpu->io[IO_NR30],7) && is_set(cpu->io[IO_NR52],2))
+		{
+			int pos = cpu->square[2].duty_idx / 2;
+			uint8_t byte = cpu->io[0x30 + pos];
+				
+			if(!is_set(cpu->square[2].duty_idx,0)) // access the high nibble first
+			{
+				byte >>= 4;
+			}
+				
+			byte &= 0xf;
+				
+			if(cpu->square[2].volume)
+			{
+				byte >>= cpu->square[2].volume - 1;
+			}
+				
+			else
+			{
+				byte = 0;
+			}
+			cpu->square[2].output = byte;
+			
+		}
+			
+		else
+		{ 
+			cpu->square[2].output = 0;
+		}	
+			
+		// reload the timer
+		// period (2048-frequency)*2 (in cpu cycles)
+		cpu->square[2].period = ((2048 - cpu->square[2].freq)*2) / 4; // may need to be / 4 for M cycles					
+	}	
+
+
+	// NOISE <-- does not sound correct in places
+	// square 4
+	cpu->square[3].period -= cycles; // polynomial counter
+
+	if(cpu->square[3].period <= 0)
+	{
+		// "The noise channel's frequency timer period is set by a base divisor shifted left some number of bits. "
+		cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift) / 4;
+
+		// bottom two bits xored and reg shifted right
+		int result = cpu->shift_reg & 0x1;
+		cpu->shift_reg >>= 1;
+		result ^= cpu->shift_reg & 0x1;
+
+		// result placed in high bit (15 bit reg)
+		cpu->shift_reg |=  (result << 14);
+
+		if(cpu->counter_width) // in width mode
+		{
+			// also put result in bit 6
+			deset_bit(cpu->shift_reg,6);
+			cpu->shift_reg |= result << 6;
+		} 
+
+		// if lsb NOT SET
+		// put output
+		if(is_set(cpu->io[IO_NR52],3) && (cpu->io[IO_NR42] & 248) && !is_set(cpu->shift_reg,0))
+		{
+
+			cpu->square[3].output = cpu->square[3].volume;
+		}
+	
+		else 
+		{
+			cpu->square[3].output = 0;
+		}
+
+	}
+
+
 	
 	
 
@@ -223,10 +404,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	// we will then use a switch and determine what to do 
 	// could also use function pointers but this is likely better
 	
-	
-	
 	// first we need to tick the frame sequencer
-	
 	cpu->sequencer_cycles += cycles;
 	
 	// now if 8192 T cycles (2048 M cycles) have elapsed we need to inc the step
@@ -280,8 +458,11 @@ void tick_apu(Cpu *cpu, int cycles)
 				break;
 			}
 			
-			case 7: break; //clock the envelope 
-			
+			case 7:
+			{ 
+				clock_envelope(cpu);
+				break; //clock the envelope 
+			}
 			default:
 			{
 				printf("Error unknown sequencer step %d!\n",cpu->sequencer_step);
@@ -297,13 +478,13 @@ void tick_apu(Cpu *cpu, int cycles)
 	
 	
 	// handle audio output 
-#ifdef SOUND	// sound is gated as it currently laggy
+#ifdef SOUND	 // still laggy so "feature gated"
 	if(!--cpu->down_sample_cnt)
 	{
 		
 		//printf("Filling audio queue! %x\n",cpu->audio_buf_idx);
 		
-		cpu->down_sample_cnt = 95 / 4 ; // may need adjusting for m cycles 
+		cpu->down_sample_cnt = 23; // may need adjusting for m cycles (95)
 		
 		
 		
@@ -311,18 +492,46 @@ void tick_apu(Cpu *cpu, int cycles)
 		float bufferin1 = 0;
 		
 		// left output
-		int volume = 128 * (cpu->io[IO_NR50] & 0x7) / 7 ;
+		int volume = 128 * (cpu->io[IO_NR50] & 7) / 7 ;
 		// just mix wave for now 
 	
 		//if(is_set(cpu->io[IO_NR50],3))
 		{
-			if(is_set(cpu->io[IO_NR52],2) && is_set(cpu->io[IO_NR51],2))
+			// square 1
+			if(is_set(cpu->io[IO_NR51],0))
 			{
-				bufferin1 = wave_vol / 100;
+				bufferin1 = cpu->square[0].output / 100;
 				//printf("%f\n",bufferin1);
 				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-				cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
 			}
+
+
+			// square 2
+			if(is_set(cpu->io[IO_NR51],1))
+			{
+				bufferin1 = cpu->square[1].output / 100;
+				//printf("%f\n",bufferin1);
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
+			}
+
+			// sqaure 3
+			if(is_set(cpu->io[IO_NR51],2))
+			{
+				bufferin1 = cpu->square[2].output / 100;
+				//printf("%f\n",bufferin1);
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
+			}
+
+			// square 4
+			if(is_set(cpu->io[IO_NR51],3))
+			{
+				bufferin1 = cpu->square[3].output / 100;
+				//printf("%f\n",bufferin1);
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
+			}
+
+
+			cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
 		}
 		
 		
@@ -333,16 +542,41 @@ void tick_apu(Cpu *cpu, int cycles)
 		//printf("%x\n",cpu->io[IO_NR50]);
 		//if(is_set(cpu->io[IO_NR50],7))
 		{
-			if(is_set(cpu->io[IO_NR52],2) && is_set(cpu->io[IO_NR51],6))
+			// square 1
+			if(is_set(cpu->io[IO_NR51],4))
 			{
-				bufferin1 = wave_vol / 100;
+				bufferin1 = cpu->square[0].output / 100;
 				//printf("%f\n",bufferin1);
 				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-				cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
+			}
+
+			// square 2
+			if(is_set(cpu->io[IO_NR51],5))
+			{
+				bufferin1 = cpu->square[1].output / 100;
+				//printf("%f\n",bufferin1);
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
+				
+			}
+
+			// square3
+			if(is_set(cpu->io[IO_NR51],6))
+			{
+				bufferin1 = cpu->square[2].output / 100;
+				//printf("%f\n",bufferin1);
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
+			}
+
+			// square 4
+			if(is_set(cpu->io[IO_NR51],7))
+			{
+				bufferin1 = cpu->square[3].output / 100;
+				//printf("%f\n",bufferin1);
+				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
 			}
 			
 			
-				
+			cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;	
 		}
 		
 		//SDL_QueueAudio(1,&bufferin0,sizeof(float));
@@ -353,18 +587,18 @@ void tick_apu(Cpu *cpu, int cycles)
 	{
 		cpu->audio_buf_idx = 0;
 		
-		static const SDL_AudioDeviceID dev = 2; // should get from the cpu function but allow it for now when it doesent even work
+		//static const SDL_AudioDeviceID dev = 2; // should get from the cpu function but allow it for now when it doesent even work
 		
 		// legacy interface
-		//static const SDL_AudioDeviceID dev = 1;
+		static const SDL_AudioDeviceID dev = 1;
 				
-	    // delay execution and let the que drain to approx a frame
-		while(SDL_GetQueuedAudioSize(dev) > (1024 *  sizeof(float))) 
-		{
+	    	// delay execution and let the que drain
+		while(SDL_GetQueuedAudioSize(dev) > (1024 * sizeof(float)))
+		{ 
 			SDL_Delay(1);
 		}
-		
-		if(SDL_QueueAudio(dev,cpu->audio_buf,1024*sizeof(float)) < 0 )
+
+		if(SDL_QueueAudio(dev,cpu->audio_buf,1024 * sizeof(float)) < 0)
 		{
 			printf("%s\n",SDL_GetError()); exit(1);
 		}				
