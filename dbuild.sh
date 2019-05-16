@@ -1,1 +1,1 @@
-gcc -g  -O3  -Wextra -Wshadow  -Wall -Wextra -Wpointer-arith -Wformat=2 -Wcast-qual  -DDEBUG src/rom.c src/apu.c src/memory.c src/debug.c src/opcode.c src/opcode_cb.c src/instr.c src/banking.c src/lib.c src/main.c src/cpu.c src/disass.c  src/ppu.c src/joypad.c -lSDL2main -lSDL2 -o emu
+gcc -g  -DSOUND -O3  -Wextra -Wshadow  -Wall -Wextra -Wpointer-arith -Wformat=2 -Wcast-qual  -DDEBUG src/rom.c src/apu.c src/memory.c src/debug.c src/opcode.c src/opcode_cb.c src/instr.c src/banking.c src/lib.c src/main.c src/cpu.c src/disass.c  src/ppu.c src/joypad.c -lSDL2main -lSDL2 -o emu
