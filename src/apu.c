@@ -6,23 +6,9 @@
 #include "headers/apu.h"
 
 
-// sound is very broken atm need to get trigger test passing
-// need to refactor it to use an internal represenation
-// so it is much less of a pain to work with
-
-// internal counter loaded upon write with 64-data  or 256-data for wave channel
-
-
-// general idea seems fine but not the timing 
-// investigate the timer and frame sequencer
-// sweep etc 
-
-
-// this works fine for now but implement properly with the desc off the reddit post
-// after finishing up this part and function off the length ticking to a separate part of tick_apu
-// https://www.reddit.com/r/EmuDev/comments/5gkwi5/gb_apu_sound_emulation/
-// ^ look at the github links for help
-
+// need to pass final two tests
+// square one sounds too high pitched sometimes (pokemon red intro star (and lasts too long) )
+// likely envelope or the freq sweep (more likely) not working as intended
 
 /* Handle the channel dac
 
@@ -106,7 +92,12 @@ void do_freqsweep(Cpu *cpu)
 		cpu->io[IO_NR14] &= ~0x7; // mask bottom 3
 		cpu->io[IO_NR14] |= (cpu->sweep_shadow >> 8) & 0x7; // and write them out
 		
-		
+		// also back to our internal regs
+		cpu->square[0].freq = cpu->sweep_shadow;		
+
+
+
+
 		// reperform the calc + overflow check (but dont write back)
 		temp = calc_freqsweep(cpu);
 		
@@ -534,7 +525,7 @@ void tick_apu(Cpu *cpu, int cycles)
 			if(is_set(cpu->io[IO_NR51],2))
 			{
 				bufferin1 = cpu->square[2].output / 100;
-				//printf("%f\n",bufferin1);
+				///printf("%f\n",bufferin1);
 				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
 			}
 

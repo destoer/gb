@@ -12,6 +12,8 @@
 #include "headers/debug.h"
 #include "headers/apu.h"
 
+// sound support has broken overclocking (fix later)
+
 static int next_time;
 
 uint32_t time_left(void)
