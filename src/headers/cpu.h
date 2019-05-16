@@ -104,6 +104,7 @@ typedef struct {
 	int freq; // current frequency
 	int env_period; // current timer
 	int env_load; // cached period
+	bool env_enabled; // disabled when it ticks over or under
 } Sqaure;
 
 
@@ -204,7 +205,7 @@ typedef struct
 	
 	// SDL SOUND
 	SDL_AudioSpec audio_spec;
-	float audio_buf[1024];
+	float audio_buf[SAMPLE_SIZE];
 	int audio_buf_idx; // how fill is the buffer
 	int down_sample_cnt; // counter used to down sample
 	

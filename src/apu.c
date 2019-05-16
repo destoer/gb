@@ -152,7 +152,7 @@ void clock_sweep(Cpu *cpu)
 void clock_envelope(Cpu *cpu)
 {
 	int vol = cpu->square[0].volume;
-	if(!--cpu->square[0].env_period)
+	if(!--cpu->square[0].env_period && cpu->square[0].env_enabled)
 	{
 		if(is_set(cpu->io[IO_NR12],3))
 		{
@@ -167,6 +167,11 @@ void clock_envelope(Cpu *cpu)
 		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
 		{
 			cpu->square[0].volume = vol;
+		}
+
+		else
+		{
+			cpu->square[0].env_enabled = false;
 		}
 
 		// reload the period
@@ -184,7 +189,7 @@ void clock_envelope(Cpu *cpu)
 
 
 	vol = cpu->square[1].volume;
-	if(!--cpu->square[1].env_period)
+	if(!--cpu->square[1].env_period && cpu->square[1].env_enabled)
 	{
 		if(is_set(cpu->io[IO_NR22],3))
 		{
@@ -201,6 +206,11 @@ void clock_envelope(Cpu *cpu)
 			cpu->square[1].volume = vol;
 		}
 
+		else
+		{
+			cpu->square[1].env_enabled = false;
+		}
+
 		// reload the period
 		if(!cpu->square[1].env_load) // timers treat period of zero as 8
 		{
@@ -215,7 +225,7 @@ void clock_envelope(Cpu *cpu)
 
 
 	vol = cpu->square[3].volume;
-	if(!--cpu->square[3].env_period)
+	if(!--cpu->square[3].env_period && cpu->square[3].env_enabled)
 	{
 		if(is_set(cpu->io[IO_NR42],3))
 		{
@@ -231,6 +241,12 @@ void clock_envelope(Cpu *cpu)
 		{
 			cpu->square[3].volume = vol;
 		}
+
+		else
+		{
+			cpu->square[3].env_enabled = false;
+		}
+
 
 		// reload the period
 		if(!cpu->square[3].env_load) // timers treat period of zero as 8
@@ -492,7 +508,7 @@ void tick_apu(Cpu *cpu, int cycles)
 		float bufferin1 = 0;
 		
 		// left output
-		int volume = 128 * (cpu->io[IO_NR50] & 7) / 7 ;
+		int volume = (128 *(cpu->io[IO_NR50] & 7)) / 7 ;
 		// just mix wave for now 
 	
 		//if(is_set(cpu->io[IO_NR50],3))
@@ -531,12 +547,13 @@ void tick_apu(Cpu *cpu, int cycles)
 			}
 
 
-			cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;
+			cpu->audio_buf[cpu->audio_buf_idx] = bufferin0;
 		}
 		
 		
 		// right output
-		volume = 128 * (cpu->io[IO_NR50 >> 4] & 7) / 7;
+		// more correct but sounds weird with different volumes......
+		//volume = (128 * (cpu->io[IO_NR50 >> 4] & 7)) / 7;
 		//printf("vol: %d\n",volume);
 		bufferin0 = 0;
 		//printf("%x\n",cpu->io[IO_NR50]);
@@ -576,14 +593,15 @@ void tick_apu(Cpu *cpu, int cycles)
 			}
 			
 			
-			cpu->audio_buf[cpu->audio_buf_idx++] = bufferin0;	
+			cpu->audio_buf[cpu->audio_buf_idx+1] = bufferin0;
+			cpu->audio_buf_idx += 2;	
 		}
 		
 		//SDL_QueueAudio(1,&bufferin0,sizeof(float));
 		//SDL_Delay(1);
 	}
 	
-	if(cpu->audio_buf_idx >= 1024) // dont know why this completly locks up...
+	if(cpu->audio_buf_idx >= SAMPLE_SIZE) // dont know why this completly locks up...
 	{
 		cpu->audio_buf_idx = 0;
 		
@@ -593,12 +611,12 @@ void tick_apu(Cpu *cpu, int cycles)
 		static const SDL_AudioDeviceID dev = 1;
 				
 	    	// delay execution and let the que drain
-		while(SDL_GetQueuedAudioSize(dev) > (1024 * sizeof(float)))
+		while(SDL_GetQueuedAudioSize(dev) > (SAMPLE_SIZE * sizeof(float)))
 		{ 
 			SDL_Delay(1);
 		}
 
-		if(SDL_QueueAudio(dev,cpu->audio_buf,1024 * sizeof(float)) < 0)
+		if(SDL_QueueAudio(dev,cpu->audio_buf,SAMPLE_SIZE * sizeof(float)) < 0)
 		{
 			printf("%s\n",SDL_GetError()); exit(1);
 		}				

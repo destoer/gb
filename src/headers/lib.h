@@ -8,8 +8,11 @@
 	//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h"
 #endif 
 
+// sound sample size
+#define SAMPLE_SIZE 1024
+
 // cpu clock speed
-#define CLOCKSPEED 419430
+#define CLOCKSPEED 4194304
 
 // timers
 #define IO_TIMA 0x05
@@ -106,6 +109,7 @@ typedef struct
 #define IO_SC 0x02
 
 #define IO_SCX 0x43
+
 
 
 // potentially add constants for unused bits

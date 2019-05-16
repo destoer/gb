@@ -147,7 +147,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.audio_spec.freq = 44100;
 	cpu.audio_spec.format = AUDIO_F32SYS;
 	cpu.audio_spec.channels = 2;
-	cpu.audio_spec.samples = 1024;	
+	cpu.audio_spec.samples = SAMPLE_SIZE;	
 	cpu.audio_spec.callback = NULL; // we will use SDL_QueueAudio()  rather than 
 	cpu.audio_spec.userdata = NULL; // using a callback :)
 

@@ -287,7 +287,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					cpu->square[0].env_period = cpu->square[0].env_load;
 					cpu->square[0].duty_idx = 0; // reset duty					
 					cpu->square[0].volume = cpu->square[0].volume_load;
-	
+					cpu->square[0].env_enabled = true;
 						
 					// Handle the trigger events for the frequency sweep
 						
@@ -467,6 +467,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					cpu->square[1].period = ((2048 - cpu->square[1].freq)); // according the wiki page its *4 but we use M cycles so / 4 
 					cpu->square[1].env_period = cpu->square[1].env_load;
 					cpu->square[1].duty_idx = 0; // reset duty
+					cpu->square[1].env_enabled = true;
 				}
 					
 					
@@ -716,7 +717,8 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					// reload period and reset duty
 					cpu->square[3].volume = cpu->square[3].volume_load;
 					cpu->square[3].period = ((2048 - cpu->square[3].freq)); // according the wiki page its *4 but we use M cycles so / 4 
-					cpu->square[3].env_period = cpu->square[3].env_load;	
+					cpu->square[3].env_period = cpu->square[3].env_load;
+					cpu->square[3].env_enabled = true;	
 
 					// noise channel stuff
 					cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift) / 4;
@@ -785,9 +787,16 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		// nr 52 // bits 0-3 read only 7 r/w 4-6 unused
 		case IO_NR52:
 		{
-			cpu->io[IO_NR52] &= 0xf; //  0xf (cant emulate the bottom bits for now mask them out for now to make this simple)
 			cpu->io[IO_NR52] |= 112;
 			
+			if(is_set(cpu->io[IO_NR52] ^ data,7)) // if we are going from on to off reset the sequencer
+			{
+				cpu->sequencer_step = 0;
+				cpu->sequencer_cycles = 0;
+			}
+
+
+
 			// if we have disabled sound we should
 			// zero all the registers (nr10-nr51) 
 			// and lock writes until its on
@@ -803,6 +812,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 	
 				// now lock writes
 				cpu->sound_enabled = false;
+
 			}
 			
 			else // its enabled

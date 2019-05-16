@@ -10,6 +10,7 @@
 #include "headers/joypad.h"
 #include "headers/opcode.h"
 #include "headers/debug.h"
+#include "headers/apu.h"
 
 static int next_time;
 
@@ -457,7 +458,8 @@ int main(int argc, char *argv[])
 						// just tick it
 						update_timers(&cpu,1); // <--- update timers 
 						update_graphics(&cpu,1); // handle the lcd emulation
-											// may need to tick dma here....
+						tick_apu(&cpu,1);
+									// may need to tick dma here....
 												
 						req = cpu.io[IO_IF];
 						enabled = cpu.io[IO_IE];
@@ -471,7 +473,7 @@ int main(int argc, char *argv[])
 		
 		// do our screen blit
 		SDL_UpdateTexture(texture, NULL, &cpu.screen,  4 * X * sizeof(uint8_t));
-		//SDL_RenderClear(renderer);
+		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
 		SDL_RenderPresent(renderer);
 
