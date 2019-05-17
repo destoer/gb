@@ -228,6 +228,7 @@ int main(int argc, char *argv[])
 				
 				free(savename);
 				fclose(fp);
+				fclose(cpu.fp);
 				
 				done: // skip saving 
 				// should clean up our state here too 

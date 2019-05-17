@@ -178,7 +178,7 @@ typedef struct
 	
 	// Sweep
 	bool sweep_enabled;
-	int sweep_shadow;
+	uint16_t sweep_shadow;
 	int sweep_period;
 	int sweep_timer;
 	bool sweep_calced;
@@ -209,7 +209,7 @@ typedef struct
 	int audio_buf_idx; // how fill is the buffer
 	int down_sample_cnt; // counter used to down sample
 	
-	
+	FILE *fp;
 	
 	// rtc 
 

@@ -209,6 +209,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 
 	printf("Queued audio: %d!\n",SDL_GetQueuedAudioSize(dev));
 	
+	cpu.fp = fopen("audio.pcm","wb+");
+
 	return cpu;
 }
 

@@ -6,9 +6,12 @@
 #include "headers/apu.h"
 
 
-// need to pass final two tests
-// square one sounds too high pitched sometimes (pokemon red intro star (and lasts too long) )
+// need to pass the final two tests
+// square one sounds too high pitched (pokemon red intro star (and lasts too long) )
 // likely envelope or the freq sweep (more likely) not working as intended
+
+// also when it stays on the frequency does not change (sweep is off but its not disabled)
+
 
 /* Handle the channel dac
 
@@ -42,18 +45,35 @@ void tick_lengthc(Cpu *cpu)
 
 
 
+// performs the frequency sweep
+// calc + overflow check
+
 uint16_t calc_freqsweep(Cpu *cpu)
 {
 	
 	uint16_t shadow_shifted = cpu->sweep_shadow >> (cpu->io[IO_NR10] &  0x7);
+	uint16_t result;
 	if(is_set(cpu->io[IO_NR10],3)) // test bit 3 of nr10 if its 1 take them away
 	{
 		cpu->sweep_calced = true; // calc done using negation
-		return cpu->sweep_shadow - shadow_shifted;
+		result = cpu->sweep_shadow - shadow_shifted;
 	}
 	
 	// else add them
-	return cpu->sweep_shadow + shadow_shifted;
+	else
+	{
+		result = cpu->sweep_shadow + shadow_shifted;
+	}
+
+	// result is greater than 0x7ff (disable the channel)
+	if(result > 0x7ff)
+	{
+		cpu->sweep_timer = 0;
+		deset_bit(cpu->io[IO_NR52],0);
+		cpu->sweep_enabled = false;	
+	}
+
+	return result;
 }
 
 
@@ -66,20 +86,8 @@ void do_freqsweep(Cpu *cpu)
 	
 	uint16_t temp = calc_freqsweep(cpu);
 	
-	// if it is <= 2047 and shift is non 0
-	// write it back to freq regs
-	// and then do the calc again without writing the value back
-	if(temp > 0x7ff)
-	{
-		cpu->sweep_timer = 0;
-		deset_bit(cpu->io[IO_NR52],0);
-		cpu->sweep_enabled = false;
-		return;
-		
-	}
-	
-	// sweep shift not zero (can be assumed its <= 0x7ff for first calc now)
-	if(cpu->io[IO_NR10] &  0x7)
+	// sweep shift not zero 
+	if( (cpu->io[IO_NR10] &  0x7) && temp <= 0x7ff)
 	{
 		// write back to shadow
 		cpu->sweep_shadow = temp;
@@ -92,37 +100,21 @@ void do_freqsweep(Cpu *cpu)
 		cpu->io[IO_NR14] &= ~0x7; // mask bottom 3
 		cpu->io[IO_NR14] |= (cpu->sweep_shadow >> 8) & 0x7; // and write them out
 		
-		// also back to our internal regs
+		// also back to our internal cached freq
 		cpu->square[0].freq = cpu->sweep_shadow;		
 
-
-
-
 		// reperform the calc + overflow check (but dont write back)
-		temp = calc_freqsweep(cpu);
-		
-		if(temp > 0x7ff)
-		{
-			cpu->sweep_timer = 0;
-			deset_bit(cpu->io[IO_NR52],0);
-			cpu->sweep_enabled = false;
-		}	
+		calc_freqsweep(cpu);		
 	}
 }
 
-// not sure how the sweep timer is meant to be used?
-// or what the sweep period is this is likely what is not being 
-// done correctly....
-
-
-// is the sweep timer how long the sweep lasts or how long until one is done?
 
 // clock sweep generator for square 1
 void clock_sweep(Cpu *cpu)
 {
-	
+	//if(!is_set(cpu->io[IO_NR52],0)) return;
 	//if(!cpu->sweep_period) { return; }
-	
+
 	
 	// tick the sweep timer calc when zero
 	if(cpu->sweep_timer && !--cpu->sweep_timer)
@@ -134,7 +126,10 @@ void clock_sweep(Cpu *cpu)
 		// does this use the value present during the trigger event 
 		// or is it reloaded newly?
 		cpu->sweep_timer = cpu->sweep_period;
-		if(cpu->sweep_period == 0) cpu->sweep_timer = 8;  // see obscure behaviour		
+		if(cpu->sweep_period == 0)
+		{ 
+			cpu->sweep_timer = 8;  
+		}		
 	}
 	
 }
@@ -145,14 +140,14 @@ void clock_envelope(Cpu *cpu)
 	int vol = cpu->square[0].volume;
 	if(!--cpu->square[0].env_period && cpu->square[0].env_enabled)
 	{
-		if(is_set(cpu->io[IO_NR12],3))
+		if(is_set(cpu->io[IO_NR12],3)) // sweep up
 		{
 			vol += 1;
 		}
 
-		else
+		else // sweep down
 		{
-			vol += 1;
+			vol -= 1;
 		}
 
 		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
@@ -253,11 +248,93 @@ void clock_envelope(Cpu *cpu)
 
 }
 
-// currently this just ticks the length counter
-// we want to use the proper stepping from 0-8
+
 void tick_apu(Cpu *cpu, int cycles)
 {
-	// 4096((4194304 / 256 ) /4) should dec the internal counter every <-- cycles
+	// apu is off do nothing
+	if(!is_set(cpu->io[IO_NR52],7)) return;
+
+
+	// so every 8192 cycles the sequencer will increment
+	// when it does every other step it will clock our length counters 
+	// we will then use a switch and determine what to do 
+	// could also use function pointers but this is likely better
+	
+	// first we need to tick the frame sequencer
+	cpu->sequencer_cycles += cycles;
+	
+	// now if 8192 T cycles (2048 M cycles) have elapsed we need to inc the step
+	// and perform the action for the current step
+	
+	if(cpu->sequencer_cycles >= 2048)
+	{
+
+		// go to the next step
+		cpu->sequencer_step += 1;
+		
+		if(cpu->sequencer_step == 8)
+		{
+			cpu->sequencer_step = 0; // loop back around the steps
+		}
+		
+		// switch and perform the function required for our step
+		switch(cpu->sequencer_step)
+		{
+			case 0: // clock the length counters
+			{
+				tick_lengthc(cpu);
+				break;
+			}
+			
+			case 1: break; // do nothing
+
+			
+			case 2: // sweep generator + lengthc
+			{
+				tick_lengthc(cpu);
+				clock_sweep(cpu);
+				break;
+			}
+			
+			case 3: break; // do nothing
+
+			
+			case 4: // clock lengthc
+			{
+				tick_lengthc(cpu);
+				break;
+			}
+			
+			case 5: break; // do nothing
+			
+			case 6:  // clock the sweep generator + lengthc
+			{
+				tick_lengthc(cpu);
+				clock_sweep(cpu);
+				break;
+			}
+			
+			case 7:
+			{ 
+				clock_envelope(cpu);
+				break; //clock the envelope 
+			}
+			default:
+			{
+				printf("Error unknown sequencer step %d!\n",cpu->sequencer_step);
+				exit(1);
+			}
+		}
+		
+		
+		// reset the cycles
+		cpu->sequencer_cycles = 0;
+	}
+
+
+
+
+	// tick the output of all the channels
 	
 
 	// refactor to use a function for first two squares
@@ -285,7 +362,9 @@ void tick_apu(Cpu *cpu, int cycles)
 		// if the duty is on a low posistion there is no output
 		// (vol is multiplied by duty but its only on or off)
 		if(!duty[cpu->square[0].duty][cpu->square[0].duty_idx])
+		{
 			cpu->square[0].output = 0;
+		}
 	}
 
 
@@ -404,83 +483,6 @@ void tick_apu(Cpu *cpu, int cycles)
 
 
 	
-	
-
-	// so every 8192 cycles the sequencer will increment
-	// when it does every other step it will clock our length counters 
-	// we will then use a switch and determine what to do 
-	// could also use function pointers but this is likely better
-	
-	// first we need to tick the frame sequencer
-	cpu->sequencer_cycles += cycles;
-	
-	// now if 8192 T cycles (2048 M cycles) have elapsed we need to inc the step
-	// and perform the action for the current step
-	
-	if(cpu->sequencer_cycles >= 2048)
-	{
-
-		// go to the next step
-		cpu->sequencer_step += 1;
-		
-		if(cpu->sequencer_step == 8)
-		{
-			cpu->sequencer_step = 0; // loop back around the steps
-		}
-		
-		// switch and perform the function required for our step
-		switch(cpu->sequencer_step)
-		{
-			case 0: // clock the length counters
-			{
-				tick_lengthc(cpu);
-				break;
-			}
-			
-			case 1: break; // do nothing
-
-			
-			case 2: // sweep generator + lengthc
-			{
-				clock_sweep(cpu);
-				tick_lengthc(cpu);
-				break;
-			}
-			
-			case 3: break; // do nothing
-
-			
-			case 4: // clock lengthc
-			{
-				tick_lengthc(cpu);
-				break;
-			}
-			
-			case 5: break; // do nothing
-			
-			case 6:  // clock the sweep generator + lengthc
-			{
-				clock_sweep(cpu);
-				tick_lengthc(cpu);
-				break;
-			}
-			
-			case 7:
-			{ 
-				clock_envelope(cpu);
-				break; //clock the envelope 
-			}
-			default:
-			{
-				printf("Error unknown sequencer step %d!\n",cpu->sequencer_step);
-				exit(1);
-			}
-		}
-		
-		
-		// reset the cycles
-		cpu->sequencer_cycles = 0;
-	}
 	
 	
 	
@@ -610,7 +612,11 @@ void tick_apu(Cpu *cpu, int cycles)
 		if(SDL_QueueAudio(dev,cpu->audio_buf,SAMPLE_SIZE * sizeof(float)) < 0)
 		{
 			printf("%s\n",SDL_GetError()); exit(1);
-		}				
+		}
+
+		
+		//fwrite(cpu->audio_buf,sizeof(float),SAMPLE_SIZE,cpu->fp);
+						
 	}
 #endif	
 }

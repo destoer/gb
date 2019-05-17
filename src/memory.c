@@ -176,7 +176,6 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		// should account for this internal behavior
 		case IO_DIV:
 		{
-			cpu->io[IO_DIV] = 0;
 			cpu->internal_timer = 0;
 			return;
 		}
@@ -215,7 +214,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				// bottom 6 bits are length data 
 				// set the internal counter to 64 - bottom 6 bits of data
 				cpu->square[0].lengthc = 64 - (data & 63);
-					
+
 				cpu->square[0].duty = (data >> 6) & 0x3;	
 				cpu->io[IO_NR11] = data;
 			}
@@ -249,7 +248,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			if(cpu->sound_enabled)
 			{
 				cpu->square[0].freq &= ~0xff;
-				cpu->square[0].freq |= data & 0xff;
+				cpu->square[0].freq |= data;
 				cpu->io[IO_NR13] = data;
 			}
 			return;
@@ -260,8 +259,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		{
 			if(cpu->sound_enabled)
 			{
-
-				cpu->square[0].freq = cpu->io[IO_NR13];
+				cpu->square[0].freq &= 0xff;
 			 	cpu->square[0].freq |= (data & 0x7) << 8;
 
 				// Trigger event
@@ -308,8 +306,10 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					// reload the sweep timer
 					cpu->sweep_period = (cpu->io[IO_NR10] >> 4) & 7;
 					cpu->sweep_timer = cpu->sweep_period;
-					if(cpu->sweep_period == 0) cpu->sweep_timer = 8; // see obscure behavior
-					
+					if(cpu->sweep_period == 0) // period of zero treated as 8 
+					{
+						cpu->sweep_timer = 8; // see obscure behavior
+					}					
 						
 						
 					// if sweep period or shift are non zero set the internal flag 
@@ -333,17 +333,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					// perform the overflow check and freq calc immediately 
 					if((cpu->io[IO_NR10] & 0x7))
 					{
-						// we aernt going to use it if it fails 
-						// as it will get disabled immediately
-						//cpu->sweep_shadow = calc_freqsweep(cpu);
-						//if(cpu->sweep_shadow > 0x7ff)
-						uint16_t tmp = calc_freqsweep(cpu);
-						if(tmp  > 0x7ff)
-						{
-							cpu->sweep_timer = 0;
-							deset_bit(cpu->io[IO_NR52],0);
-							cpu->sweep_enabled = false;	
-						}
+						calc_freqsweep(cpu);
 					}
 				}
 					
