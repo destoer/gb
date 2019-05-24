@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include "headers/cpu.h"
@@ -487,7 +488,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	
 	
 	// handle audio output 
-#ifdef SOUND	 // still laggy so "feature gated"
+#ifdef SOUND	
 	if(!--cpu->down_sample_cnt)
 	{
 		
@@ -589,9 +590,7 @@ void tick_apu(Cpu *cpu, int cycles)
 			cpu->audio_buf[cpu->audio_buf_idx+1] = bufferin0;
 			cpu->audio_buf_idx += 2;	
 		}
-		
-		//SDL_QueueAudio(1,&bufferin0,sizeof(float));
-		//SDL_Delay(1);
+
 	}
 	
 	if(cpu->audio_buf_idx >= SAMPLE_SIZE) // dont know why this completly locks up...
@@ -602,19 +601,45 @@ void tick_apu(Cpu *cpu, int cycles)
 		
 		// legacy interface
 		static const SDL_AudioDeviceID dev = 1;
-				
-	    	// delay execution and let the que drain
-		while(SDL_GetQueuedAudioSize(dev) > (SAMPLE_SIZE * sizeof(float)))
-		{ 
-			SDL_Delay(1);
-		}
+		
 
+#ifdef DEBUG
+		// dont sync sound if we are overclocking
+		// should ideally sample less often when speedup is active		
+		if(!cpu->speed_up) 
+		{
+			// delay execution and let the que drain
+			while(SDL_GetQueuedAudioSize(dev) > (SAMPLE_SIZE * sizeof(float)))
+			{ 
+				//printf("Audio is locked %d\n!", SDL_GetQueuedAudioSize(dev) / sizeof(float));
+				SDL_Delay(1);
+			}
+		}
+		
+		if(!cpu->speed_up)
+		{
+			if(SDL_QueueAudio(dev,cpu->audio_buf,SAMPLE_SIZE * sizeof(float)) < 0)
+			{
+				printf("%s\n",SDL_GetError()); exit(1);
+			}
+		}
+#else
+		// delay execution and let the que drain
+		while(SDL_GetQueuedAudioSize(dev) > (SAMPLE_SIZE * sizeof(float)))
+		{
+			//printf("Audio is locked %d\n!", SDL_GetQueuedAudioSize(dev) / sizeof(float));
+			SDL_Delay(1);
+		}			
+
+		
+	
+		
 		if(SDL_QueueAudio(dev,cpu->audio_buf,SAMPLE_SIZE * sizeof(float)) < 0)
 		{
 			printf("%s\n",SDL_GetError()); exit(1);
 		}
 
-		
+#endif		
 		//fwrite(cpu->audio_buf,sizeof(float),SAMPLE_SIZE,cpu->fp);
 						
 	}

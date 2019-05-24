@@ -1,6 +1,7 @@
 
 #pragma once
 #include <stdbool.h>
+#include <stdio.h>
 #include "lib.h"
 #include "rom.h"
 // flags
@@ -208,7 +209,7 @@ typedef struct
 	float audio_buf[SAMPLE_SIZE];
 	int audio_buf_idx; // how fill is the buffer
 	int down_sample_cnt; // counter used to down sample
-	
+	int initial_sample;
 	FILE *fp;
 	
 	// rtc 
@@ -226,6 +227,7 @@ typedef struct
 	int memr_breakpoint;
 	int memr_value;
 	bool step;
+	bool speed_up;
 	#endif
 	// bools used to inform cpu of special instrucitons occuring
 	bool ei;
@@ -244,6 +246,21 @@ typedef struct
 	bool oam_dma_active;
 	uint16_t oam_dma_address;
 	int oam_dma_index; // how far along the dma transfer we are
+	
+	
+	
+	// CGB
+	bool is_cgb;
+	int cgb_ram_bank_num;
+	uint8_t cgb_ram_bank[0x7000]; // switchable work ram bank 
+	uint8_t cgb_vram[0x2000]; // 2nd switchable cgb bank 
+	int vram_bank; // what cgb vram bank are we in?
+	bool is_double; // cpu is in double speed mode!
+	uint8_t bg_pal[0x40]; // bg palette data
+	uint8_t sp_pal[0x40]; // sprite pallete data 
+	int sp_pal_idx;
+	int bg_pal_idx; // index into the bg pal (entry takes two bytes)
+	
 	
 	
 } Cpu;

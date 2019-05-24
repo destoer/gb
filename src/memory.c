@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "headers/cpu.h"
 #include "headers/disass.h"
 #include "headers/lib.h"
@@ -46,6 +47,12 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 	}
 	#endif
 	
+	
+	if(address >= 0xff51 && address <= 0xff55)
+	{
+		printf("unhandled dma! %x\n",address);
+		exit(1);
+	}
 	
 	
 	
@@ -163,13 +170,13 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		}
 
 		
-		// unused
+	/*	// unused // fix after cgb
 		case 0x4c ... 0x7f:
 		{
 			cpu->io[address & 0xff] = 0xff;
 			return;
 		}
-			
+	*/		
 
 
 		// div and tima share the same internal counter
@@ -823,6 +830,13 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				cpu->current_line = 0; // reset ly
 				cpu->io[IO_STAT] &= ~3; // mode 0
 			}
+			
+			if(is_set(data,7) && !is_lcd_enabled(cpu))
+			{
+				cpu->scanline_counter = 0;
+				cpu->io[IO_STAT] |= 2; // mode 2?
+			}
+			
 			cpu->io[IO_LCDC] = data;
 			return;
 		}
@@ -855,14 +869,105 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			do_dma(cpu,data);
 			return;
 		}
-		
-			
+				
 		case IO_IF:
 		{
 			cpu->io[IO_IF] = data | (128 + 64 + 32); // top 3 bits allways on
 			return;
 		}
+		
+
+		// cgb regs
+		
+		// cgb ram bank number
+		case IO_SVBK:
+		{
+			if(cpu->is_cgb)
+			{
+				cpu->cgb_ram_bank_num = data & 0x7;
+				
+				// bank 0 is same as accessing bank 1
+				if(cpu->cgb_ram_bank_num == 0)
+				{
+					cpu->cgb_ram_bank_num = 1;
+				}
+				
+				// index it
+				cpu->cgb_ram_bank_num -= 1;
+				
+				cpu->io[IO_SVBK] = data | 248;
+				
+			}
 			
+			else
+			{
+				cpu->io[IO_SVBK] = data;
+			}
+			
+			return;	
+		}
+
+		case IO_SPEED:
+		{
+			puts("double speed mode unsupported!");
+			getchar();
+			exit(1);
+		}
+
+		case IO_VBANK: // what vram bank are we writing to?
+		{
+			if(cpu->is_cgb)
+			{
+				cpu->vram_bank = data & 1;
+			}
+			cpu->io[IO_VBANK] = data | 254;
+			return;
+		}
+
+		case IO_BGPI:
+		{
+			cpu->bg_pal_idx = data &  0x3f;
+			cpu->io[IO_BGPI] = data | 0x40;
+			return;
+		}
+
+		case IO_BGPD: // finish later 
+		{
+			if((cpu->io[IO_STAT] & 0x3) <= 1)
+			{
+				cpu->bg_pal[cpu->bg_pal_idx] = data; 
+			}
+			if(is_set(cpu->io[IO_BGPI],7)) // increment on a write 
+			{
+				cpu->bg_pal_idx = (cpu->bg_pal_idx + 1) & 0x3f;
+				cpu->io[IO_BGPI] &= ~0x3f;
+				cpu->io[IO_BGPI] |= cpu->bg_pal_idx;
+			}
+			return;
+		}
+
+		case IO_SPPI: // sprite pallete index
+		{
+			cpu->sp_pal_idx = data & 0x3f;
+			cpu->io[IO_SPPI] = data | 0x40;
+			return;
+		}		
+		
+		case IO_SPPD: // sprite pallete data
+		{
+			// only in hblank and vblank
+			if((cpu->io[IO_STAT] & 0x3) <= 1)
+			{
+				cpu->sp_pal[cpu->sp_pal_idx] = data; 
+			}
+			if(is_set(cpu->io[IO_SPPI],7)) // increment on a write 
+			{
+				cpu->sp_pal_idx = (cpu->sp_pal_idx + 1) & 0x3f;
+				cpu->io[IO_SPPI] &= ~0x3f;
+				cpu->io[IO_SPPI] |= cpu->sp_pal_idx;
+			}
+			return;
+		}		
 		// default for hram
 		default:
 		{	
@@ -937,7 +1042,27 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// work ram
 	else if((address >= 0xc000) && (address <= 0xdfff))
 	{
-		cpu->wram[address - 0xc000] = data;
+		if(!cpu->is_cgb) // return normally its on a dmg
+		{
+			cpu->wram[address - 0xc000] = data;
+		}
+		
+		else
+		{
+			// if at 0xc000 - 0xcfff return from bank 0
+			if(address >= 0xc000 && address <= 0xcfff)
+			{
+				cpu->wram[address - 0xc000] = data;
+			}
+
+			// if a 0xd000-0xdfff return the current 
+			// internal ram bank
+			else 
+			{
+				cpu->cgb_ram_bank[(address - 0xd000) + (cpu->cgb_ram_bank_num * 0x1000)] = data;
+			}
+		}
+		
 		return;
 	}
 
@@ -954,11 +1079,21 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// vram can only be accesed at mode 0-2
 	else if(address >= 0x8000 && address <= 0x9fff)
 	{
-		uint8_t status = read_mem(0xff41,cpu);
+		uint8_t status = cpu->io[IO_STAT];
 		status &= 3; // get just the mode
 		if(status <= 2)
 		{
-			cpu->vram[address - 0x8000] = data;
+			uint16_t addr = address - 0x8000;
+			// bank is allways zero in dmg mode
+			if(cpu->vram_bank == 1) // cgb vram bank 
+			{
+				cpu->cgb_vram[addr] = data; 
+			}
+		
+			else
+			{
+				cpu->vram[addr] = data;
+			}
 		}
 		return;
 	}
@@ -966,7 +1101,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// oam is accesible during mode 0-1
 	else if(address >= 0xfe00 && address <= 0xfe9f)
 	{
-		uint8_t status = read_mem(0xff41,cpu);
+		uint8_t status = cpu->io[IO_STAT];
 		status &= 3; // get just the mode
 		// should be blocked during dma but possibly not to the ppu
 		if(status <= 1 && !cpu->oam_dma_active)
@@ -1098,9 +1233,24 @@ void do_dma(Cpu *cpu, uint8_t data)
 }
 
 
+
+
+
 uint8_t read_vram(uint16_t address, Cpu *cpu)
 {
-	return cpu->vram[address - 0x8000];
+	
+	uint16_t addr = address - 0x8000;
+	
+	// in dmg mode the bank will allways be zero
+	if(cpu->vram_bank == 1)
+	{
+		return cpu->cgb_vram[addr];
+	}
+	
+	else
+	{
+		return cpu->vram[addr];
+	}
 }
 
 uint8_t read_oam(uint16_t address, Cpu *cpu)
@@ -1277,12 +1427,29 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 		}	
 
 		
+		
+		// CGB
+		
+		
+		
 		// cgb vram bank unused on dmg
-		case 0x4f:
+		case IO_VBANK:
 		{
-			return 0xff;
+			return cpu->io[IO_VBANK];
 		}
 
+		
+		case IO_BGPD: 
+		{
+			return cpu->bg_pal[cpu->bg_pal_idx];
+		}
+		
+		case IO_SPPD:
+		{
+			return cpu->sp_pal[cpu->sp_pal_idx];
+		}
+		
+		
 		// default for hram
 		default:
 		{	
@@ -1366,7 +1533,27 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// work ram
 	else if((address >= 0xc000) && (address <= 0xdfff))
 	{
-		return cpu->wram[address - 0xc000];
+		if(!cpu->is_cgb) // return normally its on a dmg
+		{
+			return cpu->wram[address - 0xc000];
+		}
+		
+		else
+		{
+			// if at 0xc000 - 0xcfff return from bank 0
+			if(address >= 0xc000 && address <= 0xcfff)
+			{
+				return cpu->wram[address - 0xc000];
+			}
+
+			// if a 0xd000-0xdfff return the current 
+			// internal ram bank
+			else 
+			{
+				return cpu->cgb_ram_bank[(address - 0xd000) + (cpu->cgb_ram_bank_num * 0x1000)];
+			}
+
+		}
 	}
 
 	
@@ -1379,7 +1566,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// vram can only be accesed at mode 0-2
 	else if(address >= 0x8000 && address <= 0x9fff)
 	{
-		uint8_t status = read_mem(0xff41,cpu);
+		uint8_t status = cpu->io[IO_STAT];
 		status &= 3; // get just the mode
 		if(status <= 2)
 		{
@@ -1393,7 +1580,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// oam is accesible during mode 0-1
 	else if(address >= 0xfe00 && address <= 0xfe9f)
 	{
-		uint8_t status = read_mem(0xff41,cpu);
+		uint8_t status = cpu->io[IO_STAT];
 		status &= 3; // get just the mode
 		if(status <= 1 && !cpu->oam_dma_active) // cant access during dma? but ppu should?
 		{

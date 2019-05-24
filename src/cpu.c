@@ -207,10 +207,18 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
         default: printf("???"); break;
     }
 
-	printf("Queued audio: %d!\n",SDL_GetQueuedAudioSize(dev));
+	cpu.initial_sample =  SDL_GetQueuedAudioSize(dev);
+
+	printf("Queued audio: %d!\n",cpu.initial_sample);
 	
 	cpu.fp = fopen("audio.pcm","wb+");
 
+	
+	
+	// init the cgb stuff
+	memset(cpu.bg_pal,0xff,0x40);
+	memset(cpu.sp_pal,0xff,0x40);
+	
 	return cpu;
 }
 

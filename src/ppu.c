@@ -1,6 +1,14 @@
+
+// everything in here is done in terms of T cycles
+// https://github.com/sinamas/gambatte/tree/master/test/hwtests
+// + gekkio's tests need to be passed
+
+// then move onto cgb support
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "headers/cpu.h"
 #include "headers/lib.h"
 #include "headers/memory.h"
@@ -15,16 +23,9 @@
 
 
 
-
-
-// after sound the fetcher + pixel fifo needs implementing 
-// if this doesent fix screen tears look elsewhere....
-
 //add line 154 behaviour where it hits end of 153 but then waits an extra 114 cycles
 
-// our new screen driver implementation causes screen tearing in Pokemon
-// the current one on github where we dont just handle signals on mode changes
-// also outdated from the linux one so merge with it
+
 
 // metroid 2 final boss
 
@@ -62,10 +63,6 @@ bool is_lcd_enabled(Cpu *cpu)
 {
 	return ( is_set(cpu->io[IO_LCDC],7) );	
 }
-
-
-/* old implentation in ppu_signal passing irq test but doesent seem right
-   and causes screen tearing in many games */
 
 void update_stat(Cpu *cpu, int cycles)
 {
@@ -107,7 +104,7 @@ void update_stat(Cpu *cpu, int cycles)
 	else // <-- test interrupt(if true set signal line) and update the mode
 	{
 		// oam search (mode 2)
-		if(cpu->scanline_counter <= 20)
+		if(cpu->scanline_counter <= 80)
 		{
 			mode = 2;
 		}
@@ -120,20 +117,44 @@ void update_stat(Cpu *cpu, int cycles)
 			// we have just left oam search
 			if(mode != old_mode)
 			{
-				read_sprites(cpu);	
+				read_sprites(cpu);
+
+				cpu->x_scroll_tick = false;
+
+				// start of line wait scx % 8 T cycles
+				cpu->scx_cnt = cpu->io[IO_SCX] % 8;
+				if(cpu->scx_cnt)
+				{
+					cpu->x_scroll_tick = true;
+				}
+				
 			}
 
 			/*
 			; Expected behaviour:
 			;   (SCX mod 8) = 0   => LY increments 51 cycles after STAT interrupt
 			;   (SCX mod 8) = 1-4 => LY increments 50 cycles after STAT interrupt
-			; (SCX mod 8) = 5-7 => LY increments 49 cycles after STAT interrupt
+			;   (SCX mod 8) = 5-7 => LY increments 49 cycles after STAT interrupt
 			*/
 			
-			draw_scanline(cpu,cycles);
-			if(cpu->hblank)
+			// tick of the cycles
+			if(cpu->x_scroll_tick)
 			{
-				mode = 0;
+				cpu->scx_cnt -= cycles;
+				if(cpu->scx_cnt <= 0)
+				{
+					cpu->x_scroll_tick = false;
+				}
+			}
+			
+			
+			else if(!cpu->x_scroll_tick)
+			{
+				draw_scanline(cpu,cycles);
+				if(cpu->hblank)
+				{
+					mode = 0;
+				}
 			}
 		}
 		
@@ -170,6 +191,12 @@ void update_stat(Cpu *cpu, int cycles)
 	if(lyc == cpu->current_line)
 	{
 		set_bit(status,2); // toggle coincidence bit
+		
+		if(is_set(status,6))
+		{
+			cpu->signal = true;
+		}
+		
 	}
 	
 	else
@@ -200,6 +227,8 @@ void update_stat(Cpu *cpu, int cycles)
 
 void update_graphics(Cpu *cpu, int cycles)
 {
+	
+	cycles *= 4; // convert to to cycles
 
 	if(!is_lcd_enabled(cpu))
 	{
@@ -226,7 +255,7 @@ void update_graphics(Cpu *cpu, int cycles)
 
 
 	// we have finished drawing a line 
-	if(cpu->scanline_counter >= 114) 
+	if(cpu->scanline_counter >= 456) 
 	{
 		// reset the counter extra cycles should tick over
 		cpu->scanline_counter = 0;
@@ -235,7 +264,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		
 		
 		cpu->current_line++;
-
+		write_mem(cpu,0xff44,cpu->current_line); // for debugger
 		
 		// reset our fetcher :)
 		cpu->x_cord = 0;
@@ -308,51 +337,86 @@ void shift_fifo(Cpu *cpu, int shift)
 void push_pixel(Cpu *cpu) 
 {
 
-	int col_num = cpu->ppu_fifo[0].colour_num; // save the pixel we will shift
+	// each  rgb value takes two bytes in the pallete
+	int col_num = cpu->ppu_fifo[0].colour_num * 2; // save the pixel we will shift
+	int scanline = cpu->current_line;
 	
-	
-	int colour_address;
-	
-	if(cpu->ppu_fifo[0].source == TILE)
+	if(!cpu->is_cgb)
 	{
-		colour_address = 0xff47;
+		int colour_address;
+		
+		if(cpu->ppu_fifo[0].source == TILE)
+		{
+			colour_address = 0xff47;
+		}
+		
+		else if(cpu->ppu_fifo[0].source == SPRITE_ONE)
+		{
+			colour_address = 0xff49;
+		}
+		
+		else //(cpu->ppu_fifo[0].source == SPRITE_ZERO)
+		{
+			colour_address = 0xff48;
+		}
+
+		
+		int col = get_colour(cpu,col_num,colour_address); 
+		int red = 0;
+		int green = 0;
+		int blue = 0;
+		
+		switch(col)
+		{
+			case WHITE: red = 255; green = 255; blue = 255; break;
+			case LIGHT_GRAY: red = 0xCC; green = 0xCC; blue = 0xCC;  break;
+			case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77;  break;
+		}
+		
+		cpu->screen[scanline][cpu->x_cord][0] = red;
+		cpu->screen[scanline][cpu->x_cord][1] = green;
+		cpu->screen[scanline][cpu->x_cord][2] = blue;
 	}
 	
-	else if(cpu->ppu_fifo[0].source == SPRITE_ONE)
+	else // gameboy color
 	{
-		colour_address = 0xff49;
-	}
+		// for now we will assume tile just for arugments sake 
+		int cgb_pal = cpu->ppu_fifo[0].cgb_pal;
+		int col = 0;
+		if(cpu->ppu_fifo[0].source == TILE)
+		{
+			col = cpu->bg_pal[(cgb_pal * 8) + col_num];
+			col |= cpu->bg_pal[(cgb_pal * 8) + col_num + 1] << 8;
+		}
+		
+		
+		else // is a sprite
+		{
+			col = cpu->sp_pal[(cgb_pal * 8) + col_num];
+			col |= cpu->sp_pal[(cgb_pal * 8) + col_num + 1] << 8;			
+		}
+		
 	
-	else //(cpu->ppu_fifo[0].source == SPRITE_ZERO)
-	{
-		colour_address = 0xff48;
+		int blue = col & 0x1f;
+		int green = (col >> 5) & 0x1f;
+		int red = (col >> 10) & 0x1f;
+		
+		// convert rgb15 to rgb888
+		red = (red << 3) | (red >> 2);
+		blue = (blue << 3) | (blue >> 2);
+		green = (green << 3) | (green >> 2);
+		
+		//red = (red * 13 + green * 2 + blue) >> 1;
+		//green = (green * 3 + blue) << 1;
+		//blue = (red * 3 + green * 2 + blue * 11) >> 1;
+		
+		cpu->screen[scanline][cpu->x_cord][0] = red;
+		cpu->screen[scanline][cpu->x_cord][1] = green;
+		cpu->screen[scanline][cpu->x_cord][2] = blue;
+		
 	}
 	
 	shift_fifo(cpu,1); // shift a pixel out by one
-
-	
-	
-	// read the scanline 
-	int scanline = cpu->current_line;
-	
-	
-	int col = get_colour(cpu,col_num,colour_address); 
-	int red = 0;
-	int green = 0;
-	int blue = 0;
-	
-	switch(col)
-	{
-		case WHITE: red = 255; green = 255; blue = 255; break;
-		case LIGHT_GRAY: red = 0xCC; green = 0xCC; blue = 0xCC;  break;
-		case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77;  break;
-	}
-	
-	
-	cpu->screen[scanline][cpu->x_cord][0] = red;
-	cpu->screen[scanline][cpu->x_cord][1] = green;
-	cpu->screen[scanline][cpu->x_cord][2] = blue;	
-	
 	cpu->x_cord++; // goto next pixel 
 	if(cpu->x_cord >= 160)
 	{
@@ -365,14 +429,7 @@ void push_pixel(Cpu *cpu)
 
 
 
-// first two tiles dont render properly
 
-// now get sprites on teh fetcher 
-// need it at the end of oam search 
-// pulling the 10 sprites on the line or less 
-// and then triggering on them when there is a push attempt
-// in the pixel blit :)
-// this has been partily been implemented but i high doubt its accuracy
 
 // todo proper scx and window timings
 // as we current do not implement them at all 
@@ -388,15 +445,14 @@ void tick_fetcher(Cpu *cpu) {
 
 	// get lcd control reg
 	int control = cpu->io[IO_LCDC];
-/*	
-	int scanline = cpu->current_line;
+/*	int scanline = cpu->current_line;
 	int window_y  = cpu->io[IO_WY];
 	int window_x = cpu->io[IO_WX];
-*/	
+	
 	// if window has just started completly restart the tile fetcher
 	// causes visual bugs currently...
 	// maybye this should be done just after the xcord is incremented?
-	/*
+	
 	if(!cpu->window_start && is_set(control,5))
 	{
 		// starts now
@@ -409,7 +465,7 @@ void tick_fetcher(Cpu *cpu) {
 			cpu->tile_ready = false; 
 		}
 	}
-	*/
+*/	
 	// advance the fetcher if we dont have a tile dump waiting
 
 
@@ -532,9 +588,7 @@ void tick_fetcher(Cpu *cpu) {
 
 void draw_scanline(Cpu *cpu, int cycles) 
 {
-	// https://forums.nesdev.com/viewtopic.php?f=23&t=16612
-	// we use M cycles so * 4 <-- should be right?
-	for(int i = cycles*4; i != 0; i--) // one pixel per clock?
+	for(int i = cycles; i != 0; i--) // one pixel per clock?
 	{
 		tick_fetcher(cpu); // the ppu pipeline
 		if(cpu->hblank) { return; } // we are done
@@ -558,6 +612,10 @@ void tile_fetch(Cpu *cpu)
 	uint16_t tile_data = 0;
 	uint16_t background_mem = 0;
 	bool unsig = true;
+	
+	
+	int vram_bank = cpu->vram_bank; // backup the vram bank
+	
 	
 	// where to draw the visual area and window
 	uint8_t scroll_y = cpu->io[IO_SCY];
@@ -667,9 +725,13 @@ void tile_fetch(Cpu *cpu)
 		uint16_t tile_col = (x_pos/8);
 		int16_t tile_num;
 	
+
+	
 	
 		// get the tile identity num it can be signed or unsigned
 		uint16_t tile_address = background_mem + tile_row+tile_col;
+		
+		cpu->vram_bank = 0; // tile number allways in bank 0
 		if(unsig)
 		{
 			tile_num = (uint8_t)read_vram(tile_address,cpu);
@@ -678,6 +740,7 @@ void tile_fetch(Cpu *cpu)
 		{
 			tile_num = (int8_t)read_vram(tile_address,cpu);
 		}
+
 	
 		// deduce where this tile identifier is in memory
 		uint16_t tile_location = tile_data;
@@ -691,9 +754,28 @@ void tile_fetch(Cpu *cpu)
 			tile_location += ((tile_num+128)*16);
 		}
 	
+		
+		
+		// should cache these values before the loop but ignore for now
+		// x and y flip + priority needs to be implemented
+		int cgb_pal = -1;
+
+		if(cpu->is_cgb) // we are drawing in cgb mode 
+		{
+			cpu->vram_bank = 1; // assume vram one reading
+			cgb_pal = cpu->cgb_vram[tile_address - 0x8000] & 0x7; // get the pal number
+			
+			
+			// decide what bank data is coming out of
+			// allready one so dont check the other condition
+			if(!is_set(cpu->cgb_vram[tile_address - 0x8000],3))
+			{
+				cpu->vram_bank = 0;
+			}
+		}
+		
 		// find the correct vertical line we are on of the
-		// tile to get the tile data
-	
+		// tile to get the tile data		
 		uint8_t line = y_pos % 8;
 		line *= 2; // each line takes up two bytes of mem
 		uint8_t data1 = read_vram(tile_location + line,cpu);
@@ -714,10 +796,24 @@ void tile_fetch(Cpu *cpu)
 		colour_num |= val_bit(data1,color_bit);
 		
 		
+		
 		// save the color_num to the current pos int the tile fifo
-		cpu->fetcher_tile[i++].colour_num = colour_num;
+		
+		if(!cpu->is_cgb)
+		{
+			cpu->fetcher_tile[i++].colour_num = colour_num;
+		}
+		
+		else // cgb save the pallete value... 
+		{
+			cpu->fetcher_tile[i].colour_num = colour_num;
+			cpu->fetcher_tile[i++].cgb_pal = cgb_pal;
+		}
+		
 	}
 	cpu->tile_cord += 8; // goto next tile fetch
+	
+	cpu->vram_bank = vram_bank; // restore the bank number
 }
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
@@ -818,6 +914,8 @@ void read_sprites(Cpu *cpu)
 bool sprite_fetch(Cpu *cpu) 
 {
 	
+	int vram_bank = cpu->vram_bank; // backup the vram bank
+	
 	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
 
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
@@ -898,6 +996,11 @@ bool sprite_fetch(Cpu *cpu)
 			
 			line *= 2; // same as for tiles
 			uint16_t data_address = (0x8000 + (sprite_location * 16 )) + line;
+			if(is_set(attributes,3) && cpu->is_cgb) // if in cgb and attr has bit 3 set 
+			{
+				cpu->vram_bank = 1; // sprite data is out of vram bank 1
+			}
+				
 			uint8_t data1 = read_vram(data_address,cpu);
 			uint8_t data2 = read_vram(data_address+1,cpu);
 			
@@ -963,10 +1066,17 @@ bool sprite_fetch(Cpu *cpu)
 				{
 					cpu->ppu_fifo[x_pix].colour_num = colour_num;
 					cpu->ppu_fifo[x_pix].source = source;
+					if(cpu->is_cgb)
+					{
+						cpu->ppu_fifo[x_pix].cgb_pal = attributes & 0x7;
+					}
 				}
 			}
 		}
 	}
+	
+	cpu->vram_bank = vram_bank; 
+	
 	//return did_draw; <-- unsure on sprite timings
 	return false;
 }

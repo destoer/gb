@@ -12,7 +12,19 @@
 #include "headers/debug.h"
 #include "headers/apu.h"
 
-// sound support has broken overclocking (fix later)
+/* implementing cgb
+
+new vram bank
+
+new wram banks
+
+new dma transfers 
+
+double speed mode 
+
+new drawing functions 
+
+*/
 
 static int next_time;
 
@@ -31,6 +43,10 @@ uint32_t time_left(void)
 		return next_time - now;
 	}
 }
+
+
+
+
 /* TODO */
 
 // <----- Work on sound support pass test 04 
@@ -108,7 +124,25 @@ int main(int argc, char *argv[])
 	Cpu cpu = init_cpu(); // initalize the cpu
 	cpu.rom_mem = load_rom(argv[1]); // read the rom into a buffer
 	
-	printf("Cpu located at %p\n",&cpu);
+	// detect if the gameboy is in CGB mode 
+	
+	switch(cpu.rom_mem[0x143])
+	{
+		case 0x80: cpu.is_cgb = true; break; // add options to run cgb in dmg1
+		case 0xc0: cpu.is_cgb = true; break;
+		default: cpu.is_cgb = false; break;
+	}
+	
+	// set the cgb initial registers 
+	if(cpu.is_cgb)
+	{
+		cpu.af.reg = 0x1180;
+		cpu.bc.reg = 0x0000;
+		cpu.de.reg = 0xff56;
+		cpu.hl.reg = 0x000d;
+		cpu.sp = 0xfffe;
+	}
+	
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
 	if(cpu.rom_info.noRamBanks > 0)
@@ -121,8 +155,8 @@ int main(int argc, char *argv[])
 		// dont allow any access
 		cpu.ram_banks = NULL;
 	}
-/*
-	test code to boot a bios	
+
+/*	//test code to boot a bios	
 		
 	memset(cpu.io,0,0x100);
 	cpu.af.reg = 0;
@@ -133,8 +167,11 @@ int main(int argc, char *argv[])
 	
 	FILE *fpbin = fopen("dmg_boot.bin","rb");	
 
+	fseek(fpbin,0,SEEK_END);
+	int len = ftell(fpbin);
+	rewind(fpbin);
 
-	fread(cpu.rom_mem,1,256,fpbin);
+	fread(cpu.rom_mem,1,len,fpbin);
 
 	fclose(fpbin);
 
@@ -181,9 +218,7 @@ int main(int argc, char *argv[])
 		SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STATIC, X, Y);
 	memset(cpu.screen ,255,Y * X *  4 * sizeof(uint8_t));
 	
-	#ifdef DEBUG
-		bool speed_up = false;
-	#endif
+
 	
 
 	
@@ -275,16 +310,18 @@ int main(int argc, char *argv[])
 
 					case SDLK_l:
 					{
-						speed_up = !speed_up;
+						// we are switching off 
+						// we should drop the audio
+						if(cpu.speed_up)
+						{
+							SDL_ClearQueuedAudio(1);
+						}
+						
+						cpu.speed_up = !cpu.speed_up;
 						break;
 					}
 
-					#endif
-					
-
-					
-					
-					
+					#endif	
 				}
 				if(key != -1)
 				{
@@ -484,9 +521,9 @@ int main(int argc, char *argv[])
 		// delay to keep our emulator running at the correct speed
 		// if in debug mode the l key toggles speedup
 		#ifdef DEBUG
-		if(speed_up)
+		if(cpu.speed_up)
 		{
-			//SDL_Delay(time_left() / 8);
+			SDL_Delay(time_left() / 8);
 		}
 
 		else

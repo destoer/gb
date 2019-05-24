@@ -1,12 +1,10 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
-#ifdef __linux__
-	#include <SDL2/SDL.h>
-#elif _WIN32
-	#include "D:/projects/gameboy/sdllib/include/SDL2/SDL.h" 
-	//#include "E:/projects/gameboy/sdllib/include/SDL2/SDL.h"
-#endif 
+#include <SDL2/SDL.h>
+
+
+
 
 // sound sample size
 #define SAMPLE_SIZE 1024
@@ -62,10 +60,13 @@ typedef struct // struct for holding sprites on a scanline
 #define SPRITE_ZERO 1
 #define SPRITE_ONE 2
 
+// NEED new prioritys implemented for cgb
+
 typedef struct 
 {
 	int colour_num;
 	int source;
+	int cgb_pal;
 	
 } Pixel_Obj;
 
@@ -98,6 +99,12 @@ typedef struct
 #define IO_WX 0x4b
 #define IO_WY 0x4a
 #define IO_SCY 0x42
+#define IO_SPEED 0x4D
+#define IO_VBANK 0x4f
+#define IO_BGPI 0x68
+#define IO_BGPD 0x69
+#define IO_SPPI 0x6a
+#define IO_SPPD 0x6b
 #define IO_LCDC 0x40
 #define IO_STAT 0x41
 #define IO_LYC 0x45
@@ -109,7 +116,7 @@ typedef struct
 #define IO_SC 0x02
 
 #define IO_SCX 0x43
-
+#define IO_SVBK 0x70
 
 
 // potentially add constants for unused bits
