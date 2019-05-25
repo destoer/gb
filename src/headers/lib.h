@@ -57,6 +57,7 @@ typedef struct // struct for holding sprites on a scanline
 
 
 #define TILE 0
+#define TILE_CGBD 3 // priority over everything when set in tile attr
 #define SPRITE_ZERO 1
 #define SPRITE_ONE 2
 
@@ -117,6 +118,15 @@ typedef struct
 
 #define IO_SCX 0x43
 #define IO_SVBK 0x70
+
+// cgb dma 
+#define IO_HDMA1 0x51
+#define IO_HDMA2 0x52
+
+#define IO_HDMA3 0x53
+#define IO_HDMA4 0x54
+
+#define IO_HDMA5 0x55
 
 
 // potentially add constants for unused bits

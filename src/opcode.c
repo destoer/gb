@@ -177,9 +177,28 @@ int step_cpu(Cpu * cpu)
 			
 			// most games should never even execute this 
 		case 0x10: // stop 
-			puts("fix stop"); // <-- does not emualte teh correct functionalitly of this instr
+			//puts("fix stop"); // <-- does not emualte teh correct functionalitly of this instr
 			cpu->pc += 1; // skip over next byte
-			//exit(1);
+			
+			// if bit one is set we are gonna do a speed switch
+			if(cpu->is_cgb && is_set(cpu->io[IO_SPEED],1))
+			{
+				deset_bit(cpu->io[IO_SPEED],0); // clear the bit
+				
+				if(is_set(cpu->io[IO_SPEED],7))
+				{
+					deset_bit(cpu->io[IO_SPEED],7);
+				}
+				
+				else
+				{
+					set_bit(cpu->io[IO_SPEED],7);
+				}
+			
+				cpu->is_double = is_set(cpu->io[IO_SPEED],7);
+			
+			}
+			
 			break;
 			
 		case 0x11: // ld de, nn

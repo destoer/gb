@@ -37,7 +37,7 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 			return;
 		}
 
-		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2 || cpu->rom_info.mbc3)
+		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2 || cpu->rom_info.mbc3 || cpu->rom_info.mbc5)
 		{
 			do_ram_bank_enable(cpu,address,data);
 		}
@@ -66,6 +66,43 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 			
 			if(cpu->currentrom_bank == 0) cpu->currentrom_bank = 1;
 		}
+		
+		
+		else if(cpu->rom_info.mbc5)
+		{
+			if(address <= 0x2000 && address <= 0x2fff)
+			{
+				cpu->currentrom_bank  &= ~0xff;
+				cpu->currentrom_bank |= data;
+				
+				if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
+				{
+					//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
+					cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
+					//printf("new rom bank %d\n",cpu->currentrom_bank);
+					//exit(1);
+				}
+				
+				// bank zero actullay acceses bank 0
+				
+			}
+			
+			
+			else if(address <= 0x3000 && address <= 0x3fff)
+			{
+				cpu->currentrom_bank &= 0xff;
+				cpu->currentrom_bank |= (data & 1) << 8; // 9th bank bit
+				if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
+				{
+					//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
+					cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
+					//printf("new rom bank %d\n",cpu->currentrom_bank);
+					//exit(1);
+				}
+				
+			}
+		}
+		
 	}
 	
 	else if((address >= 0x4000) && (address < 0x6000))
@@ -104,6 +141,19 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 			
 			//puts("MBC3 ram change");	
 		}
+		
+		else if(cpu->rom_info.mbc5)
+		{
+			cpu->currentram_bank = data & 0xf;
+			
+			
+			if(cpu->currentram_bank >= cpu->rom_info.noRamBanks)
+			{
+				cpu->currentram_bank %= cpu->rom_info.noRamBanks;	
+			}
+			
+		}
+		
 	}
 	
 	// this changes wether we want to rom or ram bank

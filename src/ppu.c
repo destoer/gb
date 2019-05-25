@@ -160,8 +160,8 @@ void update_stat(Cpu *cpu, int cycles)
 		
 		// hblank mode 0
 		else
-		{ 
-			mode = 0; 
+		{
+			mode = 0;
 		}
 	}
 	
@@ -223,12 +223,39 @@ void update_stat(Cpu *cpu, int cycles)
 	
 	// update our status reg
 	cpu->io[IO_STAT] = status | 128 | mode;
+	
+	//gdma pending (if we have just hit hblank and hdma5 has bit 7 set
+	if(old_mode != mode && mode == 0 && is_set(cpu->io[IO_HDMA5],7))
+	{
+		puts("HDMA!");
+		uint16_t source = cpu->io[IO_HDMA1] << 8;
+		source |= cpu->io[IO_HDMA2] & 0xf0;
+				
+		uint16_t dest = (cpu->io[IO_HDMA3] & 0x31) << 8;
+		dest |= cpu->io[IO_HDMA4] & 0xf0;
+				
+				
+		// find out how many cycles we tick but for now just copy the whole damb thing 
+				
+		for(int i = cpu->gdma_len_ticked*0x10; i < (cpu->gdma_len_ticked+1)*0x10; i++)
+		{
+			write_memt(cpu,dest+i,read_memt(source+i,cpu));
+		}
+
+				
+		// gdma is over 
+		if(++cpu->gdma_len_ticked > cpu->gdma_len)
+		{
+			deset_bit(cpu->io[IO_HDMA5],7);
+		}	
+	}	
+	
+	
 }
 
 void update_graphics(Cpu *cpu, int cycles)
 {
-	
-	cycles *= 4; // convert to to cycles
+	cycles *= 4;
 
 	if(!is_lcd_enabled(cpu))
 	{
@@ -264,8 +291,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		
 		
 		cpu->current_line++;
-		write_mem(cpu,0xff44,cpu->current_line); // for debugger
-		
+
 		// reset our fetcher :)
 		cpu->x_cord = 0;
 		cpu->tile_ready = false;
@@ -337,8 +363,15 @@ void shift_fifo(Cpu *cpu, int shift)
 void push_pixel(Cpu *cpu) 
 {
 
-	// each  rgb value takes two bytes in the pallete
-	int col_num = cpu->ppu_fifo[0].colour_num * 2; // save the pixel we will shift
+	
+	int col_num = cpu->ppu_fifo[0].colour_num; // save the pixel we will shift
+	
+	// each  rgb value takes two bytes in the pallete for cgb
+	if(cpu->is_cgb)
+	{
+		col_num *= 2;
+	}
+	
 	int scanline = cpu->current_line;
 	
 	if(!cpu->is_cgb)
@@ -397,6 +430,7 @@ void push_pixel(Cpu *cpu)
 		}
 		
 	
+		// gameboy stores palletes in bgr format?
 		int blue = col & 0x1f;
 		int green = (col >> 5) & 0x1f;
 		int red = (col >> 10) & 0x1f;
@@ -759,16 +793,23 @@ void tile_fetch(Cpu *cpu)
 		// should cache these values before the loop but ignore for now
 		// x and y flip + priority needs to be implemented
 		int cgb_pal = -1;
-
+		bool priority = false;
 		if(cpu->is_cgb) // we are drawing in cgb mode 
 		{
 			cpu->vram_bank = 1; // assume vram one reading
-			cgb_pal = cpu->cgb_vram[tile_address - 0x8000] & 0x7; // get the pal number
+			uint8_t attr = cpu->cgb_vram[tile_address - 0x8000];
+			cgb_pal = attr & 0x7; // get the pal number
 			
+			
+			// draw over sprites
+			if(is_set(attr,7))
+			{
+				priority = true;
+			}
 			
 			// decide what bank data is coming out of
 			// allready one so dont check the other condition
-			if(!is_set(cpu->cgb_vram[tile_address - 0x8000],3))
+			if(!is_set(attr,3))
 			{
 				cpu->vram_bank = 0;
 			}
@@ -801,14 +842,27 @@ void tile_fetch(Cpu *cpu)
 		
 		if(!cpu->is_cgb)
 		{
-			cpu->fetcher_tile[i++].colour_num = colour_num;
+			cpu->fetcher_tile[i].colour_num = colour_num;
 		}
 		
 		else // cgb save the pallete value... 
 		{
 			cpu->fetcher_tile[i].colour_num = colour_num;
-			cpu->fetcher_tile[i++].cgb_pal = cgb_pal;
+			cpu->fetcher_tile[i].cgb_pal = cgb_pal;
 		}
+		
+		// in cgb an priority bit is set
+		if(priority)
+		{
+			cpu->fetcher_tile[i].source = TILE_CGBD;
+		}
+		
+		else 
+		{
+			cpu->fetcher_tile[i].source = TILE;
+		}
+		
+		i++; // goto next tile
 		
 	}
 	cpu->tile_cord += 8; // goto next tile fetch
@@ -914,10 +968,14 @@ void read_sprites(Cpu *cpu)
 bool sprite_fetch(Cpu *cpu) 
 {
 	
+	
 	int vram_bank = cpu->vram_bank; // backup the vram bank
 	
 	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
 
+	// in cgb if lcdc bit 0 is deset sprites draw over anything
+	bool draw_over_everything = !is_set(lcd_control,0) && cpu->is_cgb;
+	
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 
 	int scanline = cpu->current_line;
@@ -1051,7 +1109,11 @@ bool sprite_fetch(Cpu *cpu)
 				{
 					if(cpu->ppu_fifo[x_pix].colour_num != 0)
 					{
-						continue;
+						// need to test for the overide in lcdc on cgb
+						if(!draw_over_everything)
+						{
+							continue;
+						}
 					}	
 				}
 				
@@ -1062,7 +1124,14 @@ bool sprite_fetch(Cpu *cpu)
 				// if the current posisiton is the fifo is not a sprite
 				// then this current pixel wins 
 				
-				if(cpu->ppu_fifo[x_pix].source == TILE)
+				
+				// in cgb if tile has priority set in its attributes it will draw over it 
+				// unless overidded by lcdc
+				
+				// if this is not set it can only draw if the tile does not have its priority 
+				// bit set in cgb mode
+				
+				if(cpu->ppu_fifo[x_pix].source != TILE_CGBD || draw_over_everything)
 				{
 					cpu->ppu_fifo[x_pix].colour_num = colour_num;
 					cpu->ppu_fifo[x_pix].source = source;

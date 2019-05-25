@@ -41,7 +41,7 @@ RomInfo parse_rom(uint8_t *rom)
 	printf("Internal name: %s\n",&rom[0x134]); // print the name of the rom
 	
 	romInfo.cartType = rom[0x147]; // make a constant list later along with string array
-	printf("Cart type: %d\n",romInfo.cartType);
+	printf("Cart type: %x\n",romInfo.cartType);
 	
 	
 	romInfo.mbc1 = false;
@@ -53,7 +53,8 @@ RomInfo parse_rom(uint8_t *rom)
 		case 0: puts("rom only"); break;
 		case 1 ... 3: romInfo.mbc1 = true; puts("mbc1"); break;
 		case 5 ... 6: romInfo.mbc2 = true; puts("mbc2"); break;
-		case 16: romInfo.mbc3 = true; romInfo.has_rtc = true; break;
+		case 10: romInfo.mbc3 = true; puts("mbc3"); romInfo.has_rtc = true;  break;
+		case 0x1b: romInfo.mbc5 = true; puts("mbc5"); break; // is mbc5 but we will just run like this and ignore it for now
 		default: romInfo.mbc3 = true; puts("mbc3"); break; // should be handled properly later
 	}
 	
@@ -70,12 +71,13 @@ RomInfo parse_rom(uint8_t *rom)
 		case 4: romInfo.noRomBanks = 32; break;
 		case 5: romInfo.noRomBanks = 64; break;
 		case 6: romInfo.noRomBanks = 128; break;
+		case 7: romInfo.noRomBanks = 256; break;
 		case 0x52: romInfo.noRomBanks = 72; break;
 		case 0x53: romInfo.noRomBanks = 80; break;
 		case 0x54: romInfo.noRomBanks = 96; break;
 	
 		default:
-			fprintf(stderr, "Unrecognized number of rom banks\n");
+			fprintf(stderr, "Unrecognized number of rom banks: %x\n",banks);
 			exit(1);
 	}
 	

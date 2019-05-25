@@ -31,6 +31,29 @@ void write_oam(Cpu *cpu, uint16_t address, int data)
 	cpu->oam[address & 0xff] = data;	
 }
 
+
+void start_gdma(Cpu *cpu)
+{
+	uint16_t source = cpu->io[IO_HDMA1] << 8;
+	source |= cpu->io[IO_HDMA2] & 0xf0;
+	
+	uint16_t dest = (cpu->io[IO_HDMA3] & 0x31) << 8;
+	dest |= cpu->io[IO_HDMA4] & 0xf0;
+	
+	// hdma5 stores how many 16 byte incremnts we have to transfer
+	int len = ((cpu->io[IO_HDMA5] & 0x7f) + 1) * 0x10;
+	
+	
+	// find out how many cycles we tick but for now just copy the whole damb thing 
+	
+	for(int i = 0; i < len; i++)
+	{
+		write_memt(cpu,dest+i,read_memt(source+i,cpu));
+	}
+	
+}
+
+
 // needs reindentation
 void write_io(Cpu *cpu,uint16_t address, int data)
 {
@@ -48,12 +71,12 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 	#endif
 	
 	
-	if(address >= 0xff51 && address <= 0xff55)
+	/*if(address >= 0xff51 && address <= 0xff55)
 	{
 		printf("unhandled dma! %x\n",address);
 		exit(1);
 	}
-	
+	*/
 	
 	
 	switch(address & 0xff)
@@ -909,13 +932,28 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 
 		case IO_SPEED:
 		{
-			puts("double speed mode unsupported!");
-			getchar();
-			exit(1);
+			// not cgb return ff 
+			if(!cpu->is_cgb)
+			{
+				cpu->io[address & 0xff] = 0xff;
+				return;
+			}
+			
+			//puts("double speed mode unsupported!");
+			cpu->io[IO_SPEED] = (data & 0x7f) | 0x7e;
+			//getchar();
+			//exit(1);
 		}
 
 		case IO_VBANK: // what vram bank are we writing to?
 		{
+			// not cgb return data
+			if(!cpu->is_cgb)
+			{
+				cpu->io[address & 0xff] = data;
+				return;
+			}
+			
 			if(cpu->is_cgb)
 			{
 				cpu->vram_bank = data & 1;
@@ -926,6 +964,13 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 
 		case IO_BGPI:
 		{
+			// not cgb return ff 
+			if(!cpu->is_cgb)
+			{
+				cpu->io[address & 0xff] = data;
+				return;
+			}
+			
 			cpu->bg_pal_idx = data &  0x3f;
 			cpu->io[IO_BGPI] = data | 0x40;
 			return;
@@ -933,6 +978,13 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 
 		case IO_BGPD: // finish later 
 		{
+			// not cgb return ff 
+			if(!cpu->is_cgb)
+			{
+				cpu->io[address & 0xff] = data;
+				return;
+			}
+			
 			if((cpu->io[IO_STAT] & 0x3) <= 1)
 			{
 				cpu->bg_pal[cpu->bg_pal_idx] = data; 
@@ -948,6 +1000,13 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 
 		case IO_SPPI: // sprite pallete index
 		{
+			// not cgb return ff 
+			if(!cpu->is_cgb)
+			{
+				cpu->io[address & 0xff] = data;
+				return;
+			}			
+			
 			cpu->sp_pal_idx = data & 0x3f;
 			cpu->io[IO_SPPI] = data | 0x40;
 			return;
@@ -955,6 +1014,13 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		
 		case IO_SPPD: // sprite pallete data
 		{
+			// not cgb return ff 
+			if(!cpu->is_cgb)
+			{
+				cpu->io[address & 0xff] = data;
+				return;
+			}			
+			
 			// only in hblank and vblank
 			if((cpu->io[IO_STAT] & 0x3) <= 1)
 			{
@@ -967,7 +1033,29 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				cpu->io[IO_SPPI] |= cpu->sp_pal_idx;
 			}
 			return;
-		}		
+		}
+	
+		// cgb dma start
+		case IO_HDMA5:
+		{
+			cpu->io[IO_HDMA5] = data;
+			// if data is zero do a gdma
+			// bit 1 will start a hdma during hblank
+			if(is_set(data,0)) 
+			{
+				start_gdma(cpu);
+			}
+			
+			else // start a gdma
+			{
+				//puts("unhandled gdma!");
+				// number of 16 byte incremnts to transfer
+				cpu->gdma_len = cpu->io[IO_HDMA5] & 0x7f;
+				cpu->gdma_len_ticked = 0;
+			}
+			return;
+		}
+		
 		// default for hram
 		default:
 		{	

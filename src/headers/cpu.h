@@ -261,7 +261,8 @@ typedef struct
 	int sp_pal_idx;
 	int bg_pal_idx; // index into the bg pal (entry takes two bytes)
 	
-	
+	int gdma_len; // length to transfer on a  gdma
+	int gdma_len_ticked; // how many total dma transfers we have done
 	
 } Cpu;
 

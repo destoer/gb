@@ -420,14 +420,35 @@ uint16_t read_stackwt(Cpu *cpu)
 
 void cycle_tick(Cpu *cpu,int cycles)
 {
-	update_timers(cpu,cycles); // <--- update timers 
-	update_graphics(cpu,cycles); // handle the lcd emulation
-	tick_apu(cpu,cycles); // advance the ppu state
-	// if dma transfer is active tick it 
-	
-	if(cpu->oam_dma_active)
+	if(cpu->is_double) // in double speed mode
 	{
-		tick_dma(cpu, cycles);
+		// timer and oam dma operate at double speed
+		// along with the cpu
+		update_timers(cpu,cycles); // <--- update timers 
+		if(cpu->oam_dma_active)
+		{
+			tick_dma(cpu, cycles);
+		}
+		
+		// lcd and apu operate at normal speed
+		// i.e at half the speed
+		
+		
+		update_graphics(cpu,cycles); // handle the lcd emulation
+		tick_apu(cpu,cycles); // advance the ppu state
+	}
+	
+	else 
+	{
+		update_timers(cpu,cycles); // <--- update timers 
+		update_graphics(cpu,cycles); // handle the lcd emulation
+		tick_apu(cpu,cycles); // advance the ppu state
+		// if dma transfer is active tick it 
+		
+		if(cpu->oam_dma_active)
+		{
+			tick_dma(cpu, cycles);
+		}
 	}
 }
 
