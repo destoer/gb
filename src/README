@@ -11,3 +11,6 @@ rom.c - handles loading the rom and pulling information out of the header the em
 banking.c - handles banking switching for the rom
 lib.c - various handy functions eg bit operations
 debug.c - text based debugger implemenation for debugging the emulators compile with -DDEBUG to enable it
+
+
+* Note * cgb support is in a very early stage dma and double speed mode are very buggy
