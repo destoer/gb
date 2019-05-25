@@ -433,6 +433,9 @@ void cycle_tick(Cpu *cpu,int cycles)
 		// lcd and apu operate at normal speed
 		// i.e at half the speed
 		
+		// not implemented need to switch apu over to t cycles 
+		// so that i can just divide cycles by two very easily 
+		// i.e make everything not in double speed twice as slow
 		
 		update_graphics(cpu,cycles); // handle the lcd emulation
 		tick_apu(cpu,cycles); // advance the ppu state

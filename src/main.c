@@ -497,9 +497,18 @@ int main(int argc, char *argv[])
 						cycles_this_update += 1;
 						// just tick it
 						update_timers(&cpu,1); // <--- update timers 
-						update_graphics(&cpu,4); // handle the lcd emulation
-						tick_apu(&cpu,4);
-									// may need to tick dma here....
+						if(!cpu.is_double)
+						{
+							update_graphics(&cpu,1); // handle the lcd emulation
+							tick_apu(&cpu,1);
+						}
+						else  // double speed needs implementing
+						{
+							update_graphics(&cpu,1); // handle the lcd emulation
+							tick_apu(&cpu,1);							
+						}
+						
+						// may need to tick dma here....
 												
 						req = cpu.io[IO_IF];
 						enabled = cpu.io[IO_IE];
