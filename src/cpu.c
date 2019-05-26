@@ -92,8 +92,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 
 	
 	cpu.pc = 0x100; // reset at 0x100
-	cpu.tacfreq = 256; // number of machine cycles till update
-	cpu.div_counter = 0;
+
 	cpu.scanline_counter = 0;
 	cpu.current_line = 0;
 	cpu.signal = false;
@@ -432,20 +431,19 @@ void cycle_tick(Cpu *cpu,int cycles)
 		
 		// lcd and apu operate at normal speed
 		// i.e at half the speed
+	
+		// not sure if this is the correct way to emulate it 
+		// sound seems horribly broken in double speed mode :)
 		
-		// not implemented need to switch apu over to t cycles 
-		// so that i can just divide cycles by two very easily 
-		// i.e make everything not in double speed twice as slow
-		
-		update_graphics(cpu,cycles); // handle the lcd emulation
-		tick_apu(cpu,cycles); // advance the ppu state
+		update_graphics(cpu,cycles*2); // handle the lcd emulation
+		tick_apu(cpu,cycles*2); // advance the apu state
 	}
 	
 	else 
 	{
 		update_timers(cpu,cycles); // <--- update timers 
-		update_graphics(cpu,cycles); // handle the lcd emulation
-		tick_apu(cpu,cycles); // advance the ppu state
+		update_graphics(cpu,cycles*4); // handle the lcd emulation
+		tick_apu(cpu,cycles*4); // advance the apu state
 		// if dma transfer is active tick it 
 		
 		if(cpu->oam_dma_active)

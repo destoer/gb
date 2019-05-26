@@ -138,7 +138,7 @@ void update_stat(Cpu *cpu, int cycles)
 			*/
 			
 			// tick of the cycles
-			if(cpu->x_scroll_tick)
+			/*if(cpu->x_scroll_tick)
 			{
 				cpu->scx_cnt -= cycles;
 				if(cpu->scx_cnt <= 0)
@@ -146,9 +146,9 @@ void update_stat(Cpu *cpu, int cycles)
 					cpu->x_scroll_tick = false;
 				}
 			}
+			*/
 			
-			
-			else if(!cpu->x_scroll_tick)
+			//else if(!cpu->x_scroll_tick)
 			{
 				draw_scanline(cpu,cycles);
 				if(cpu->hblank)
@@ -209,17 +209,18 @@ void update_stat(Cpu *cpu, int cycles)
 	if(is_set(status,6) && is_set(status,2))
 	{
 		cpu->signal = true;
+		// if we have changed from 0 to 1 for signal(signal edge)
+		// request a stat interrupt
+		if(!signal_old && cpu->signal)
+		{
+			request_interrupt(cpu,1);	
+		}
 	}
 
 
 
 
-	// if we have changed from 0 to 1 for signal(signal edge)
-	// request a stat interrupt
-	if(!signal_old && cpu->signal)
-	{
-		request_interrupt(cpu,1);	
-	}
+
 	
 	// update our status reg
 	cpu->io[IO_STAT] = status | 128 | mode;
@@ -231,23 +232,39 @@ void update_stat(Cpu *cpu, int cycles)
 		uint16_t source = cpu->io[IO_HDMA1] << 8;
 		source |= cpu->io[IO_HDMA2] & 0xf0;
 				
-		uint16_t dest = (cpu->io[IO_HDMA3] & 0x31) << 8;
-		dest |= cpu->io[IO_HDMA4] & 0xf0;
+		uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
+		dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000;
 				
-				
+		source += cpu->hdma_len_ticked*0x10;
+		dest += cpu->hdma_len_ticked*0x10;
+		/*if(!(source <= 0x7ff0 || ( source >= 0xa000 && source <= 0xdff0)))
+		{
+			printf("ILEGGAL HDMA SOURCE: %X!\n",source);
+			exit(1);
+		}
+		*/
 		// find out how many cycles we tick but for now just copy the whole damb thing 
 				
-		for(int i = cpu->gdma_len_ticked*0x10; i < (cpu->gdma_len_ticked+1)*0x10; i++)
+		for(int i = source; i < 0x10; i++)
 		{
-			write_memt(cpu,dest+i,read_memt(source+i,cpu));
+			write_mem(cpu,dest+i,read_mem(source+i,cpu));
 		}
 
+		// 2  M cycles for each 0x10 block
+		cycle_tick(cpu,2);
 				
-		// gdma is over 
-		if(++cpu->gdma_len_ticked > cpu->gdma_len)
+		// hdma is over 
+		if(--cpu->hdma_len <= 0)
 		{
 			deset_bit(cpu->io[IO_HDMA5],7);
-		}	
+		}
+
+		// goto next block
+		else
+		{
+			cpu->hdma_len_ticked++;
+		}
+	
 	}	
 	
 	
@@ -255,7 +272,7 @@ void update_stat(Cpu *cpu, int cycles)
 
 void update_graphics(Cpu *cpu, int cycles)
 {
-	cycles *= 4;
+	//cycles *= 4;
 
 	if(!is_lcd_enabled(cpu))
 	{

@@ -193,6 +193,8 @@ int step_cpu(Cpu * cpu)
 				else
 				{
 					set_bit(cpu->io[IO_SPEED],7);
+					//puts("DOUBLE SPEED!");
+					//exit(1);
 				}
 			
 				cpu->is_double = is_set(cpu->io[IO_SPEED],7);

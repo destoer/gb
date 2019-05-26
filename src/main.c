@@ -136,6 +136,9 @@ int main(int argc, char *argv[])
 	// set the cgb initial registers 
 	if(cpu.is_cgb)
 	{
+	
+		puts("CGB MODE!");
+
 		cpu.af.reg = 0x1180;
 		cpu.bc.reg = 0x0000;
 		cpu.de.reg = 0xff56;
@@ -143,6 +146,12 @@ int main(int argc, char *argv[])
 		cpu.sp = 0xfffe;
 	}
 	
+
+
+	else
+	{
+		puts("DMG MODE!");
+	}
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
 	if(cpu.rom_info.noRamBanks > 0)
@@ -220,7 +229,6 @@ int main(int argc, char *argv[])
 	
 
 	
-
 	
 	for(;;)
 	{
@@ -298,6 +306,8 @@ int main(int argc, char *argv[])
 					case SDLK_LEFT: key = 1; break;
 					case SDLK_UP: key = 2; break;
 					case SDLK_DOWN: key = 3; break;
+					
+
 					
 					
 					#ifdef DEBUG
@@ -499,13 +509,14 @@ int main(int argc, char *argv[])
 						update_timers(&cpu,1); // <--- update timers 
 						if(!cpu.is_double)
 						{
-							update_graphics(&cpu,1); // handle the lcd emulation
-							tick_apu(&cpu,1);
+							// graphics uses t cycles
+							update_graphics(&cpu,4); // handle the lcd emulation
+							tick_apu(&cpu,4);
 						}
 						else  // double speed needs implementing
 						{
-							update_graphics(&cpu,1); // handle the lcd emulation
-							tick_apu(&cpu,1);							
+							update_graphics(&cpu,2); // handle the lcd emulation
+							tick_apu(&cpu,2);							
 						}
 						
 						// may need to tick dma here....

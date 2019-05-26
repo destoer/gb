@@ -34,11 +34,15 @@ void write_oam(Cpu *cpu, uint16_t address, int data)
 
 void start_gdma(Cpu *cpu)
 {
+	puts("GDMA!");
+	//exit(1);
+
+
 	uint16_t source = cpu->io[IO_HDMA1] << 8;
 	source |= cpu->io[IO_HDMA2] & 0xf0;
 	
-	uint16_t dest = (cpu->io[IO_HDMA3] & 0x31) << 8;
-	dest |= cpu->io[IO_HDMA4] & 0xf0;
+	uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
+	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000; // unsure about the | 0x8000...
 	
 	// hdma5 stores how many 16 byte incremnts we have to transfer
 	int len = ((cpu->io[IO_HDMA5] & 0x7f) + 1) * 0x10;
@@ -48,8 +52,11 @@ void start_gdma(Cpu *cpu)
 	
 	for(int i = 0; i < len; i++)
 	{
-		write_memt(cpu,dest+i,read_memt(source+i,cpu));
+		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
+
+	cycle_tick(cpu,2*(len / 0x10)); // 2 M cycles for each 10 byte block
+
 	
 }
 
@@ -84,16 +91,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		// update the timer freq (tac in gb docs)
 		case IO_TMC:
 		{
-				
-			// timer is set to CLOCKSPEED/freq/4 (4 to convert to machine cycles)
-			// <--- needs verifying
-			uint8_t currentfreq = cpu->io[IO_TMC] & 3;
 			cpu->io[IO_TMC] = data | 248;
-				
-			if(currentfreq != (data & 3) )
-			{
-				cpu->timer_counter = set_clock_freq(cpu);
-			}
 			return;
 		}
 			
@@ -311,7 +309,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					}
 						
 					// reload period and reset duty
-					cpu->square[0].period = ((2048 - cpu->square[0].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[0].period = ((2048 - cpu->square[0].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
 					cpu->square[0].env_period = cpu->square[0].env_load;
 					cpu->square[0].duty_idx = 0; // reset duty					
 					cpu->square[0].volume = cpu->square[0].volume_load;
@@ -484,7 +482,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					}
 					// reload period and reset duty
 					cpu->square[1].volume = cpu->square[1].volume_load;
-					cpu->square[1].period = ((2048 - cpu->square[1].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[1].period = ((2048 - cpu->square[1].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
 					cpu->square[1].env_period = cpu->square[1].env_load;
 					cpu->square[1].duty_idx = 0; // reset duty
 					cpu->square[1].env_enabled = true;
@@ -620,7 +618,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					cpu->square[2].duty_idx = 0; // reset the wave index
 					// reload the wave peroid 
 					// period (2048-frequency)*2
-					cpu->square[2].period = ((2048 - cpu->square[2].freq)*2) / 4; // may need to be / 4 for M cycles
+					cpu->square[2].period = ((2048 - cpu->square[2].freq)*2); // may need to be / 4 for M cycles
 					cpu->square[2].volume = cpu->square[2].volume_load;
 				}
 					
@@ -736,12 +734,12 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					}
 					// reload period and reset duty
 					cpu->square[3].volume = cpu->square[3].volume_load;
-					cpu->square[3].period = ((2048 - cpu->square[3].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[3].period = ((2048 - cpu->square[3].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
 					cpu->square[3].env_period = cpu->square[3].env_load;
 					cpu->square[3].env_enabled = true;	
 
 					// noise channel stuff
-					cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift) / 4;
+					cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift); // / 4
 					cpu->shift_reg = 0x7fff;
 		
 				}
@@ -943,6 +941,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			cpu->io[IO_SPEED] = (data & 0x7f) | 0x7e;
 			//getchar();
 			//exit(1);
+			return;
 		}
 
 		case IO_VBANK: // what vram bank are we writing to?
@@ -1046,12 +1045,12 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				start_gdma(cpu);
 			}
 			
-			else // start a gdma
+			else // start a hdma
 			{
 				//puts("unhandled gdma!");
 				// number of 16 byte incremnts to transfer
-				cpu->gdma_len = cpu->io[IO_HDMA5] & 0x7f;
-				cpu->gdma_len_ticked = 0;
+				cpu->hdma_len = (data & 0x7f)+1;
+				cpu->hdma_len_ticked = 0;
 			}
 			return;
 		}
@@ -1535,6 +1534,20 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 		case IO_SPPD:
 		{
 			return cpu->sp_pal[cpu->sp_pal_idx];
+		}
+		
+		case IO_HDMA5: // verify
+		{
+			if(!is_set(cpu->io[IO_HDMA5],7))
+			{
+				return 0xff;
+			}
+			
+			// return the lenght tick left
+			else 
+			{
+				return (cpu->hdma_len - 1);
+			}
 		}
 		
 		

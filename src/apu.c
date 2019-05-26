@@ -267,7 +267,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	// now if 8192 T cycles (2048 M cycles) have elapsed we need to inc the step
 	// and perform the action for the current step
 	
-	if(cpu->sequencer_cycles >= 2048)
+	if(cpu->sequencer_cycles >= 8192)
 	{
 
 		// go to the next step
@@ -347,7 +347,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	{
 		// advance the duty
 		cpu->square[0].duty_idx = (cpu->square[0].duty_idx + 1) & 0x7;
-		cpu->square[0].period = ((2048 - cpu->square[0].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+		cpu->square[0].period = ((2048 - cpu->square[0].freq)) *4; // according the wiki page its *4 but we use M cycles so / 4 
 
 		// if channel and dac is enabled
 		if(is_set(cpu->io[IO_NR52],0) && (cpu->io[IO_NR12] & 248))
@@ -377,7 +377,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	{
 		// advance the duty
 		cpu->square[1].duty_idx = (cpu->square[1].duty_idx + 1) & 0x7;
-		cpu->square[1].period = ((2048 - cpu->square[1].freq)); // according the wiki page its *4 but we use M cycles so / 4 
+		cpu->square[1].period = ((2048 - cpu->square[1].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
 
 		// if channel and dac is enabled
 		if(is_set(cpu->io[IO_NR52],1) && (cpu->io[IO_NR22] & 248))
@@ -439,7 +439,7 @@ void tick_apu(Cpu *cpu, int cycles)
 			
 		// reload the timer
 		// period (2048-frequency)*2 (in cpu cycles)
-		cpu->square[2].period = ((2048 - cpu->square[2].freq)*2) / 4; // may need to be / 4 for M cycles					
+		cpu->square[2].period = ((2048 - cpu->square[2].freq)*2); // may need to be / 4 for M cycles					
 	}	
 
 
@@ -450,7 +450,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	if(cpu->square[3].period <= 0)
 	{
 		// "The noise channel's frequency timer period is set by a base divisor shifted left some number of bits. "
-		cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift) / 4;
+		cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift); // / 4
 
 		// bottom two bits xored and reg shifted right
 		int result = cpu->shift_reg & 0x1;
@@ -496,7 +496,10 @@ void tick_apu(Cpu *cpu, int cycles)
 		
 		cpu->down_sample_cnt = 23; // may need adjusting for m cycles (95)
 		
-		
+		if(cpu->is_double) // in double speed mode should take twice time
+		{
+			cpu->down_sample_cnt *= 2;
+		}
 		
 		float bufferin0 = 0;
 		float bufferin1 = 0;

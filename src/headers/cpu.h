@@ -119,7 +119,6 @@ typedef struct
 	Register hl;
 	uint16_t sp; // stack pointer	
 	uint16_t pc;
-	int tacfreq; // frequency at which tima increases
 	//uint8_t *mem; // main cpu mem 
 
 
@@ -236,9 +235,7 @@ typedef struct
 	bool halt_bug;
 	
 	
-	// timers
-	int timer_counter;
-	int div_counter;
+	// timer
 	uint16_t internal_timer;
 	bool timer_reloading;
 	
@@ -261,8 +258,8 @@ typedef struct
 	int sp_pal_idx;
 	int bg_pal_idx; // index into the bg pal (entry takes two bytes)
 	
-	int gdma_len; // length to transfer on a  gdma
-	int gdma_len_ticked; // how many total dma transfers we have done
+	int hdma_len; // length to transfer on a  gdma
+	int hdma_len_ticked; // how many total dma transfers we have done
 	
 } Cpu;
 
