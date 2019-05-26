@@ -209,16 +209,16 @@ void update_stat(Cpu *cpu, int cycles)
 	if(is_set(status,6) && is_set(status,2))
 	{
 		cpu->signal = true;
-		// if we have changed from 0 to 1 for signal(signal edge)
-		// request a stat interrupt
-		if(!signal_old && cpu->signal)
-		{
-			request_interrupt(cpu,1);	
-		}
+
 	}
 
 
-
+	// if we have changed from 0 to 1 for signal(signal edge)
+	// request a stat interrupt
+	if(!signal_old && cpu->signal)
+	{
+		request_interrupt(cpu,1);	
+	}
 
 
 	
