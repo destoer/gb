@@ -14,26 +14,6 @@
 /* todo add memory range printing */
 
 
-const int lens[] =
-{
-
-    1,3,1,1,1,1,2,1,3,1,1,1,1,1,2,1,
-    1,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
-    2,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
-    2,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,3,3,3,1,2,1,1,1,3,0,3,3,2,1,
-	1,1,3,0,3,1,2,1,1,1,3,0,3,0,2,1,
-    2,1,1,0,0,1,2,1,2,1,3,0,0,0,2,1,
-    2,1,1,1,0,1,2,1,2,1,3,1,0,0,2,1
-};	
 
 // 1st word of commands
 const char c1[COMMANDS][7] = 
@@ -204,7 +184,6 @@ void disass_addr(char *token, Cpu* cpu)
 	// if two just break the address
 	// if 3 break the mem read or execute
 	token = strtok(NULL," ");
-	uint16_t pc_backup = cpu->pc;
 	if(token == NULL)
 	{
 		puts("[ERROR] no address for disass");
@@ -214,7 +193,6 @@ void disass_addr(char *token, Cpu* cpu)
 	if(token[0] == '*') token += 1;
 
 	int address = strtol(token,NULL,16);
-	cpu->pc = address;
 	
 	// get the next token if there isnt one just disas the address
 	// else get the number and disass that many instructions from the address
@@ -224,7 +202,7 @@ void disass_addr(char *token, Cpu* cpu)
 	// just disass it
 	if(token == NULL)
 	{
-		disass_8080(read_mem(cpu->pc++,cpu),cpu);
+		disass_8080(cpu,cpu->pc);
 	}
 	
 	else
@@ -233,13 +211,9 @@ void disass_addr(char *token, Cpu* cpu)
 	
 		for(int i = 0; i < num; i++)
 		{
-			uint8_t opcode = read_mem(cpu->pc++,cpu);
-			disass_8080(opcode,cpu);	
-			cpu->pc += lens[opcode]-1;
+			address += disass_8080(cpu,address);
 		}
 	}
-	
-	cpu->pc = pc_backup;
 }
 
 void breakpoint(char *token, Cpu* cpu)

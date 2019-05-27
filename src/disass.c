@@ -9,14 +9,18 @@
 
 #ifdef DEBUG
 // disassembly routine should never modify passed args
-void disass_8080(const uint8_t opcode, Cpu *cpu)
+int disass_8080(Cpu *cpu,const uint16_t addr)
 {
+	uint8_t opcode = read_mem(addr,cpu); // fetch opcode
+	uint16_t address = addr + 1; // address for operand reads
+	uint8_t op; // cb opcode
+	uint8_t operand = read_mem(address,cpu); // operand
+	uint16_t operandw = read_word(address,cpu); // word operand
 	
-	uint8_t op;
-	uint8_t operand = read_mem(cpu->pc,cpu);
-	uint16_t operandw = read_word(cpu->pc,cpu);
+	int len = lens[opcode]; 
+	
 	// disass the opcode
-	printf("%04x: ", cpu->pc-1);
+	printf("%04x: ", addr);
 	switch(opcode)
 	{
 		case 0x0: // NOP
@@ -86,7 +90,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 
 		case 0x10: // stop if followed by a 00
-			if(read_mem(cpu->pc+1,cpu) == 00)
+			if(read_mem(address,cpu) == 00)
 			{
 				puts("stop");
 			}
@@ -128,7 +132,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0x18: // n 
-			printf("jr %02x\n",(cpu->pc+1 + (int8_t)operand));
+			printf("jr %02x\n",(address + (int8_t)operand));
 			break;
 		
 		case 0x19: // add hl, de
@@ -160,7 +164,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0x20: // jr nz, n
-			printf("jr nz, %02x\n",(cpu->pc+1 + (int8_t)operand));
+			printf("jr nz, %02x\n",(address + (int8_t)operand));
 			break;
 			
 		case 0x21: // ld hl, nn
@@ -192,7 +196,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0x28: // jr z, n
-			printf("jr z, %02x\n",(cpu->pc+1 + (int8_t)operand));
+			printf("jr z, %02x\n",(address + (int8_t)operand));
 			break;
 		
 		case 0x29: // add hl, hl 
@@ -224,7 +228,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0x30: // jr nc, nn
-			printf("jr nc, %x\n",(cpu->pc+1 + (int8_t)operand));
+			printf("jr nc, %x\n",(address + (int8_t)operand));
 			break;
 			
 		case 0x31: // ld sp, nn
@@ -256,7 +260,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0x38: // jr c, nnnn
-			printf("jr c, %x\n",(cpu->pc+1 + (int8_t)operand));
+			printf("jr c, %x\n",(address + (int8_t)operand));
 			break;
 		
 		case 0x39: // add hl, sp
@@ -713,16 +717,16 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0xc2: // jp nz nnnn
-			printf("jp nz, %x\n",read_word(cpu->pc,cpu));
+			printf("jp nz, %x\n",read_word(address,cpu));
 			break;
 		
 		case 0xc3: // jump
-			printf("jp %04X\n",read_word(cpu->pc,cpu));
+			printf("jp %04X\n",read_word(address,cpu));
 			break;
 		
 		
 		case 0xc4: // call nz nnnn
-			printf("call nz %x\n",read_word(cpu->pc,cpu));
+			printf("call nz %x\n",read_word(address,cpu));
 			break;
 		
 		case 0xc5: // push bc
@@ -730,7 +734,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0xc6: // add a, nn
-			printf("add a, %x\n",read_mem(cpu->pc,cpu));
+			printf("add a, %x\n",read_mem(address,cpu));
 			break;
 		
 		
@@ -751,8 +755,8 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			break;
 		
 		case 0xCB: // extended opcode 
-			op = read_mem(cpu->pc,cpu);
-			
+			op = read_mem(address,cpu);
+			len = 2; // all cb opcodes are two bytes each
 			switch(op)
 			{
 				
@@ -1140,6 +1144,7 @@ void disass_8080(const uint8_t opcode, Cpu *cpu)
 			cpu_state(cpu);
 			exit(1);	
 	}
+	return len;
 }
 
 
