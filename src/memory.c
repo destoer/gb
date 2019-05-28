@@ -34,7 +34,7 @@ void write_oam(Cpu *cpu, uint16_t address, int data)
 
 void start_gdma(Cpu *cpu)
 {
-	puts("GDMA!");
+	//puts("GDMA!");
 	//exit(1);
 
 
@@ -850,12 +850,14 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				cpu->scanline_counter = 0; // counter is reset
 				cpu->current_line = 0; // reset ly
 				cpu->io[IO_STAT] &= ~3; // mode 0
+				cpu->mode = 0;
 			}
 			
 			if(is_set(data,7) && !is_lcd_enabled(cpu))
 			{
 				cpu->scanline_counter = 0;
 				cpu->io[IO_STAT] |= 2; // mode 2?
+				cpu->mode = 2;
 			}
 			
 			cpu->io[IO_LCDC] = data;
@@ -984,7 +986,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				return;
 			}
 			
-			if((cpu->io[IO_STAT] & 0x3) <= 1)
+			if(cpu->mode <= 1)
 			{
 				cpu->bg_pal[cpu->bg_pal_idx] = data; 
 			}
@@ -1021,7 +1023,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			}			
 			
 			// only in hblank and vblank
-			if((cpu->io[IO_STAT] & 0x3) <= 1)
+			if(cpu->mode <= 1)
 			{
 				cpu->sp_pal[cpu->sp_pal_idx] = data; 
 			}
@@ -1166,9 +1168,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// vram can only be accesed at mode 0-2
 	else if(address >= 0x8000 && address <= 0x9fff)
 	{
-		uint8_t status = cpu->io[IO_STAT];
-		status &= 3; // get just the mode
-		if(status <= 2)
+		if(cpu->mode <= 2)
 		{
 			uint16_t addr = address - 0x8000;
 			// bank is allways zero in dmg mode
@@ -1188,10 +1188,8 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// oam is accesible during mode 0-1
 	else if(address >= 0xfe00 && address <= 0xfe9f)
 	{
-		uint8_t status = cpu->io[IO_STAT];
-		status &= 3; // get just the mode
 		// should be blocked during dma but possibly not to the ppu
-		if(status <= 1 && !cpu->oam_dma_active)
+		if(cpu->mode <= 1 && !cpu->oam_dma_active)
 		{
 			write_oam(cpu,address,data);
 		}
@@ -1667,9 +1665,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// vram can only be accesed at mode 0-2
 	else if(address >= 0x8000 && address <= 0x9fff)
 	{
-		uint8_t status = cpu->io[IO_STAT];
-		status &= 3; // get just the mode
-		if(status <= 2)
+		if(cpu->mode <= 2)
 		{
 			return read_vram(address,cpu);
 		}
@@ -1681,9 +1677,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// oam is accesible during mode 0-1
 	else if(address >= 0xfe00 && address <= 0xfe9f)
 	{
-		uint8_t status = cpu->io[IO_STAT];
-		status &= 3; // get just the mode
-		if(status <= 1 && !cpu->oam_dma_active) // cant access during dma? but ppu should?
+		if(cpu->mode <= 1 && !cpu->oam_dma_active) // cant access during dma? but ppu should?
 		{
 			return read_oam(address,cpu);
 		}

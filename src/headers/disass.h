@@ -3,7 +3,7 @@
 void cpu_state(const Cpu *cpu); // print the cpu state
 int disass_8080(Cpu *cpu,const uint16_t addr);
 void print_flags(const Cpu *cpu);
-static const int lens[] =
+static  const int lens[] =
 {
 
     1,3,1,1,1,1,2,1,3,1,1,1,1,1,2,1,

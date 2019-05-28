@@ -45,7 +45,7 @@ void write_log(const char *fmt, ...)
 }
 
 // potentially need the rominfo too but not needed yet
-int step_cpu(Cpu * cpu)
+void step_cpu(Cpu * cpu)
 {
 	
 
@@ -281,9 +281,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cycle_tick(cpu,1); // internal delay
 				cpu->pc += operand;
-				
-				//cycle_tick(cpu,mtcycles[opcode]);
-				return mtcycles[opcode];
 			}
 			break;
 			
@@ -353,8 +350,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cycle_tick(cpu,1); // internal delay
 				cpu->pc += operand;
-				//cycle_tick(cpu,mtcycles[opcode]);
-				return mtcycles[opcode];
 			}
 			
 			break;
@@ -403,7 +398,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				cycle_tick(cpu,1); // internal delay
-				return mtcycles[opcode];
 			}
 			
 			break;
@@ -453,8 +447,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				cycle_tick(cpu,1); // internal delay
-				//cycle_tick(cpu,mtcycles[opcode]);
-				return mtcycles[opcode];
 			}	
 			break;
 			
@@ -1041,7 +1033,6 @@ int step_cpu(Cpu * cpu)
 			{
 				cpu->pc = read_stackwt(cpu);
 				cycle_tick(cpu,1);  // internal
-				return mtcycles[opcode];
 			}
 			break;
 	
@@ -1059,7 +1050,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jp nz at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal delay
-				return mtcycles[opcode];
 			}
 			break;
 			
@@ -1078,7 +1068,6 @@ int step_cpu(Cpu * cpu)
 				write_log("call nz at %x -> %x\n",cpu->pc-3,operandw);
 				write_stackwt(cpu,cpu->pc);
 				cpu->pc = operandw;
-				return mtcycles[opcode];
 			}
 			break;
 		
@@ -1104,7 +1093,6 @@ int step_cpu(Cpu * cpu)
 			{
 				cpu->pc = read_stackwt(cpu);
 				cycle_tick(cpu,1); // internal delay
-				return mtcycles[opcode];
 			}
 			break;
 		
@@ -1121,7 +1109,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jp z at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal
-				return mtcycles[opcode];
 			}
 			break;
 			
@@ -1131,8 +1118,6 @@ int step_cpu(Cpu * cpu)
 			cbop = read_memt(cpu->pc++, cpu); // fetch the opcode
 			 // tick our instr fetch for cb
 			decode_cb(cbop,cpu); // exec it 
-
-			return cbmcycles[cbop];
 			break; 
 		
 		
@@ -1144,7 +1129,6 @@ int step_cpu(Cpu * cpu)
 				cycle_tick(cpu,1);  // internal delay
 				write_stackwt(cpu,cpu->pc);
 				cpu->pc = operandw;
-				return  mtcycles[opcode];
 			}
 			break;
 		
@@ -1173,7 +1157,6 @@ int step_cpu(Cpu * cpu)
 			{
 				cpu->pc = read_stackwt(cpu);
 				cycle_tick(cpu,1); // internal delay
-				return mtcycles[opcode];
 			}
 			break;
 		
@@ -1189,7 +1172,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jp nc at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1);// internal
-				return mtcycles[opcode];
 			}
 			break;
 		
@@ -1202,7 +1184,6 @@ int step_cpu(Cpu * cpu)
 				cycle_tick(cpu,1); // internal delay
 				write_stackwt(cpu,cpu->pc);
 				cpu->pc = operandw;
-				return  mtcycles[opcode];
 			}
 			break;			
 		
@@ -1227,7 +1208,6 @@ int step_cpu(Cpu * cpu)
 			{
 				cpu->pc = read_stackwt(cpu);
 				cycle_tick(cpu,1); // internal delay
-				return mtcycles[opcode];
 			}
 			break;
 			
@@ -1245,7 +1225,6 @@ int step_cpu(Cpu * cpu)
 				write_log("jp c at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal
-				return mtcycles[opcode];
 			}
 			break;
 		
@@ -1258,7 +1237,6 @@ int step_cpu(Cpu * cpu)
 				cycle_tick(cpu,1); // internal 
 				write_stackwt(cpu,cpu->pc);
 				cpu->pc = operandw;
-				return mtcycles[opcode];
 			}
 			break;
 		
@@ -1408,7 +1386,4 @@ int step_cpu(Cpu * cpu)
 			#endif
 			break;
 	}
-	
-	int cycles = mcycles[opcode];
-    return cycles; // update the machine cycles		
 }

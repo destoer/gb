@@ -11,6 +11,7 @@
 #define H 5 // half carry flag 5th bit of F register is set
 #define C 4 // carry flag 4th bit of F register is set
 
+/*
 // in terms of machine cycles
 // and not clock cycles 1 machine cycle = 4 clock cycles
 // taken from blargs intstr_timing test
@@ -77,6 +78,8 @@ static const int cbmcycles[] =
 	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2,
 	2,2,2,2,2,2,4,2,2,2,2,2,2,2,4,2
 };
+*/
+
 
 //registers
 typedef union
@@ -121,6 +124,7 @@ typedef struct
 	uint16_t pc;
 	//uint8_t *mem; // main cpu mem 
 
+	int cycles_this_update; // how many cycles have elapsed this screen draw
 
 	// memory
 	uint8_t vram[0x2000];
@@ -137,6 +141,8 @@ typedef struct
 	uint8_t screenp[Y][X];
 	bool signal;
 	int current_line;
+	int mode; // current ppu mode
+
 	
 	// fetcher
 	bool hblank;

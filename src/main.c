@@ -421,11 +421,9 @@ int main(int argc, char *argv[])
 		
 		// number of cycles for a full screen redraw
 		const int MAXCYCLES = (16725); // 17556 was the old one 
-		int cycles_this_update = 0;	
-		while(cycles_this_update < MAXCYCLES)
+		while(cpu.cycles_this_update < MAXCYCLES)
 		{
-			int cycles = step_cpu(&cpu); // will  exec the instruction tick timers gfx apu etc
-			cycles_this_update += cycles;
+			step_cpu(&cpu); // will  exec the instruction tick timers gfx apu etc
 
 			// now done in the opcode execution
 			
@@ -439,7 +437,7 @@ int main(int argc, char *argv[])
 			if(cpu.ei) // ei
 			{
 				cpu.ei = false;
-				cycles = step_cpu(&cpu);
+				step_cpu(&cpu);
 				// we have done an instruction now set ime
 				// needs to be just after the instruction service
 				// but before we service interrupts
@@ -452,8 +450,6 @@ int main(int argc, char *argv[])
 				{
 					cpu.di = false; // turn di off so it doesent immediately trigger 
 				}
-				
-				cycles_this_update += cycles;
 				do_interrupts(&cpu); // handle interrupts 
 			}
 			
@@ -503,24 +499,9 @@ int main(int argc, char *argv[])
 				{
 					while( ( req & enabled & 0x1f) == 0) // <--- needs debugger access or a bailout condition
 					{
-						// just go a cycle at a time
-						cycles_this_update += 1;
 						// just tick it
-						update_timers(&cpu,1); // <--- update timers 
-						if(!cpu.is_double)
-						{
-							// graphics uses t cycles
-							update_graphics(&cpu,4); // handle the lcd emulation
-							tick_apu(&cpu,4);
-						}
-						else  // double speed needs implementing
-						{
-							update_graphics(&cpu,2); // handle the lcd emulation
-							tick_apu(&cpu,2);							
-						}
-						
-						// may need to tick dma here....
-												
+						cycle_tick(&cpu,1);
+					
 						req = cpu.io[IO_IF];
 						enabled = cpu.io[IO_IE];
 					}
@@ -558,6 +539,7 @@ int main(int argc, char *argv[])
 		
 		#endif		
 		next_time += screen_ticks_per_frame;
+		cpu.cycles_this_update = 0;
 	}
 
 }

@@ -64,7 +64,50 @@ bool is_lcd_enabled(Cpu *cpu)
 	return ( is_set(cpu->io[IO_LCDC],7) );	
 }
 
-void update_stat(Cpu *cpu, int cycles)
+
+void do_hdma(Cpu *cpu)
+{
+
+	//puts("HDMA!");
+	uint16_t source = cpu->io[IO_HDMA1] << 8;
+	source |= cpu->io[IO_HDMA2] & 0xf0;
+
+	uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
+	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000;
+	
+	source += cpu->hdma_len_ticked*0x10;
+	dest += cpu->hdma_len_ticked*0x10;
+	/*if(!(source <= 0x7ff0 || ( source >= 0xa000 && source <= 0xdff0)))
+	{
+						printf("ILEGGAL HDMA SOURCE: %X!\n",source);
+						exit(1);
+	}
+	*/
+	// find out how many cycles we tick but for now just copy the whole damb thing 
+							
+	for(int i = source; i < 0x10; i++)
+	{
+		write_mem(cpu,dest+i,read_mem(source+i,cpu));
+	}
+
+	// 2  M cycles for each 0x10 block
+	cycle_tick(cpu,2);
+							
+	// hdma is over 
+	if(--cpu->hdma_len <= 0)
+	{
+		deset_bit(cpu->io[IO_HDMA5],7);
+	}
+
+	// goto next block
+	else
+	{
+		cpu->hdma_len_ticked++;
+	}
+}
+
+
+void update_graphics(Cpu *cpu, int cycles)
 {
 	//-----------------------
 	// update the stat reg state
@@ -72,7 +115,6 @@ void update_stat(Cpu *cpu, int cycles)
 	
 	// read out current stat reg and mask the mode
 	uint8_t status = cpu->io[IO_STAT];
-	int old_mode = status & 0x3;
 	status &= ~0x3;
 	// mode is one if lcd is disabled
 	if(!is_lcd_enabled(cpu)) // <-- should re enable on a delay?
@@ -80,43 +122,101 @@ void update_stat(Cpu *cpu, int cycles)
 		cpu->scanline_counter = 0; // counter is reset?
 		cpu->current_line = 0; // reset ly
 		cpu->io[IO_STAT] = status; 
+		cpu->mode = 0;
+		cpu->signal = false; 
 		return; // can exit if ppu is disabled nothing else to do
 	}
 	
+	// save our current signal state
+	bool signal_old = cpu->signal;
 
 
+	cpu->scanline_counter += cycles; // advance the cycle counter
 
 
-
-	
-	uint8_t mode = 0;
-	
-	// vblank (mode 1)
-	if(cpu->current_line >= 144)
-	{
-		mode = 1;
-	}
-	
-	
-	// else check based on our cycle counter
-	// technically this should vary depending on
-	// what is being drawn to the screen
-	else // <-- test interrupt(if true set signal line) and update the mode
-	{
-		// oam search (mode 2)
-		if(cpu->scanline_counter <= 80)
+	switch(cpu->mode)
+	{	
+		case 0:
 		{
-			mode = 2;
+			if(cpu->scanline_counter >= 456)
+			{
+				// reset the counter extra cycles should tick over
+				cpu->scanline_counter = 0;
+
+				cpu->current_line++;
+				
+				if(cpu->current_line == 144)
+				{
+					cpu->mode = 1; // switch to vblank
+					request_interrupt(cpu,0); // vblank interrupt
+					
+					// edge case oam stat interrupt is triggered here if enabled
+					if(is_set(status,5))
+					{
+						if(signal_old == false)
+						{
+							request_interrupt(cpu,1);
+						}
+						cpu->signal = true;
+					}					
+				}
+				
+				else 
+				{
+					cpu->mode = 2;
+				}
+
+				// reset our fetcher :)
+				cpu->x_cord = 0;
+				cpu->tile_ready = false;
+				cpu->pixel_count = 0;
+				cpu->ppu_cyc = 0;
+				cpu->hblank = false;
+				cpu->tile_cord = 0;
+				cpu->window_start = false;
+				cpu->ppu_scyc = 0;			
+			}
+			break;
 		}
 		
-		// pixel transfer (mode 3)
-		else if(!cpu->hblank) 
+		
+		case 1: // vblank
 		{
-			mode = 3;
-			
-			// we have just left oam search
-			if(mode != old_mode)
+			if(cpu->scanline_counter >= 456)
 			{
+				cpu->scanline_counter = 0;
+				cpu->current_line++;
+				
+				// vblank is over
+				if(cpu->current_line > 153)
+				{
+					cpu->io[IO_STAT] &= ~3;
+					cpu->io[IO_STAT] |= 2;
+					cpu->current_line = 0;
+					cpu->mode = 2;
+					if(is_set(status,5))
+					{
+						if(signal_old == false)
+						{
+							request_interrupt(cpu,1);
+						}
+						cpu->signal = true;
+					}					
+				}
+				
+			}
+			break;
+		}
+		
+		// mode 2 oam search
+		case 2:
+		{
+			if(cpu->scanline_counter >= 80)
+			{
+				// switch to pixel transfer
+				cpu->mode = 3;
+				
+				// read in the sprites we are about to draw
 				read_sprites(cpu);
 
 				cpu->x_scroll_tick = false;
@@ -126,50 +226,52 @@ void update_stat(Cpu *cpu, int cycles)
 				if(cpu->scx_cnt)
 				{
 					cpu->x_scroll_tick = true;
-				}
-				
+				}				
 			}
-
-			/*
-			; Expected behaviour:
-			;   (SCX mod 8) = 0   => LY increments 51 cycles after STAT interrupt
-			;   (SCX mod 8) = 1-4 => LY increments 50 cycles after STAT interrupt
-			;   (SCX mod 8) = 5-7 => LY increments 49 cycles after STAT interrupt
-			*/
+			break;
+		}
+		
+		// pixel transfer
+		case 3: 
+		{
+			if(!cpu->x_scroll_tick)
+			{
+				draw_scanline(cpu,cycles);
+				if(cpu->hblank) // if just entering hblank 
+				{
+					// switch to hblank
+					cpu->mode = 0;
+					// on cgb do hdma
+					if(cpu->is_cgb && is_set(cpu->io[IO_HDMA5],7))
+					{
+						do_hdma(cpu);
+					}
+				}
+			}	
 			
 			// tick of the cycles
-			/*if(cpu->x_scroll_tick)
+			// for the x scroll
+			else if(cpu->x_scroll_tick)
 			{
 				cpu->scx_cnt -= cycles;
 				if(cpu->scx_cnt <= 0)
 				{
 					cpu->x_scroll_tick = false;
 				}
-			}
-			*/
-			
-			//else if(!cpu->x_scroll_tick)
-			{
-				draw_scanline(cpu,cycles);
-				if(cpu->hblank)
-				{
-					mode = 0;
-				}
-			}
+			}		
+			break;
 		}
 		
-		// hblank mode 0
-		else
+		default:
 		{
-			mode = 0;
-		}
+			printf("ILLEGAL MODE!");
+			exit(1);
+		}	
 	}
-	
-	// save our current signal state
-	bool signal_old = cpu->signal;
 
 	
-	switch(mode)
+	// check interrupts
+	switch(cpu->mode)
 	{
 		case 0: cpu->signal = is_set(status,3); break;
 		case 1: cpu->signal = is_set(status,4); break;
@@ -223,137 +325,7 @@ void update_stat(Cpu *cpu, int cycles)
 
 	
 	// update our status reg
-	cpu->io[IO_STAT] = status | 128 | mode;
-	
-	//gdma pending (if we have just hit hblank and hdma5 has bit 7 set
-	if(old_mode != mode && mode == 0 && is_set(cpu->io[IO_HDMA5],7))
-	{
-		puts("HDMA!");
-		uint16_t source = cpu->io[IO_HDMA1] << 8;
-		source |= cpu->io[IO_HDMA2] & 0xf0;
-				
-		uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
-		dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000;
-				
-		source += cpu->hdma_len_ticked*0x10;
-		dest += cpu->hdma_len_ticked*0x10;
-		/*if(!(source <= 0x7ff0 || ( source >= 0xa000 && source <= 0xdff0)))
-		{
-			printf("ILEGGAL HDMA SOURCE: %X!\n",source);
-			exit(1);
-		}
-		*/
-		// find out how many cycles we tick but for now just copy the whole damb thing 
-				
-		for(int i = source; i < 0x10; i++)
-		{
-			write_mem(cpu,dest+i,read_mem(source+i,cpu));
-		}
-
-		// 2  M cycles for each 0x10 block
-		cycle_tick(cpu,2);
-				
-		// hdma is over 
-		if(--cpu->hdma_len <= 0)
-		{
-			deset_bit(cpu->io[IO_HDMA5],7);
-		}
-
-		// goto next block
-		else
-		{
-			cpu->hdma_len_ticked++;
-		}
-	
-	}	
-	
-	
-}
-
-void update_graphics(Cpu *cpu, int cycles)
-{
-	//cycles *= 4;
-
-	if(!is_lcd_enabled(cpu))
-	{
-		update_stat(cpu,cycles);	
-		return;
-	}
-	
-	//--------------------
-	// tick the ppu
-	cpu->scanline_counter += cycles; // advance the cycle counter
-	
-	// update the stat register
-	update_stat(cpu,cycles);	
-	
-	// read out current stat reg
-	uint8_t status = cpu->io[IO_STAT];
-	
-	// save our current signal state
-	bool signal_old = cpu->signal;
-
-	
-
-	
-
-
-	// we have finished drawing a line 
-	if(cpu->scanline_counter >= 456) 
-	{
-		// reset the counter extra cycles should tick over
-		cpu->scanline_counter = 0;
-
-		
-		
-		
-		cpu->current_line++;
-
-		// reset our fetcher :)
-		cpu->x_cord = 0;
-		cpu->tile_ready = false;
-		cpu->pixel_count = 0;
-		cpu->ppu_cyc = 0;
-		cpu->hblank = false;
-		cpu->tile_cord = 0;
-		cpu->window_start = false;
-		cpu->ppu_scyc = 0;
-		
-		// vblank has been entered
-		if(cpu->current_line == 144)
-		{
-			request_interrupt(cpu,0); // vblank interrupt
-			
-			// edge case oam stat interrupt is triggered here if enabled
-			if(is_set(status,5))
-			{
-				if(signal_old == false)
-				{
-					request_interrupt(cpu,1);
-				}
-				cpu->signal = true;
-			}
-		}
-		
-		// if past 153 reset ly
-		// need to emulate the difference 
-		// on the first line properly here
-		else if(cpu->current_line > 153)
-		{
-			cpu->io[IO_STAT] &= ~3;
-			cpu->io[IO_STAT] |= 2;
-			cpu->current_line = 0;
-
-			if(is_set(status,5))
-			{
-				if(signal_old == false)
-				{
-					request_interrupt(cpu,1);
-				}
-				cpu->signal = true;
-			}
-		}
-	}	
+	cpu->io[IO_STAT] = status | 128 | cpu->mode;		
 }
 
 void shift_fifo(Cpu *cpu, int shift)
