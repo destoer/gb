@@ -7,6 +7,8 @@
 #include "headers/apu.h"
 
 
+// done in terms of T cycles
+
 // need to pass the final two tests
 // square one sounds too high pitched (pokemon red intro star (and lasts too long) )
 // likely envelope or the freq sweep (more likely) not working as intended
@@ -136,12 +138,25 @@ void clock_sweep(Cpu *cpu)
 }
 
 
-void clock_envelope(Cpu *cpu)
+void clock_envelope_channel(Cpu *cpu, int idx)
 {
-	int vol = cpu->square[0].volume;
-	if(!--cpu->square[0].env_period && cpu->square[0].env_enabled)
+	int vol = cpu->square[idx].volume;
+	if(!--cpu->square[idx].env_period && cpu->square[idx].env_enabled)
 	{
-		if(is_set(cpu->io[IO_NR12],3)) // sweep up
+		int addr;
+		switch(idx) // find the reg we are reading to find if sweep is up or down
+		{
+			case 0: addr = IO_NR12; break;
+			case 1: addr = IO_NR22; break;
+			case 3: addr = IO_NR42; break;
+			default:
+			{
+				puts("invalid envelope sweep up!");
+				exit(1);
+			}
+		}
+		
+		if(is_set(cpu->io[addr],3)) // sweep up
 		{
 			vol += 1;
 		}
@@ -153,100 +168,130 @@ void clock_envelope(Cpu *cpu)
 
 		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
 		{
-			cpu->square[0].volume = vol;
+			cpu->square[idx].volume = vol;
 		}
 
 		else
 		{
-			cpu->square[0].env_enabled = false;
+			cpu->square[idx].env_enabled = false;
 		}
 
 		// reload the period
-		if(!cpu->square[0].env_load) // timers treat period of zero as 8
+		if(!cpu->square[idx].env_load) // timers treat period of zero as 8
 		{
-			cpu->square[0].env_period = 8; 
+			cpu->square[idx].env_period = 8; 
 		}
 
 		else
 		{
-			cpu->square[0].env_period = cpu->square[0].env_load;
+			cpu->square[idx].env_period = cpu->square[idx].env_load;
 		}
-	}
+	}	
+}
+
+void clock_envelope(Cpu *cpu)
+{
+	clock_envelope_channel(cpu,0);
+	clock_envelope_channel(cpu,1);
+	clock_envelope_channel(cpu,3);
+}
 
 
-
-	vol = cpu->square[1].volume;
-	if(!--cpu->square[1].env_period && cpu->square[1].env_enabled)
+// it appears the sequencer is clocked by the internal div register
+// http://gbdev.gg8.se/wiki/articles/Timer_Obscure_Behaviour
+// find out how later (i think its when bit 12 falls)
+// or (13 in double speed mode)
+void advance_sequencer(Cpu *cpu)
+{
+	// go to the next step
+	cpu->sequencer_step += 1;
+		
+	if(cpu->sequencer_step == 8)
 	{
-		if(is_set(cpu->io[IO_NR22],3))
-		{
-			vol++;
-		}
-
-		else
-		{
-			vol--;
-		}
-
-		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
-		{
-			cpu->square[1].volume = vol;
-		}
-
-		else
-		{
-			cpu->square[1].env_enabled = false;
-		}
-
-		// reload the period
-		if(!cpu->square[1].env_load) // timers treat period of zero as 8
-		{
-			cpu->square[1].env_period = 8; 
-		}
-
-		else
-		{
-			cpu->square[1].env_period = cpu->square[1].env_load;
-		}
+		cpu->sequencer_step = 0; // loop back around the steps
 	}
-
-
-	vol = cpu->square[3].volume;
-	if(!--cpu->square[3].env_period && cpu->square[3].env_enabled)
+		
+	// switch and perform the function required for our step
+	switch(cpu->sequencer_step)
 	{
-		if(is_set(cpu->io[IO_NR42],3))
+		case 0: // clock the length counters
 		{
-			vol++;
+			tick_lengthc(cpu);
+			break;
 		}
+			
+		case 1: break; // do nothing
 
+			
+		case 2: // sweep generator + lengthc
+		{
+			tick_lengthc(cpu);
+			clock_sweep(cpu);
+			break;
+		}
+			
+		case 3: break; // do nothing
+
+			
+		case 4: // clock lengthc
+		{
+			tick_lengthc(cpu);
+			break;
+		}
+			
+		case 5: break; // do nothing
+			
+		case 6:  // clock the sweep generator + lengthc
+		{
+			tick_lengthc(cpu);
+			clock_sweep(cpu);
+			break;
+		}
+			
+		case 7:
+		{ 
+			clock_envelope(cpu);
+			break; //clock the envelope 
+		}
+		default:
+		{
+			printf("Error unknown sequencer step %d!\n",cpu->sequencer_step);
+			exit(1);
+		}
+	}	
+}
+
+// ticks the channel period for channels
+// 1 AND 2 ONLY 
+void tick_period_square(Cpu *cpu, int idx, int cycles)
+{
+	cpu->square[idx].period -= cycles;
+	// idx 0 use nr12 channel 1 use nr12
+	int addr = idx ? IO_NR22 : IO_NR12; 
+	if(cpu->square[idx].period <= 0)
+	{
+		// advance the duty
+		cpu->square[idx].duty_idx = (cpu->square[idx].duty_idx + 1) & 0x7;
+		cpu->square[idx].period = ((2048 - cpu->square[idx].freq)) *4; 
+
+		// if channel and dac is enabled
+		if(is_set(cpu->io[IO_NR52],idx) && (cpu->io[addr] & 248))
+		{
+			cpu->square[idx].output = cpu->square[idx].volume;
+		}
+		
 		else
 		{
-			vol--;
-		}
+			cpu->square[idx].output = 0;
+		}		
 
-		if(vol >= 0 && vol <= 15) // if vol is between 0 and 15 it is updated
+		// if the duty is on a low posistion there is no output
+		// (vol is multiplied by duty but its only on or off)
+		if(!duty[cpu->square[idx].duty][cpu->square[idx].duty_idx])
 		{
-			cpu->square[3].volume = vol;
+			cpu->square[idx].output = 0;
 		}
-
-		else
-		{
-			cpu->square[3].env_enabled = false;
-		}
-
-
-		// reload the period
-		if(!cpu->square[3].env_load) // timers treat period of zero as 8
-		{
-			cpu->square[3].env_period = 8; 
-		}
-
-		else
-		{
-			cpu->square[3].env_period = cpu->square[3].env_load;
-		}
-	}
-
+	}	
 }
 
 
@@ -269,65 +314,8 @@ void tick_apu(Cpu *cpu, int cycles)
 	
 	if(cpu->sequencer_cycles >= 8192)
 	{
-
-		// go to the next step
-		cpu->sequencer_step += 1;
-		
-		if(cpu->sequencer_step == 8)
-		{
-			cpu->sequencer_step = 0; // loop back around the steps
-		}
-		
-		// switch and perform the function required for our step
-		switch(cpu->sequencer_step)
-		{
-			case 0: // clock the length counters
-			{
-				tick_lengthc(cpu);
-				break;
-			}
+		advance_sequencer(cpu);
 			
-			case 1: break; // do nothing
-
-			
-			case 2: // sweep generator + lengthc
-			{
-				tick_lengthc(cpu);
-				clock_sweep(cpu);
-				break;
-			}
-			
-			case 3: break; // do nothing
-
-			
-			case 4: // clock lengthc
-			{
-				tick_lengthc(cpu);
-				break;
-			}
-			
-			case 5: break; // do nothing
-			
-			case 6:  // clock the sweep generator + lengthc
-			{
-				tick_lengthc(cpu);
-				clock_sweep(cpu);
-				break;
-			}
-			
-			case 7:
-			{ 
-				clock_envelope(cpu);
-				break; //clock the envelope 
-			}
-			default:
-			{
-				printf("Error unknown sequencer step %d!\n",cpu->sequencer_step);
-				exit(1);
-			}
-		}
-		
-		
 		// reset the cycles
 		cpu->sequencer_cycles = 0;
 	}
@@ -341,62 +329,14 @@ void tick_apu(Cpu *cpu, int cycles)
 	// refactor to use a function for first two squares
 
 	// square 1
-	cpu->square[0].period -= cycles;
-
-	if(cpu->square[0].period <= 0)
-	{
-		// advance the duty
-		cpu->square[0].duty_idx = (cpu->square[0].duty_idx + 1) & 0x7;
-		cpu->square[0].period = ((2048 - cpu->square[0].freq)) *4; // according the wiki page its *4 but we use M cycles so / 4 
-
-		// if channel and dac is enabled
-		if(is_set(cpu->io[IO_NR52],0) && (cpu->io[IO_NR12] & 248))
-		{
-			cpu->square[0].output = cpu->square[0].volume;
-		}
-		
-		else
-		{
-			cpu->square[0].output = 0;
-		}		
-
-		// if the duty is on a low posistion there is no output
-		// (vol is multiplied by duty but its only on or off)
-		if(!duty[cpu->square[0].duty][cpu->square[0].duty_idx])
-		{
-			cpu->square[0].output = 0;
-		}
-	}
-
+	tick_period_square(cpu,0,cycles);
 
 
 	// square 2
-	cpu->square[1].period -= cycles;
+	tick_period_square(cpu,1,cycles);
 
-	if(cpu->square[1].period <= 0)
-	{
-		// advance the duty
-		cpu->square[1].duty_idx = (cpu->square[1].duty_idx + 1) & 0x7;
-		cpu->square[1].period = ((2048 - cpu->square[1].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
-
-		// if channel and dac is enabled
-		if(is_set(cpu->io[IO_NR52],1) && (cpu->io[IO_NR22] & 248))
-		{
-			cpu->square[1].output = cpu->square[1].volume;
-		}
-		
-		else
-		{
-			cpu->square[1].output = 0;
-		}		
-
-		// if the duty is on a low posistion there is no output
-		if(!duty[cpu->square[1].duty][cpu->square[1].duty_idx])
-		{
-			cpu->square[1].output = 0;
-		}
-	}
-
+	
+	
 	// handle wave ticking (square 3)	
 	cpu->square[2].period -= cycles;
 		
@@ -439,7 +379,7 @@ void tick_apu(Cpu *cpu, int cycles)
 			
 		// reload the timer
 		// period (2048-frequency)*2 (in cpu cycles)
-		cpu->square[2].period = ((2048 - cpu->square[2].freq)*2); // may need to be / 4 for M cycles					
+		cpu->square[2].period = ((2048 - cpu->square[2].freq)*2);				
 	}	
 
 
@@ -450,7 +390,7 @@ void tick_apu(Cpu *cpu, int cycles)
 	if(cpu->square[3].period <= 0)
 	{
 		// "The noise channel's frequency timer period is set by a base divisor shifted left some number of bits. "
-		cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift); // / 4
+		cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift); 
 
 		// bottom two bits xored and reg shifted right
 		int result = cpu->shift_reg & 0x1;
@@ -511,44 +451,16 @@ void tick_apu(Cpu *cpu, int cycles)
 		int volume = (128 *(cpu->io[IO_NR50] & 7)) / 7 ;
 		// just mix wave for now 
 	
-		//if(is_set(cpu->io[IO_NR50],3))
+		for(int idx = 0; idx < 4; idx++)
 		{
-			// square 1
-			if(is_set(cpu->io[IO_NR51],0))
+			// is square enabled?
+			if(is_set(cpu->io[IO_NR51],idx))
 			{
-				bufferin1 = cpu->square[0].output / 100;
-				//printf("%f\n",bufferin1);
+				bufferin1 = cpu->square[idx].output / 100;
 				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-			}
-
-
-			// square 2
-			if(is_set(cpu->io[IO_NR51],1))
-			{
-				bufferin1 = cpu->square[1].output / 100;
-				//printf("%f\n",bufferin1);
-				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-			}
-
-			// sqaure 3
-			if(is_set(cpu->io[IO_NR51],2))
-			{
-				bufferin1 = cpu->square[2].output / 100;
-				///printf("%f\n",bufferin1);
-				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-			}
-
-			// square 4
-			if(is_set(cpu->io[IO_NR51],3))
-			{
-				bufferin1 = cpu->square[3].output / 100;
-				//printf("%f\n",bufferin1);
-				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-			}
-
-
-			cpu->audio_buf[cpu->audio_buf_idx] = bufferin0;
+			}			
 		}
+		cpu->audio_buf[cpu->audio_buf_idx] = bufferin0;
 		
 		
 		// right output
@@ -556,47 +468,18 @@ void tick_apu(Cpu *cpu, int cycles)
 		//volume = (128 * (cpu->io[IO_NR50 >> 4] & 7)) / 7;
 		//printf("vol: %d\n",volume);
 		bufferin0 = 0;
-		//printf("%x\n",cpu->io[IO_NR50]);
-		//if(is_set(cpu->io[IO_NR50],7))
+	
+		for(int idx = 0; idx < 4; idx++)
 		{
-			// square 1
-			if(is_set(cpu->io[IO_NR51],4))
+			// is square enabled?
+			if(is_set(cpu->io[IO_NR51],idx+4))
 			{
-				bufferin1 = cpu->square[0].output / 100;
-				//printf("%f\n",bufferin1);
+				bufferin1 = cpu->square[idx].output / 100;
 				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-			}
-
-			// square 2
-			if(is_set(cpu->io[IO_NR51],5))
-			{
-				bufferin1 = cpu->square[1].output / 100;
-				//printf("%f\n",bufferin1);
-				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-				
-			}
-
-			// square3
-			if(is_set(cpu->io[IO_NR51],6))
-			{
-				bufferin1 = cpu->square[2].output / 100;
-				//printf("%f\n",bufferin1);
-				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-			}
-
-			// square 4
-			if(is_set(cpu->io[IO_NR51],7))
-			{
-				bufferin1 = cpu->square[3].output / 100;
-				//printf("%f\n",bufferin1);
-				SDL_MixAudioFormat((Uint8*)&bufferin0,(Uint8*)&bufferin1,AUDIO_F32SYS,sizeof(float),volume);
-			}
-			
-			
-			cpu->audio_buf[cpu->audio_buf_idx+1] = bufferin0;
-			cpu->audio_buf_idx += 2;	
+			}			
 		}
-
+		cpu->audio_buf[cpu->audio_buf_idx+1] = bufferin0;
+		cpu->audio_buf_idx += 2;	
 	}
 	
 	if(cpu->audio_buf_idx >= SAMPLE_SIZE) // dont know why this completly locks up...
@@ -646,8 +529,7 @@ void tick_apu(Cpu *cpu, int cycles)
 		}
 
 #endif		
-		//fwrite(cpu->audio_buf,sizeof(float),SAMPLE_SIZE,cpu->fp);
-						
+		//fwrite(cpu->audio_buf,sizeof(float),SAMPLE_SIZE,cpu->fp);	
 	}
 #endif	
 }

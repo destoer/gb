@@ -55,7 +55,7 @@ void start_gdma(Cpu *cpu)
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
 
-	//cycle_tick(cpu,2*(len / 0x10)); // 2 M cycles for each 10 byte block
+	cycle_tick(cpu,2*(len / 0x10)); // 2 M cycles for each 10 byte block
 
 	
 }
@@ -309,7 +309,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					}
 						
 					// reload period and reset duty
-					cpu->square[0].period = ((2048 - cpu->square[0].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[0].period = ((2048 - cpu->square[0].freq))*4; 
 					cpu->square[0].env_period = cpu->square[0].env_load;
 					cpu->square[0].duty_idx = 0; // reset duty					
 					cpu->square[0].volume = cpu->square[0].volume_load;
@@ -482,7 +482,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					}
 					// reload period and reset duty
 					cpu->square[1].volume = cpu->square[1].volume_load;
-					cpu->square[1].period = ((2048 - cpu->square[1].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[1].period = ((2048 - cpu->square[1].freq))*4; 
 					cpu->square[1].env_period = cpu->square[1].env_load;
 					cpu->square[1].duty_idx = 0; // reset duty
 					cpu->square[1].env_enabled = true;
@@ -618,7 +618,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					cpu->square[2].duty_idx = 0; // reset the wave index
 					// reload the wave peroid 
 					// period (2048-frequency)*2
-					cpu->square[2].period = ((2048 - cpu->square[2].freq)*2); // may need to be / 4 for M cycles
+					cpu->square[2].period = ((2048 - cpu->square[2].freq)*2);
 					cpu->square[2].volume = cpu->square[2].volume_load;
 				}
 					
@@ -734,12 +734,12 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					}
 					// reload period and reset duty
 					cpu->square[3].volume = cpu->square[3].volume_load;
-					cpu->square[3].period = ((2048 - cpu->square[3].freq))*4; // according the wiki page its *4 but we use M cycles so / 4 
+					cpu->square[3].period = ((2048 - cpu->square[3].freq))*4;
 					cpu->square[3].env_period = cpu->square[3].env_load;
 					cpu->square[3].env_enabled = true;	
 
 					// noise channel stuff
-					cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift); // / 4
+					cpu->square[3].period = (divisors[cpu->divisor_idx] << cpu->clock_shift);
 					cpu->shift_reg = 0x7fff;
 		
 				}

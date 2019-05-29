@@ -75,7 +75,7 @@ void do_hdma(Cpu *cpu)
 	source |= cpu->io[IO_HDMA2] & 0xf0;
 
 	uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
-	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000;
+	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000; // dest is allways to vram
 	
 	source += cpu->hdma_len_ticked*0x10;
 	dest += cpu->hdma_len_ticked*0x10;
@@ -93,8 +93,8 @@ void do_hdma(Cpu *cpu)
 	}
 
 	// 2  M cycles for each 0x10 block
-	//cycle_tick(cpu,2);
-							
+	cycle_tick(cpu,2);
+	
 	// hdma is over 
 	if(--cpu->hdma_len <= 0)
 	{
