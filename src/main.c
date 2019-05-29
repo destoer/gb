@@ -352,8 +352,7 @@ int main(int argc, char *argv[])
 					case SDLK_UP: key = 2; break;
 					case SDLK_DOWN: key = 3; break;
 					
-					// stating prone to crashing atm
-					// seems to work fine before an emulator reboot..
+
 					case SDLK_0: // save state
 					{
 						puts("Saved state!");

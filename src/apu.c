@@ -498,6 +498,10 @@ void tick_apu(Cpu *cpu, int cycles)
 		// ever M cycle so its 23
 		cpu->down_sample_cnt = 23; // may need adjusting for m cycles (95)
 		
+		if(cpu->is_double) // if in double speed the function is called twice as often 
+		{					// so to adjust the down sample count must be double
+			cpu->down_sample_cnt *= 2;
+		}
 
 		
 		float bufferin0 = 0;
