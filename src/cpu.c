@@ -35,6 +35,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	memset(&cpu, 0, sizeof(Cpu));
 
 
+	
+	
 	cpu.currentram_bank = 0;
 	cpu.currentrom_bank = 1; // all ways at least one
 	cpu.rom_banking = true; // default
@@ -255,7 +257,7 @@ void do_interrupts(Cpu *cpu)
 				{
 					service_interrupt(cpu,i);
 					cycles += 5; // every interrupt service costs 5 M cycles
-					break;
+					//break;
 				}
 			}
 		}
@@ -419,15 +421,14 @@ uint16_t read_stackwt(Cpu *cpu)
 
 void cycle_tick(Cpu *cpu,int cycles)
 {
-	cpu->cycles_this_update += cycles;
 	if(cpu->is_double) // in double speed mode
 	{
 		// timer and oam dma operate at double speed
 		// along with the cpu
-		update_timers(cpu,cycles); // <--- update timers 
+		update_timers(cpu,cycles*2); // <--- update timers 
 		if(cpu->oam_dma_active)
 		{
-			tick_dma(cpu, cycles);
+			tick_dma(cpu, cycles*2); // oam should go at twice the speed
 		}
 		
 		// lcd and apu operate at normal speed

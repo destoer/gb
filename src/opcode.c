@@ -178,23 +178,21 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 1; // skip over next byte
 			
 			// if bit one is set we are gonna do a speed switch
-			if(cpu->is_cgb && is_set(cpu->io[IO_SPEED],1))
+			if(cpu->is_cgb && is_set(cpu->io[IO_SPEED],0))
 			{
 				deset_bit(cpu->io[IO_SPEED],0); // clear the bit
+				puts("double speed!");
+				cpu->is_double = !cpu->is_double;
 				
-				if(is_set(cpu->io[IO_SPEED],7))
+				if(cpu->is_double)
+				{
+					set_bit(cpu->io[IO_SPEED],7);
+				}
+			
+				else // single speed 
 				{
 					deset_bit(cpu->io[IO_SPEED],7);
 				}
-				
-				else
-				{
-					set_bit(cpu->io[IO_SPEED],7);
-					//puts("DOUBLE SPEED!");
-					//exit(1);
-				}
-			
-				cpu->is_double = is_set(cpu->io[IO_SPEED],7);
 			
 			}
 			

@@ -37,7 +37,9 @@
 
 
 
-// pokemon gold still has screen tears...
+// pokemon gold still has screen tears 
+// issue is likely with the ppu but could be 
+// an inaccuracy literally anywhere
 
 
 
@@ -91,7 +93,7 @@ void do_hdma(Cpu *cpu)
 	}
 
 	// 2  M cycles for each 0x10 block
-	cycle_tick(cpu,2);
+	//cycle_tick(cpu,2);
 							
 	// hdma is over 
 	if(--cpu->hdma_len <= 0)
@@ -136,7 +138,7 @@ void update_graphics(Cpu *cpu, int cycles)
 
 	switch(cpu->mode)
 	{	
-		case 0:
+		case 0: // hblank
 		{
 			if(cpu->scanline_counter >= 456)
 			{
@@ -148,6 +150,7 @@ void update_graphics(Cpu *cpu, int cycles)
 				if(cpu->current_line == 144)
 				{
 					cpu->mode = 1; // switch to vblank
+					cpu->new_vblank = true;
 					request_interrupt(cpu,0); // vblank interrupt
 					
 					// edge case oam stat interrupt is triggered here if enabled
@@ -202,8 +205,7 @@ void update_graphics(Cpu *cpu, int cycles)
 						}
 						cpu->signal = true;
 					}					
-				}
-				
+				}	
 			}
 			break;
 		}
@@ -538,25 +540,6 @@ void tick_fetcher(Cpu *cpu) {
 		memcpy(&cpu->ppu_fifo[cpu->pixel_count], cpu->fetcher_tile,8*sizeof(Pixel_Obj));
 		cpu->tile_ready = false;
 		cpu->pixel_count += 8;
-		
-
-		/*uint8_t scx = cpu->io[IO_SCX];
-		
-		// handle scrolling? cleary wrong...
-		// should probably save it when its written too 
-		// and decrement out internal scx as we shift it
-		
-		// i think the shift should be done before sprite mixing is done?...
-		
-	
-		
-		for(int i = 0; i < scx; i++)
-		{
-			if(cpu->pixel_count == 8) { break; }
-			shift_fifo(cpu,1);
-			
-		}
-		*/
 	}	
 
 	// if the fifo has data in it
@@ -618,17 +601,7 @@ void draw_scanline(Cpu *cpu, int cycles)
 	}
 }
 
-// window code can remain but we have to clear the state when the switch happens
-// (find a good way to implement the switch but we wont worry about it just yet...)
-
-// scroll handling must be changed..
-// should fetch tile locations incrementally  from each tile num
-// and then fetch the data
-
-// currently we increment a tile_cord by 8 each time this works
-// fine and should not have any issues but is still not how it 
-// is is actually done
-
+// fetch a single tile into the fifo
 void tile_fetch(Cpu *cpu)
 {
 
@@ -960,7 +933,7 @@ bool sprite_fetch(Cpu *cpu)
 	
 	int vram_bank = cpu->vram_bank; // backup the vram bank
 	
-	uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
+	uint8_t lcd_control = cpu->io[IO_LCDC]; // get lcd control reg
 
 	// in cgb if lcdc bit 0 is deset sprites draw over anything
 	bool draw_over_everything = !is_set(lcd_control,0) && cpu->is_cgb;
@@ -969,7 +942,7 @@ bool sprite_fetch(Cpu *cpu)
 
 	int scanline = cpu->current_line;
 
-	//bool did_draw = false;
+	bool did_draw = false;
 	
 	for(int i = 0; i < cpu->no_sprites; i++)
 	{
@@ -1028,7 +1001,7 @@ bool sprite_fetch(Cpu *cpu)
 		// does this sprite  intercept with the scanline
 		if( scanline -(y_size - 16) < y_pos  && scanline + 16 >= y_pos )
 		{	
-			//did_draw = true;
+			did_draw = true;
 			y_pos -= 16;
 			uint8_t line = scanline - y_pos; 
 			
@@ -1135,8 +1108,8 @@ bool sprite_fetch(Cpu *cpu)
 	
 	cpu->vram_bank = vram_bank; 
 	
-	//return did_draw; <-- unsure on sprite timings
-	return false;
+	return did_draw; // <-- unsure on sprite timings
+	//return false;
 }
 
 

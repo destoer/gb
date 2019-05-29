@@ -494,12 +494,11 @@ void tick_apu(Cpu *cpu, int cycles)
 		
 		//printf("Filling audio queue! %x\n",cpu->audio_buf_idx);
 		
+		// while our counts are in T cycles the update function is called 
+		// ever M cycle so its 23
 		cpu->down_sample_cnt = 23; // may need adjusting for m cycles (95)
 		
-		if(cpu->is_double) // in double speed mode should take twice time
-		{
-			cpu->down_sample_cnt *= 2;
-		}
+
 		
 		float bufferin0 = 0;
 		float bufferin1 = 0;

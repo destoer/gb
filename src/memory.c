@@ -41,8 +41,8 @@ void start_gdma(Cpu *cpu)
 	uint16_t source = cpu->io[IO_HDMA1] << 8;
 	source |= cpu->io[IO_HDMA2] & 0xf0;
 	
-	uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
-	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000; // unsure about the | 0x8000...
+	uint16_t dest = ((cpu->io[IO_HDMA3] & 0x1f) | 0x80) << 8;
+	dest |= (cpu->io[IO_HDMA4] & 0xf0); 
 	
 	// hdma5 stores how many 16 byte incremnts we have to transfer
 	int len = ((cpu->io[IO_HDMA5] & 0x7f) + 1) * 0x10;
@@ -55,7 +55,7 @@ void start_gdma(Cpu *cpu)
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
 
-	cycle_tick(cpu,2*(len / 0x10)); // 2 M cycles for each 10 byte block
+	//cycle_tick(cpu,2*(len / 0x10)); // 2 M cycles for each 10 byte block
 
 	
 }
@@ -940,7 +940,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			}
 			
 			//puts("double speed mode unsupported!");
-			cpu->io[IO_SPEED] = (data & 0x7f) | 0x7e;
+			cpu->io[IO_SPEED] = (cpu->io[IO_SPEED] & 0x80) | (data & 0x1) | 0x7e;
 			//getchar();
 			//exit(1);
 			return;

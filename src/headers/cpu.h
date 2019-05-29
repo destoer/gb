@@ -111,8 +111,11 @@ typedef struct {
 	bool env_enabled; // disabled when it ticks over or under
 } Sqaure;
 
+// how many cycles a frame is in single speed mode
+#define MAXCYC_SINGLE_SPEED 16725
 
-
+// how many cycles in double speed mode
+#define MAXCYC_DOUBLE_SPEED MAXCYC_SINGLE_SPEED * 2
 
 typedef struct 
 {
@@ -122,9 +125,8 @@ typedef struct
 	Register hl;
 	uint16_t sp; // stack pointer	
 	uint16_t pc;
-	//uint8_t *mem; // main cpu mem 
 
-	int cycles_this_update; // how many cycles have elapsed this screen draw
+
 
 	// memory
 	uint8_t vram[0x2000];
@@ -142,6 +144,7 @@ typedef struct
 	bool signal;
 	int current_line;
 	int mode; // current ppu mode
+	bool new_vblank;
 
 	
 	// fetcher

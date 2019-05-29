@@ -123,7 +123,8 @@ int main(int argc, char *argv[])
 	
 	Cpu cpu = init_cpu(); // initalize the cpu
 	cpu.rom_mem = load_rom(argv[1]); // read the rom into a buffer
-	
+
+#ifdef CGB	// gate cgb mode as it is still very buggy
 	// detect if the gameboy is in CGB mode 
 	
 	switch(cpu.rom_mem[0x143])
@@ -152,6 +153,7 @@ int main(int argc, char *argv[])
 	{
 		puts("DMG MODE!");
 	}
+#endif
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
 	if(cpu.rom_info.noRamBanks > 0)
@@ -232,9 +234,6 @@ int main(int argc, char *argv[])
 	
 	for(;;)
 	{
-		
-
-		
 		const int fps = 60; // approximation <--- could use float at 59.73
 		const int screen_ticks_per_frame = 1000 / fps;
 		// what it should be but ok
@@ -419,12 +418,12 @@ int main(int argc, char *argv[])
 		
 		
 		
-		// number of cycles for a full screen redraw
-		const int MAXCYCLES = (16725); // 17556 was the old one 
-		while(cpu.cycles_this_update < MAXCYCLES)
+		
+		while(!cpu.new_vblank) // exec until a vblank hits
 		{
 			step_cpu(&cpu); // will  exec the instruction tick timers gfx apu etc
-
+			
+			
 			// now done in the opcode execution
 			
 			do_interrupts(&cpu); // handle interrupts 
@@ -518,6 +517,8 @@ int main(int argc, char *argv[])
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
 		SDL_RenderPresent(renderer);
 
+		// dont draw until next vblank
+		cpu.new_vblank = false;
 
 		// delay to keep our emulator running at the correct speed
 		// if in debug mode the l key toggles speedup
@@ -539,7 +540,6 @@ int main(int argc, char *argv[])
 		
 		#endif		
 		next_time += screen_ticks_per_frame;
-		cpu.cycles_this_update = 0;
 	}
 
 }
