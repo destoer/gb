@@ -568,8 +568,7 @@ void tick_fetcher(Cpu *cpu) {
 				cpu->sprite_drawn = true;
 			}
 		}
-		
-		
+			
 		if(cpu->sprite_drawn)
 		{
 			if(cpu->ppu_scyc <= 5)
@@ -586,9 +585,7 @@ void tick_fetcher(Cpu *cpu) {
 		
 		// blit the pixel
 		push_pixel(cpu);
-	}
-
-	
+	}	
 }	
 	
 
@@ -602,6 +599,10 @@ void draw_scanline(Cpu *cpu, int cycles)
 }
 
 // fetch a single tile into the fifo
+
+// needs horizontal and vertical flip 
+// implemented for the cgb bg attributes
+
 void tile_fetch(Cpu *cpu)
 {
 
@@ -756,6 +757,8 @@ void tile_fetch(Cpu *cpu)
 		// x and y flip + priority needs to be implemented
 		int cgb_pal = -1;
 		bool priority = false;
+		bool x_flip = false;
+		bool y_flip = false;
 		if(cpu->is_cgb) // we are drawing in cgb mode 
 		{
 			cpu->vram_bank = 1; // assume vram one reading
@@ -764,10 +767,13 @@ void tile_fetch(Cpu *cpu)
 			
 			
 			// draw over sprites
-			if(is_set(attr,7))
-			{
-				priority = true;
-			}
+			priority = is_set(attr,7);
+			
+			x_flip = is_set(attr,5);
+			y_flip = is_set(attr,6);
+			
+			//if(x_flip) { puts("flipping x"); }
+			//if(y_flip) { puts("flipping y"); }
 			
 			// decide what bank data is coming out of
 			// allready one so dont check the other condition
@@ -780,6 +786,13 @@ void tile_fetch(Cpu *cpu)
 		// find the correct vertical line we are on of the
 		// tile to get the tile data		
 		uint8_t line = y_pos % 8;
+		
+		// read the sprite backwards in y axis
+		if(y_flip)
+		{
+			line = 7 - line;
+		}		
+	
 		line *= 2; // each line takes up two bytes of mem
 		uint8_t data1 = read_vram(tile_location + line,cpu);
 		uint8_t data2 = read_vram(tile_location + line+1,cpu);
@@ -790,6 +803,13 @@ void tile_fetch(Cpu *cpu)
 		int color_bit = x_pos % 8;
 		color_bit -= 7;
 		color_bit *= -1;
+	
+		// read backwards horizontally 
+		if(x_flip) 
+		{
+			color_bit = 7 - color_bit;
+		}
+	
 	
 		// combine data 2 and data 1 to get the color id for the pixel
 		// in the tile
@@ -936,7 +956,9 @@ bool sprite_fetch(Cpu *cpu)
 	uint8_t lcd_control = cpu->io[IO_LCDC]; // get lcd control reg
 
 	// in cgb if lcdc bit 0 is deset sprites draw over anything
-	bool draw_over_everything = !is_set(lcd_control,0) && cpu->is_cgb;
+	bool draw_over_everything = (!is_set(lcd_control,0) && cpu->is_cgb);
+	if(!is_set(lcd_control,0)){ puts("should draw over everything"); }
+	if(draw_over_everything) { puts("Draw over everything!"); }
 	
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 
@@ -1009,9 +1031,7 @@ bool sprite_fetch(Cpu *cpu)
 			// read the sprite backwards in y axis
 			if(y_flip)
 			{
-				line -= (y_size);
-				line += 1;
-				line *= -1;
+				line = y_size - (line + 1);
 			}
 			
 			line *= 2; // same as for tiles
@@ -1032,8 +1052,7 @@ bool sprite_fetch(Cpu *cpu)
 				// red backwards for x axis
 				if(x_flip)
 				{
-					colour_bit -= 7;
-					colour_bit *= -1;
+					colour_bit = 7 - colour_bit;
 				}
 				
 				// rest same as tiles

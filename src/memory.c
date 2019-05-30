@@ -41,12 +41,12 @@ void start_gdma(Cpu *cpu)
 	uint16_t source = cpu->io[IO_HDMA1] << 8;
 	source |= cpu->io[IO_HDMA2] & 0xf0;
 	
-	uint16_t dest = ((cpu->io[IO_HDMA3] & 0x1f) | 0x80) << 8;
-	dest |= (cpu->io[IO_HDMA4] & 0xf0); 
+	uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
+	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000; 
 	
 	// hdma5 stores how many 16 byte incremnts we have to transfer
 	int len = ((cpu->io[IO_HDMA5] & 0x7f) + 1) * 0x10;
-	
+
 	
 	// find out how many cycles we tick but for now just copy the whole damb thing 
 	
@@ -1116,7 +1116,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	else if(address >= 0xa000 && address < 0xc000)
 	{
 		// if ram enabled
-		if(cpu->enable_ram && cpu->currentram_bank <= 3)
+		if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
 		{
 			uint16_t new_address = address - 0xa000;
 
@@ -1276,7 +1276,7 @@ void do_dma(Cpu *cpu, uint8_t data)
 		{
 		
 			// is ram enabled (ram bank of -1 indicates rtc reg)
-			if(cpu->enable_ram && cpu->currentram_bank <= 3)
+			if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
 			{
 				uint16_t new_address = dma_address - 0xa000;
 				dma_src = &cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
@@ -1616,7 +1616,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	{
 	
 		// is ram enabled (ram bank of -1 indicates rtc reg)
-		if(cpu->enable_ram && cpu->currentram_bank <= 3)
+		if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
 		{
 			uint16_t new_address = address - 0xa000;
 			return cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];

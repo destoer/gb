@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 
-
-
+// rtc enabled for mbc3
+#define RTC_ENABLED -1
 
 // sound sample size
 #define SAMPLE_SIZE 1024

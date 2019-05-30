@@ -482,7 +482,7 @@ void tick_apu(Cpu *cpu, int cycles)
 		cpu->audio_buf_idx += 2;	
 	}
 	
-	if(cpu->audio_buf_idx >= SAMPLE_SIZE) // dont know why this completly locks up...
+	if(cpu->audio_buf_idx >= SAMPLE_SIZE)
 	{
 		cpu->audio_buf_idx = 0;
 		
@@ -498,9 +498,9 @@ void tick_apu(Cpu *cpu, int cycles)
 		if(!cpu->speed_up) 
 		{
 			// delay execution and let the que drain
+			// on newer builds of sdl this locks up...
 			while(SDL_GetQueuedAudioSize(dev) > (SAMPLE_SIZE * sizeof(float)))
 			{ 
-				//printf("Audio is locked %d\n!", SDL_GetQueuedAudioSize(dev) / sizeof(float));
 				SDL_Delay(1);
 			}
 		}
@@ -516,7 +516,6 @@ void tick_apu(Cpu *cpu, int cycles)
 		// delay execution and let the que drain
 		while(SDL_GetQueuedAudioSize(dev) > (SAMPLE_SIZE * sizeof(float)))
 		{
-			//printf("Audio is locked %d\n!", SDL_GetQueuedAudioSize(dev) / sizeof(float));
 			SDL_Delay(1);
 		}			
 

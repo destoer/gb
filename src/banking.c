@@ -72,7 +72,7 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 		{
 			if(address <= 0x2000 && address <= 0x2fff)
 			{
-				cpu->currentrom_bank  &= ~0xff;
+				cpu->currentrom_bank &= ~0xff;
 				cpu->currentrom_bank |= data;
 				
 				if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
@@ -127,7 +127,13 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 			// change the ram bank
 			// if ram bank is greater than 0x3 disable writes
 			cpu->currentram_bank = data;
-			if(cpu->rom_info.noRamBanks == 0)
+			
+			if(cpu->currentram_bank > 3)
+			{
+				cpu->currentram_bank = RTC_ENABLED;
+			}
+			
+			else if(cpu->rom_info.noRamBanks == 0)
 			{
 				cpu->currentram_bank = 0;
 			}
@@ -138,6 +144,7 @@ void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
 				cpu->currentram_bank %= cpu->rom_info.noRamBanks;
 				//exit(1);
 			}
+			
 			
 			//puts("MBC3 ram change");	
 		}
