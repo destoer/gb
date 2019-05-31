@@ -34,8 +34,8 @@ void write_oam(Cpu *cpu, uint16_t address, int data)
 
 void start_gdma(Cpu *cpu)
 {
-	//puts("GDMA!");
-	//exit(1);
+	puts("GDMA!");
+	exit(1);
 
 
 	uint16_t source = cpu->io[IO_HDMA1] << 8;
@@ -1148,7 +1148,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 			// internal ram bank
 			else 
 			{
-				cpu->cgb_ram_bank[(address - 0xd000) + (cpu->cgb_ram_bank_num * 0x1000)] = data;
+				cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][(address - 0xd000)] = data;
 			}
 		}
 		
@@ -1172,15 +1172,7 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		{
 			uint16_t addr = address - 0x8000;
 			// bank is allways zero in dmg mode
-			if(cpu->vram_bank == 1) // cgb vram bank 
-			{
-				cpu->cgb_vram[addr] = data; 
-			}
-		
-			else
-			{
-				cpu->vram[addr] = data;
-			}
+			cpu->vram[cpu->vram_bank][addr] = data;	
 		}
 		return;
 	}
@@ -1266,7 +1258,7 @@ void do_dma(Cpu *cpu, uint8_t data)
 		// vram can only be accesed at mode 0-2
 		else if(dma_address >= 0x8000 && dma_address <= 0x9fff)
 		{
-			dma_src = &cpu->vram[dma_address - 0x8000];
+			dma_src = &cpu->vram[cpu->vram_bank][dma_address - 0x8000];
 		}
 		
 		
@@ -1327,15 +1319,8 @@ uint8_t read_vram(uint16_t address, Cpu *cpu)
 	uint16_t addr = address - 0x8000;
 	
 	// in dmg mode the bank will allways be zero
-	if(cpu->vram_bank == 1)
-	{
-		return cpu->cgb_vram[addr];
-	}
+	return cpu->vram[cpu->vram_bank][addr];
 	
-	else
-	{
-		return cpu->vram[addr];
-	}
 }
 
 uint8_t read_oam(uint16_t address, Cpu *cpu)
@@ -1649,7 +1634,7 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 			// internal ram bank
 			else 
 			{
-				return cpu->cgb_ram_bank[(address - 0xd000) + (cpu->cgb_ram_bank_num * 0x1000)];
+				return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][(address - 0xd000)];
 			}
 
 		}

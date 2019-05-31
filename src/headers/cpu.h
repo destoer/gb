@@ -129,7 +129,7 @@ typedef struct
 
 
 	// memory
-	uint8_t vram[0x2000];
+	uint8_t vram[2][0x2000]; // 2nd array is cgb vram bank 1
 	uint8_t wram[0x2000];
 	uint8_t oam[0xA0];
 	uint8_t io[0x100]; // hram and io registers
@@ -258,8 +258,7 @@ typedef struct
 	// CGB
 	bool is_cgb;
 	int cgb_ram_bank_num;
-	uint8_t cgb_ram_bank[0x7000]; // switchable work ram bank 
-	uint8_t cgb_vram[0x2000]; // 2nd switchable cgb bank 
+	uint8_t cgb_ram_bank[7][0x1000]; // switchable work ram bank 
 	int vram_bank; // what cgb vram bank are we in?
 	bool is_double; // cpu is in double speed mode!
 	uint8_t bg_pal[0x40]; // bg palette data

@@ -1376,7 +1376,7 @@ void step_cpu(Cpu * cpu)
 			print_flags(cpu);
 			for(int i = 0; i <= 10; i++)
 			{
-				printf("stack address %x\n",read_stackw(cpu));
+				printf("stack address %x: %x\n",cpu->sp,read_stackw(cpu));
 			}
 			printf("rom_bank = %x\n",cpu->currentrom_bank);
 			for(;;) { }

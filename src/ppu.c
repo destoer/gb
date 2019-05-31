@@ -70,7 +70,8 @@ bool is_lcd_enabled(Cpu *cpu)
 void do_hdma(Cpu *cpu)
 {
 
-	//puts("HDMA!");
+	puts("HDMA!");
+	exit(1);
 	uint16_t source = cpu->io[IO_HDMA1] << 8;
 	source |= cpu->io[IO_HDMA2] & 0xf0;
 
@@ -611,7 +612,7 @@ void tile_fetch(Cpu *cpu)
 	bool unsig = true;
 	
 	
-	int vram_bank = cpu->vram_bank; // backup the vram bank
+	int vram_bank = 0;
 	
 	
 	// where to draw the visual area and window
@@ -728,14 +729,14 @@ void tile_fetch(Cpu *cpu)
 		// get the tile identity num it can be signed or unsigned
 		uint16_t tile_address = background_mem + tile_row+tile_col;
 		
-		cpu->vram_bank = 0; // tile number allways in bank 0
+		
 		if(unsig)
 		{
-			tile_num = (uint8_t)read_vram(tile_address,cpu);
+			tile_num = (uint8_t)cpu->vram[vram_bank][tile_address-0x8000];
 		}
 		else
 		{
-			tile_num = (int8_t)read_vram(tile_address,cpu);
+			tile_num = (int8_t)cpu->vram[vram_bank][tile_address-0x8000];
 		}
 
 	
@@ -761,8 +762,8 @@ void tile_fetch(Cpu *cpu)
 		bool y_flip = false;
 		if(cpu->is_cgb) // we are drawing in cgb mode 
 		{
-			cpu->vram_bank = 1; // assume vram one reading
-			uint8_t attr = cpu->cgb_vram[tile_address - 0x8000];
+			// 1st one is allways out of the vram bank
+			uint8_t attr = cpu->vram[1][tile_address - 0x8000];
 			cgb_pal = attr & 0x7; // get the pal number
 			
 			
@@ -777,10 +778,11 @@ void tile_fetch(Cpu *cpu)
 			
 			// decide what bank data is coming out of
 			// allready one so dont check the other condition
-			if(!is_set(attr,3))
+			if(is_set(attr,3))
 			{
-				cpu->vram_bank = 0;
+				vram_bank = 1;
 			}
+			
 		}
 		
 		// find the correct vertical line we are on of the
@@ -794,8 +796,8 @@ void tile_fetch(Cpu *cpu)
 		}		
 	
 		line *= 2; // each line takes up two bytes of mem
-		uint8_t data1 = read_vram(tile_location + line,cpu);
-		uint8_t data2 = read_vram(tile_location + line+1,cpu);
+		uint8_t data1 = cpu->vram[vram_bank][(tile_location + line)-0x8000];
+		uint8_t data2 = cpu->vram[vram_bank][(tile_location + line+1)-0x8000];
 	
 	
 		// pixel 0 in the tile is bit 7 of data1 and data2
@@ -848,8 +850,6 @@ void tile_fetch(Cpu *cpu)
 		
 	}
 	cpu->tile_cord += 8; // goto next tile fetch
-	
-	cpu->vram_bank = vram_bank; // restore the bank number
 }
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
@@ -951,7 +951,7 @@ bool sprite_fetch(Cpu *cpu)
 {
 	
 	
-	int vram_bank = cpu->vram_bank; // backup the vram bank
+	int vram_bank = 0;
 	
 	uint8_t lcd_control = cpu->io[IO_LCDC]; // get lcd control reg
 
@@ -1038,11 +1038,11 @@ bool sprite_fetch(Cpu *cpu)
 			uint16_t data_address = (0x8000 + (sprite_location * 16 )) + line;
 			if(is_set(attributes,3) && cpu->is_cgb) // if in cgb and attr has bit 3 set 
 			{
-				cpu->vram_bank = 1; // sprite data is out of vram bank 1
+				vram_bank = 1; // sprite data is out of vram bank 1
 			}
 				
-			uint8_t data1 = read_vram(data_address,cpu);
-			uint8_t data2 = read_vram(data_address+1,cpu);
+			uint8_t data1 = cpu->vram[vram_bank][data_address-0x8000];
+			uint8_t data2 = cpu->vram[vram_bank][(data_address+1)-0x8000];
 			
 			// eaiser to read in from right to left as pixel 0
 			// is bit 7 in the color data pixel 1 is bit 6 etc 
@@ -1125,10 +1125,9 @@ bool sprite_fetch(Cpu *cpu)
 		}
 	}
 	
-	cpu->vram_bank = vram_bank; 
 	
-	return did_draw; // <-- unsure on sprite timings
-	//return false;
+	//return did_draw; // <-- unsure on sprite timings
+	return false;
 }
 
 
