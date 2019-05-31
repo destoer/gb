@@ -34,8 +34,8 @@ void write_oam(Cpu *cpu, uint16_t address, int data)
 
 void start_gdma(Cpu *cpu)
 {
-	puts("GDMA!");
-	exit(1);
+	//puts("GDMA!");
+	//exit(1);
 
 
 	uint16_t source = cpu->io[IO_HDMA1] << 8;
@@ -1138,17 +1138,18 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		
 		else
 		{
+			uint16_t addr = address & 0xfff;
 			// if at 0xc000 - 0xcfff return from bank 0
 			if(address >= 0xc000 && address <= 0xcfff)
 			{
-				cpu->wram[address - 0xc000] = data;
+				cpu->wram[addr] = data;
 			}
 
 			// if a 0xd000-0xdfff return the current 
 			// internal ram bank
 			else 
 			{
-				cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][(address - 0xd000)] = data;
+				cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr] = data;
 			}
 		}
 		
@@ -1172,7 +1173,8 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		{
 			uint16_t addr = address - 0x8000;
 			// bank is allways zero in dmg mode
-			cpu->vram[cpu->vram_bank][addr] = data;	
+			cpu->vram[cpu->vram_bank][addr] = data;
+			
 		}
 		return;
 	}
@@ -1229,18 +1231,18 @@ void do_dma(Cpu *cpu, uint8_t data)
 	if(dma_address < 0xe000)
 	{
 		// old implementaiton
-		/*for(int i = 0; i < 0xA0; i++)
+		for(int i = 0; i < 0xA0; i++)
 		{
 			write_oam(cpu,0xfe00+i, read_mem(dma_address+i,cpu)); 	
 		}
-		*/
+		
 		// start here <-----
 		
 		// check ranges and assign the correct array and offset to the pointer
 		// so it can be passed to memcpy
 		
 		
-		uint8_t *dma_src;
+/*		uint8_t *dma_src;
 	
 		if(dma_address < 0x4000)
 		{
@@ -1283,16 +1285,36 @@ void do_dma(Cpu *cpu, uint8_t data)
 			}*/
 		}
 		
-		// work ram
+/*		// work ram
 		else if((dma_address >= 0xc000) && (dma_address <= 0xdfff))
 		{
-			dma_src = &cpu->wram[dma_address - 0xc000];
+			if(!cpu->is_cgb)
+			{
+				dma_src = &cpu->wram[dma_address - 0xc000];
+			}
+			
+			else 
+			{
+				uint16_t addr = dma_address & 0xfff;
+				if(dma_address >= 0xc000 && dma_address <= 0xcfff)
+				{
+					dma_src = &cpu->wram[addr];
+				}
+				
+				// 0xd000-0xdfff
+				else
+				{
+					dma_src = &cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
+				}
+				
+			}
+			
 		}
 	
 	
 		memcpy(cpu->oam,dma_src,0xA0);	
 	}
-
+*/
 
 	// tell the emulator to start ticking the dma transfer
 	// source must be below 0xe000 <-- playing like hell fix later
@@ -1319,8 +1341,7 @@ uint8_t read_vram(uint16_t address, Cpu *cpu)
 	uint16_t addr = address - 0x8000;
 	
 	// in dmg mode the bank will allways be zero
-	return cpu->vram[cpu->vram_bank][addr];
-	
+	return cpu->vram[cpu->vram_bank][addr];	
 }
 
 uint8_t read_oam(uint16_t address, Cpu *cpu)
@@ -1624,17 +1645,18 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 		
 		else
 		{
+			uint16_t addr = address & 0xfff;
 			// if at 0xc000 - 0xcfff return from bank 0
 			if(address >= 0xc000 && address <= 0xcfff)
 			{
-				return cpu->wram[address - 0xc000];
+				return cpu->wram[addr];
 			}
 
 			// if a 0xd000-0xdfff return the current 
 			// internal ram bank
 			else 
 			{
-				return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][(address - 0xd000)];
+				return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
 			}
 
 		}

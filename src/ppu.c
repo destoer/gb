@@ -70,8 +70,7 @@ bool is_lcd_enabled(Cpu *cpu)
 void do_hdma(Cpu *cpu)
 {
 
-	puts("HDMA!");
-	exit(1);
+	//puts("HDMA!");
 	uint16_t source = cpu->io[IO_HDMA1] << 8;
 	source |= cpu->io[IO_HDMA2] & 0xf0;
 
@@ -729,14 +728,15 @@ void tile_fetch(Cpu *cpu)
 		// get the tile identity num it can be signed or unsigned
 		uint16_t tile_address = background_mem + tile_row+tile_col;
 		
-		
+
+		// tile number is allways bank 0
 		if(unsig)
 		{
-			tile_num = (uint8_t)cpu->vram[vram_bank][tile_address-0x8000];
+			tile_num = (uint8_t)cpu->vram[0][tile_address-0x8000];
 		}
 		else
 		{
-			tile_num = (int8_t)cpu->vram[vram_bank][tile_address-0x8000];
+			tile_num = (int8_t)cpu->vram[0][tile_address-0x8000];
 		}
 
 	
@@ -762,7 +762,6 @@ void tile_fetch(Cpu *cpu)
 		bool y_flip = false;
 		if(cpu->is_cgb) // we are drawing in cgb mode 
 		{
-			// 1st one is allways out of the vram bank
 			uint8_t attr = cpu->vram[1][tile_address - 0x8000];
 			cgb_pal = attr & 0x7; // get the pal number
 			
@@ -782,7 +781,6 @@ void tile_fetch(Cpu *cpu)
 			{
 				vram_bank = 1;
 			}
-			
 		}
 		
 		// find the correct vertical line we are on of the
@@ -796,9 +794,8 @@ void tile_fetch(Cpu *cpu)
 		}		
 	
 		line *= 2; // each line takes up two bytes of mem
-		uint8_t data1 = cpu->vram[vram_bank][(tile_location + line)-0x8000];
-		uint8_t data2 = cpu->vram[vram_bank][(tile_location + line+1)-0x8000];
-	
+		uint8_t data1 = cpu->vram[vram_bank][(tile_location+line)-0x8000];
+		uint8_t data2 = cpu->vram[vram_bank][(tile_location+line+1)-0x8000];
 	
 		// pixel 0 in the tile is bit 7 of data1 and data2
 		// pixel 1 is bit 6 etc
@@ -949,10 +946,8 @@ void read_sprites(Cpu *cpu)
 // because we will delay if they have been
 bool sprite_fetch(Cpu *cpu) 
 {
-	
-	
+
 	int vram_bank = 0;
-	
 	uint8_t lcd_control = cpu->io[IO_LCDC]; // get lcd control reg
 
 	// in cgb if lcdc bit 0 is deset sprites draw over anything
@@ -1038,9 +1033,10 @@ bool sprite_fetch(Cpu *cpu)
 			uint16_t data_address = (0x8000 + (sprite_location * 16 )) + line;
 			if(is_set(attributes,3) && cpu->is_cgb) // if in cgb and attr has bit 3 set 
 			{
-				vram_bank = 1; // sprite data is out of vram bank 1
+				cpu->vram_bank = 1; // sprite data is out of vram bank 1
 			}
 				
+
 			uint8_t data1 = cpu->vram[vram_bank][data_address-0x8000];
 			uint8_t data2 = cpu->vram[vram_bank][(data_address+1)-0x8000];
 			
@@ -1124,10 +1120,9 @@ bool sprite_fetch(Cpu *cpu)
 			}
 		}
 	}
-	
-	
-	//return did_draw; // <-- unsure on sprite timings
-	return false;
+
+	return did_draw; // <-- unsure on sprite timings
+	//return false;
 }
 
 

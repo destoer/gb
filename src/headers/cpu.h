@@ -129,7 +129,7 @@ typedef struct
 
 
 	// memory
-	uint8_t vram[2][0x2000]; // 2nd array is cgb vram bank 1
+	uint8_t vram[2][0x2000]; // 2nd array is cgb vram
 	uint8_t wram[0x2000];
 	uint8_t oam[0xA0];
 	uint8_t io[0x100]; // hram and io registers
