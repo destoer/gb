@@ -13,16 +13,16 @@
 
 #include <stdarg.h>
 
-inline void write_log(const char *fmt, ...);
+
 
 // Check every instr from mooneye tests for  order eg condiational calls 
 
 
 
 // may be broken for 16 bit operand jumps
-void write_log(const char *fmt, ...)
+void write_log(Cpu *cpu,const char *fmt, ...)
 {
-/*#ifdef DEBUG
+#ifdef LOGGER
 		va_list args;
 		
 		va_start(args,fmt);
@@ -38,10 +38,10 @@ void write_log(const char *fmt, ...)
 			//exit(1);
 		//}
 		
-		vprintf(fmt,args);
+		vfprintf(cpu->logger,fmt,args);
 		//fclose(fp);
 		va_end(args);
-#endif*/
+#endif
 }
 
 // potentially need the rominfo too but not needed yet
@@ -72,6 +72,7 @@ void step_cpu(Cpu * cpu)
 	int8_t operand;
 	uint8_t cbop;
 	uint16_t operandw;
+	
 	// normal execution
 	opcode = read_memt(cpu->pc++,cpu);
 	//print cpu state and disassemble the opcode
@@ -232,7 +233,7 @@ void step_cpu(Cpu * cpu)
 		case 0x18: // jr n
 			
 			operand = read_memt(cpu->pc++, cpu);
-			write_log("jr n at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+			write_log(cpu,"jr n at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 			cycle_tick(cpu,1); // internal delay
 			cpu->pc += operand;
 			break;
@@ -276,7 +277,7 @@ void step_cpu(Cpu * cpu)
 			operand = read_memt(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb, Z))
 			{
-				write_log("jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+				write_log(cpu,"jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cycle_tick(cpu,1); // internal delay
 				cpu->pc += operand;
 			}
@@ -345,7 +346,7 @@ void step_cpu(Cpu * cpu)
 			operand = read_memt(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb, Z))
 			{
-				write_log("jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+				write_log(cpu,"jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cycle_tick(cpu,1); // internal delay
 				cpu->pc += operand;
 			}
@@ -393,7 +394,7 @@ void step_cpu(Cpu * cpu)
 			operand = read_memt(cpu->pc++, cpu);
 			if(!is_set(cpu->af.lb,C))
 			{
-				write_log("jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+				write_log(cpu,"jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				cycle_tick(cpu,1); // internal delay
 			}
@@ -442,7 +443,7 @@ void step_cpu(Cpu * cpu)
 			operand = read_memt(cpu->pc++, cpu);
 			if(is_set(cpu->af.lb,C))
 			{
-				write_log("jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
+				write_log(cpu,"jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
 				cycle_tick(cpu,1); // internal delay
 			}	
@@ -1029,7 +1030,9 @@ void step_cpu(Cpu * cpu)
 			cycle_tick(cpu,1); //// internal
 			if(!is_set(cpu->af.lb,Z))
 			{
-				cpu->pc = read_stackwt(cpu);
+				operandw = read_stackwt(cpu);
+				write_log(cpu,"ret nz %x -> %x\n",cpu->pc-1,operandw);
+				cpu->pc = operandw;				
 				cycle_tick(cpu,1);  // internal
 			}
 			break;
@@ -1045,13 +1048,14 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 2;
 			if(!is_set(cpu->af.lb,Z))
 			{
-				write_log("jp nz at %x -> %x\n",cpu->pc-3,operandw);
+				write_log(cpu,"jp nz at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal delay
 			}
 			break;
 			
 		case 0xc3: // jump
+			write_log(cpu,"jp at %x -> %x\n",cpu->pc-1, read_word(cpu->pc,cpu));
 			cpu->pc = read_wordt(cpu->pc,cpu);
 			cycle_tick(cpu,1); // internal
 			break;
@@ -1063,7 +1067,7 @@ void step_cpu(Cpu * cpu)
 			if(!is_set(cpu->af.lb,Z))
 			{
 				cycle_tick(cpu,1); // internal
-				write_log("call nz at %x -> %x\n",cpu->pc-3,operandw);
+				write_log(cpu,"call nz at %x -> %x\n",cpu->pc-3,operandw);
 				write_stackwt(cpu,cpu->pc);
 				cpu->pc = operandw;
 			}
@@ -1089,13 +1093,17 @@ void step_cpu(Cpu * cpu)
 			cycle_tick(cpu,1); // internal delay
 			if(is_set(cpu->af.lb,Z))
 			{
-				cpu->pc = read_stackwt(cpu);
+				operandw = read_stackwt(cpu);
+				write_log(cpu,"ret z %x -> %x\n",cpu->pc-1,operandw);
+				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal delay
 			}
 			break;
 		
 		case 0xc9: // ret 
-			cpu->pc = read_stackwt(cpu);
+			operandw = read_stackwt(cpu);
+			write_log(cpu,"ret %x -> %x\n",cpu->pc-1,operandw);		
+			cpu->pc = operandw;
 			cycle_tick(cpu,1); // internal
 			break;
 		
@@ -1104,7 +1112,7 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 2;
 			if(is_set(cpu->af.lb, Z))
 			{
-				write_log("jp z at %x -> %x\n",cpu->pc-3,operandw);
+				write_log(cpu,"jp z at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal
 			}
@@ -1135,7 +1143,7 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 2;
 			cycle_tick(cpu,1); // internal
 			write_stackwt(cpu,cpu->pc);
-			write_log("call at %x -> %x\n",cpu->pc-3,operandw);
+			write_log(cpu,"call at %x -> %x\n",cpu->pc-3,operandw);
 			cpu->pc = operandw;
 			break;
 
@@ -1153,7 +1161,9 @@ void step_cpu(Cpu * cpu)
 			cycle_tick(cpu,1); // internal delay
 			if(!is_set(cpu->af.lb,C))
 			{
-				cpu->pc = read_stackwt(cpu);
+				operandw = read_stackwt(cpu);
+				write_log(cpu,"ret nc %x -> %x\n",cpu->pc-1,operandw);				
+				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal delay
 			}
 			break;
@@ -1167,7 +1177,7 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 2;
 			if(!is_set(cpu->af.lb,C))
 			{
-				write_log("jp nc at %x -> %x\n",cpu->pc-3,operandw);
+				write_log(cpu,"jp nc at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1);// internal
 			}
@@ -1178,7 +1188,7 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 2;
 			if(!is_set(cpu->af.lb,C))
 			{
-				write_log("call nc at %x -> %x\n",cpu->pc-3,operandw);
+				write_log(cpu,"call nc at %x -> %x\n",cpu->pc-3,operandw);
 				cycle_tick(cpu,1); // internal delay
 				write_stackwt(cpu,cpu->pc);
 				cpu->pc = operandw;
@@ -1204,13 +1214,17 @@ void step_cpu(Cpu * cpu)
 			cycle_tick(cpu,1); // internal delay
 			if(is_set(cpu->af.lb,C))
 			{
-				cpu->pc = read_stackwt(cpu);
+				operandw = read_stackwt(cpu);
+				write_log(cpu,"ret c %x -> %x\n",cpu->pc-1,operandw);				
+				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal delay
 			}
 			break;
 			
 		case 0xd9: // reti
-			cpu->pc = read_stackwt(cpu);
+			operandw = read_stackwt(cpu);
+			write_log(cpu,"reti %x -> %x\n",cpu->pc-1,operandw);		
+			cpu->pc = operandw;
 			cycle_tick(cpu,1);// internal
 			cpu->interrupt_enable = true; // re-enable interrupts
 			break;
@@ -1220,7 +1234,7 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 2;
 			if(is_set(cpu->af.lb,C))
 			{
-				write_log("jp c at %x -> %x\n",cpu->pc-3,operandw);
+				write_log(cpu,"jp c at %x -> %x\n",cpu->pc-3,operandw);
 				cpu->pc = operandw;
 				cycle_tick(cpu,1); // internal
 			}
@@ -1231,7 +1245,7 @@ void step_cpu(Cpu * cpu)
 			cpu->pc += 2;
 			if(is_set(cpu->af.lb,C))
 			{
-				write_log("call c at %x -> %x\n",cpu->pc-3,operandw);
+				write_log(cpu,"call c at %x -> %x\n",cpu->pc-3,operandw);
 				cycle_tick(cpu,1); // internal 
 				write_stackwt(cpu,cpu->pc);
 				cpu->pc = operandw;
@@ -1285,7 +1299,7 @@ void step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xe9: // jp hl
-			write_log("jp hl at %x -> %x\n",cpu->pc-1,cpu->hl.reg);
+			write_log(cpu,"jp hl at %x -> %x\n",cpu->pc-1,cpu->hl.reg);
 			cpu->pc = cpu->hl.reg;
 			break;
 		
@@ -1379,8 +1393,17 @@ void step_cpu(Cpu * cpu)
 				printf("stack address %x: %x\n",cpu->sp,read_stackw(cpu));
 			}
 			printf("rom_bank = %x\n",cpu->currentrom_bank);
-			for(;;) { }
-			//exit(1);
+			printf("wram_bank = %x\n",cpu->cgb_ram_bank_num);
+			
+			#ifdef LOGGER
+			fprintf(cpu->logger,"Fatal unknown opcode at: %x\n",cpu->pc);
+			fflush(cpu->logger); // flush the log file
+			#endif
+			
+			//enter_debugger(cpu);
+			
+			//for(;;) { }
+			exit(1);
 			#endif
 			break;
 	}

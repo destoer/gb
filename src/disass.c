@@ -13,6 +13,7 @@ int disass_8080(Cpu *cpu,const uint16_t addr)
 {
 	uint8_t opcode = read_mem(addr,cpu); // fetch opcode
 	uint16_t address = addr + 1; // address for operand reads
+	
 	uint8_t op; // cb opcode
 	uint8_t operand = read_mem(address,cpu); // operand
 	uint16_t operandw = read_word(address,cpu); // word operand
@@ -132,7 +133,7 @@ int disass_8080(Cpu *cpu,const uint16_t addr)
 			break;
 		
 		case 0x18: // n 
-			printf("jr %02x\n",(address + (int8_t)operand));
+			printf("jr %02x\n",(address+1 + (int8_t)operand));
 			break;
 		
 		case 0x19: // add hl, de
@@ -164,7 +165,7 @@ int disass_8080(Cpu *cpu,const uint16_t addr)
 			break;
 		
 		case 0x20: // jr nz, n
-			printf("jr nz, %02x\n",(address + (int8_t)operand));
+			printf("jr nz, %02x\n",(address+1 + (int8_t)operand));
 			break;
 			
 		case 0x21: // ld hl, nn
@@ -196,7 +197,7 @@ int disass_8080(Cpu *cpu,const uint16_t addr)
 			break;
 		
 		case 0x28: // jr z, n
-			printf("jr z, %02x\n",(address + (int8_t)operand));
+			printf("jr z, %02x\n",(address+1 + (int8_t)operand));
 			break;
 		
 		case 0x29: // add hl, hl 
@@ -228,7 +229,7 @@ int disass_8080(Cpu *cpu,const uint16_t addr)
 			break;
 		
 		case 0x30: // jr nc, nn
-			printf("jr nc, %x\n",(address + (int8_t)operand));
+			printf("jr nc, %x\n",(address+1 + (int8_t)operand));
 			break;
 			
 		case 0x31: // ld sp, nn
@@ -260,7 +261,7 @@ int disass_8080(Cpu *cpu,const uint16_t addr)
 			break;
 		
 		case 0x38: // jr c, nnnn
-			printf("jr c, %x\n",(address + (int8_t)operand));
+			printf("jr c, %x\n",(address+1 + (int8_t)operand));
 			break;
 		
 		case 0x39: // add hl, sp

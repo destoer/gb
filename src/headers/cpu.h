@@ -127,6 +127,7 @@ typedef struct
 	uint16_t pc;
 
 
+	
 
 	// memory
 	uint8_t vram[2][0x2000]; // 2nd array is cgb vram
@@ -237,6 +238,12 @@ typedef struct
 	bool step;
 	bool speed_up;
 	#endif
+	
+	
+	#ifdef LOGGER
+	FILE *logger;
+	#endif
+	
 	// bools used to inform cpu of special instrucitons occuring
 	bool ei;
 	bool di;

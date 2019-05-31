@@ -213,6 +213,7 @@ void update_graphics(Cpu *cpu, int cycles)
 		// mode 2 oam search
 		case 2:
 		{
+			// mode 2 is over
 			if(cpu->scanline_counter >= 80)
 			{
 				// switch to pixel transfer

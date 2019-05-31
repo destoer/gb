@@ -247,6 +247,12 @@ int main(int argc, char *argv[])
 		{	
 			if(event.type == SDL_QUIT) // <-- get saving backing up at regular intervals 
 			{
+				
+				#ifdef LOGGER
+				fclose(cpu.logger);
+				#endif
+				
+				
 				// save the ram and load it later
 				// should do detection on the save battery
 				savename = calloc(romname_len+5,1);

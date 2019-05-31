@@ -9,11 +9,9 @@
 
 // done in terms of T cycles
 
-// need to pass the final two tests
-// square one sounds too high pitched (pokemon red intro star (and lasts too long) )
-// likely envelope or the freq sweep (more likely) not working as intended
-
-// also when it stays on the frequency does not change (sweep is off but its not disabled)
+// need to finish up the tests
+// as while sound doesent sound awful
+// it is not fully accurate
 
 
 /* Handle the channel dac

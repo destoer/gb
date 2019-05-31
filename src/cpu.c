@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "headers/cpu.h"
 #include "headers/disass.h"
+#include "headers/opcode.h"
 #include "headers/lib.h"
 #include "headers/banking.h"
 #include "headers/instr.h"
@@ -36,6 +37,14 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 
 
 	
+	#ifdef LOGGER
+	cpu.logger = fopen("log.txt","w");
+	if(cpu.logger == NULL)
+	{
+		puts("Could not open log file for logging");
+		exit(1);
+	}
+	#endif
 	
 	cpu.currentram_bank = 0;
 	cpu.currentrom_bank = 1; // all ways at least one
@@ -270,7 +279,7 @@ void do_interrupts(Cpu *cpu)
 
 void service_interrupt(Cpu *cpu,int interrupt)
 {
-	
+	write_log(cpu,"Interrupt serviced at: %x, interrupt req: %x\n",cpu->pc,interrupt);
 	
 	cpu->interrupt_enable = false; // disable interrupts now one is serviced
 		

@@ -1235,14 +1235,14 @@ void do_dma(Cpu *cpu, uint8_t data)
 		{
 			write_oam(cpu,0xfe00+i, read_mem(dma_address+i,cpu)); 	
 		}
-		
-		// start here <-----
+	
+	/*	optimised but likely error prone version...
 		
 		// check ranges and assign the correct array and offset to the pointer
 		// so it can be passed to memcpy
 		
 		
-/*		uint8_t *dma_src;
+		uint8_t *dma_src;
 	
 		if(dma_address < 0x4000)
 		{
@@ -1278,14 +1278,14 @@ void do_dma(Cpu *cpu, uint8_t data)
 			
 			else {puts("dma from locked ram bank!"); exit(1); }
 			
-			/*else // may require handling for it being blocked
+			//else // may require handling for it being blocked
 				   // but i cant imagine a game doing this.....
-			{
-				return 0xff;
-			}*/
+			//{
+			//	return 0xff;
+			//}
 		}
 		
-/*		// work ram
+		// work ram
 		else if((dma_address >= 0xc000) && (dma_address <= 0xdfff))
 		{
 			if(!cpu->is_cgb)
@@ -1313,8 +1313,8 @@ void do_dma(Cpu *cpu, uint8_t data)
 	
 	
 		memcpy(cpu->oam,dma_src,0xA0);	
+	*/
 	}
-*/
 
 	// tell the emulator to start ticking the dma transfer
 	// source must be below 0xe000 <-- playing like hell fix later
