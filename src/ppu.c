@@ -92,8 +92,8 @@ void do_hdma(Cpu *cpu)
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
 
-	// 2  M cycles for each 0x10 block
-	cycle_tick(cpu,2);
+	// 8 M cycles for each 0x10 block
+	//cycle_tick(cpu,8);
 	
 	// hdma is over 
 	if(--cpu->hdma_len <= 0)
@@ -196,15 +196,8 @@ void update_graphics(Cpu *cpu, int cycles)
 					cpu->io[IO_STAT] &= ~3;
 					cpu->io[IO_STAT] |= 2;
 					cpu->current_line = 0;
-					cpu->mode = 2;
-					if(is_set(status,5))
-					{
-						if(signal_old == false)
-						{
-							request_interrupt(cpu,1);
-						}
-						cpu->signal = true;
-					}					
+					// enter oam search on the first line :)
+					cpu->mode = 2; 				
 				}	
 			}
 			break;
@@ -953,8 +946,6 @@ bool sprite_fetch(Cpu *cpu)
 
 	// in cgb if lcdc bit 0 is deset sprites draw over anything
 	bool draw_over_everything = (!is_set(lcd_control,0) && cpu->is_cgb);
-	if(!is_set(lcd_control,0)){ puts("should draw over everything"); }
-	if(draw_over_everything) { puts("Draw over everything!"); }
 	
 	int y_size = is_set(lcd_control,2) ? 16 : 8;
 

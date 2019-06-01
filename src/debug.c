@@ -202,7 +202,7 @@ void disass_addr(char *token, Cpu* cpu)
 	// just disass it
 	if(token == NULL)
 	{
-		disass_8080(cpu,cpu->pc);
+		disass_8080(cpu,address);
 	}
 	
 	else

@@ -9,11 +9,16 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 
 #include <stdarg.h>
 
-
+/*
+Cpu cpu_save;
+uint8_t ram_banks[0x8000];
+#define SAVE_BREAKPOINT 0x4a3e
+*/
 
 // Check every instr from mooneye tests for  order eg condiational calls 
 
@@ -47,9 +52,13 @@ void write_log(Cpu *cpu,const char *fmt, ...)
 // potentially need the rominfo too but not needed yet
 void step_cpu(Cpu * cpu)
 {
-	
-
-	
+/*	
+	if(cpu->pc == SAVE_BREAKPOINT)
+	{
+		memcpy(&cpu_save,cpu,sizeof(Cpu));
+		memcpy(ram_banks,cpu->ram_banks,0x8000);
+	}
+*/	
 	#ifdef DEBUG
 	if(cpu->pc == cpu->breakpoint || cpu->step) 
 	{
@@ -1399,7 +1408,11 @@ void step_cpu(Cpu * cpu)
 			fprintf(cpu->logger,"Fatal unknown opcode at: %x\n",cpu->pc);
 			fflush(cpu->logger); // flush the log file
 			#endif
-			
+		/*	
+			memcpy(cpu,&cpu_save,sizeof(Cpu));
+			memcpy(cpu->ram_banks,ram_banks,0x8000);
+			cpu->breakpoint = SAVE_BREAKPOINT;
+		*/	
 			//enter_debugger(cpu);
 			
 			//for(;;) { }

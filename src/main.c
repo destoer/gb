@@ -13,17 +13,11 @@
 #include "headers/apu.h"
 
 /* implementing cgb
-
 new vram bank
-
 new wram banks
-
 new dma transfers 
-
 double speed mode 
-
 new drawing functions 
-
 */
 
 static int next_time;
@@ -177,15 +171,11 @@ int main(int argc, char *argv[])
 	cpu.hl.reg = 0;
 	
 	FILE *fpbin = fopen("dmg_boot.bin","rb");	
-
 	fseek(fpbin,0,SEEK_END);
 	int len = ftell(fpbin);
 	rewind(fpbin);
-
 	fread(cpu.rom_mem,1,len,fpbin);
-
 	fclose(fpbin);
-
 	cpu.pc = 0x0;
 */
 	// check for a sav batt but for now we just copy the damb thing

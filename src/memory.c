@@ -55,7 +55,7 @@ void start_gdma(Cpu *cpu)
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
 
-	cycle_tick(cpu,2*(len / 0x10)); // 2 M cycles for each 10 byte block
+	cycle_tick(cpu,8*(len / 0x10)); // 8 M cycles for each 10 byte block
 
 	
 }
@@ -1160,7 +1160,28 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	// ECHO ram also writes in ram
 	else if( (address >= 0xE000) && (address < 0xFE00))
 	{
-		cpu->wram[address - 0xe000] = data;
+		printf("echo ram write: %x!\n",address);
+		if(!cpu->is_cgb) // return normally its on a dmg
+		{
+			cpu->wram[address - 0xe000] = data;
+		}
+		
+		else
+		{
+			uint16_t addr = address & 0xfff;
+			// if at 0xe000 - 0xefff return from bank 0
+			if(address >= 0xe000 && address <= 0xefff)
+			{
+				cpu->wram[addr] = data;
+			}
+
+			// if a 0xf000-0xfe00 return the current 
+			// internal ram bank
+			else 
+			{
+				cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr] = data;
+			}
+		}		
 		return;
 	}
 	
@@ -1666,7 +1687,28 @@ uint8_t read_mem(uint16_t address, Cpu *cpu)
 	// ECHO ram 
 	else if( (address >= 0xE000) && (address < 0xFE00))
 	{
-		return cpu->wram[address - 0xe000];
+		printf("echo ram read: %x!\n",address);
+		if(!cpu->is_cgb) // return normally its on a dmg
+		{
+			return cpu->wram[address - 0xe000];
+		}
+		
+		else
+		{
+			uint16_t addr = address & 0xfff;
+			// if at 0xe000 - 0xefff return from bank 0
+			if(address >= 0xe000 && address <= 0xefff)
+			{
+				return cpu->wram[addr];
+			}
+
+			// if a 0xf000-0xfe00 return the current 
+			// internal ram bank
+			else 
+			{
+				return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
+			}
+		}		
 	}	
 
 	// vram can only be accesed at mode 0-2

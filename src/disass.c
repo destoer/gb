@@ -1142,8 +1142,8 @@ int disass_8080(Cpu *cpu,const uint16_t addr)
 		
 		default:
 			fprintf(stderr, "[Disass] Unknown opcode: %x\n", opcode);
-			cpu_state(cpu);
-			exit(1);	
+			//cpu_state(cpu);
+			//exit(1);	
 	}
 	return len;
 }

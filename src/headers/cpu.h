@@ -1,4 +1,3 @@
-
 #pragma once
 #include <stdbool.h>
 #include <stdio.h>
@@ -34,9 +33,6 @@ static const int mcycles[] =
 	3,3,2,0,0,4,2,4,4,1,4,0,0,0,2,4,
 	3,3,2,1,0,4,2,4,3,2,4,1,0,0,2,4
 };
-
-
-
 // for use when a conditional is taken
 // return mtcycles[opcode];
 static const int mtcycles[] =
@@ -198,7 +194,6 @@ typedef struct
 	FF22 - NR43 - Channel 4 Polynomial Counter (R/W)
 	The amplitude is randomly switched between high and low at the given frequency. A higher frequency will make the noise to appear 'softer'.
 	When Bit 3 is set, the output will become more regular, and some frequencies will sound more like Tone than Noise.
-
 	  Bit 7-4 - Shift Clock Frequency (s)
 	  Bit 3   - Counter Step/Width (0=15 bits, 1=7 bits)
 	  Bit 2-0 - Dividing Ratio of Frequencies (r)

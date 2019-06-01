@@ -266,7 +266,7 @@ void do_interrupts(Cpu *cpu)
 				{
 					service_interrupt(cpu,i);
 					cycles += 5; // every interrupt service costs 5 M cycles
-					//break;
+					break;
 				}
 			}
 		}
