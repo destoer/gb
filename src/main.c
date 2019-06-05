@@ -41,6 +41,9 @@ uint32_t time_left(void)
 
 
 
+
+
+
 /* TODO */
 
 // <----- Work on sound support pass test 04 
@@ -430,24 +433,20 @@ int main(int argc, char *argv[])
 			
 			if(cpu.ei) // ei
 			{
-				cpu.ei = false;
-				step_cpu(&cpu);
+				cpu.ei = false; // assume a di was executed next instr
+				step_cpu(&cpu); 
 				// we have done an instruction now set ime
 				// needs to be just after the instruction service
 				// but before we service interrupts
-				if(!cpu.di) // if the next instruction executed is a di no interrupts should be enabled
-				{
+				if(!cpu.di) // if we have just executed di do not renable interrupts
+				{	
 					cpu.interrupt_enable = true;
 				}
 				
-				else
-				{
-					cpu.di = false; // turn di off so it doesent immediately trigger 
-				}
 				do_interrupts(&cpu); // handle interrupts 
 			}
 			
-			if(cpu.di) // di
+			else if(cpu.di) // di
 			{
 				cpu.di = false;
 				cpu.interrupt_enable = false; // di should disable immediately unlike ei!

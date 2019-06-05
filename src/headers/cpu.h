@@ -169,7 +169,7 @@ typedef struct
 	int currentrom_bank; // currently selected rom bank
 	bool rom_banking; // is rom banking enabled
 	bool enable_ram; // is ram banking enabled
-	bool rtc_enabled;
+//	bool rtc_enabled; // useless until the rtc is implemented!
 	RomInfo rom_info;
 
 

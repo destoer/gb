@@ -50,7 +50,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.currentrom_bank = 1; // all ways at least one
 	cpu.rom_banking = true; // default
 	cpu.enable_ram = false;
-	cpu.rtc_enabled = false;
+//	cpu.rtc_enabled = false;
 
 
 	// dmg boot reg values 
@@ -125,12 +125,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.window_start = false;
 	cpu.ppu_cyc = 0;
 	cpu.ppu_scyc = 0;
-	// tile fetcher will only have tiles
-	// from one loc atleast on dmg
-	for(int i = 0; i < 8; i++)
-	{
-		cpu.fetcher_tile[i].source = TILE;
-	}
+
 	
 	#ifdef DEBUG
 	// debugging vars 
@@ -141,7 +136,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.memw_value = -1;
 	#endif
 
-	//cpu.hblank = false;
+
 	
 	
 	// sound 
@@ -221,7 +216,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 
 	printf("Queued audio: %d!\n",cpu.initial_sample);
 	
-	cpu.fp = fopen("audio.pcm","wb+");
+	//cpu.fp = fopen("audio.pcm","wb+");
 
 	
 	
@@ -247,7 +242,6 @@ void request_interrupt(Cpu * cpu,int interrupt)
 
 void do_interrupts(Cpu *cpu)
 {
-	int cycles = 0;
 	// if interrupts are enabled
 	if(cpu->interrupt_enable)
 	{	
@@ -265,15 +259,11 @@ void do_interrupts(Cpu *cpu)
 				if(is_set(req,i) && is_set(enabled,i))
 				{
 					service_interrupt(cpu,i);
-					cycles += 5; // every interrupt service costs 5 M cycles
+					cycle_tick(cpu,5); // every interrupt service costs 5 M cycles
 					break;
 				}
 			}
 		}
-	}
-	if(cycles > 0)
-	{
-		cycle_tick(cpu,cycles);
 	}
 }
 
@@ -556,8 +546,7 @@ void tick_dma(Cpu *cpu, int cycles)
 		if( cpu->oam_dma_index >= 0xa2) // now its done 
 		{
 			return;
-		}
-		
+		}	
 	}
 
 	
@@ -588,24 +577,4 @@ void tick_dma(Cpu *cpu, int cycles)
 	}
 	
 	cpu->oam_dma_active = true;  // continue the dma
-}
-
-
-
-int set_clock_freq(Cpu *cpu)
-{
-	uint8_t freq = cpu->io[IO_TMC] & 0x3;
-	
-	int newfreq = 0;
-	
-	switch(freq)
-	{				
-		case 0: newfreq = 256; break; // freq 4096
-		case 1: newfreq = 4; break; //freq 262144
-		case 2: newfreq = 16; break; // freq 65536
-		case 3: newfreq = 64; break; // freq 16382
-		default: puts("Invalid freq"); exit(1);
-	}
-	
-	return  newfreq;
 }

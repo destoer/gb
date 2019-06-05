@@ -76,16 +76,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		}
 	}
 	#endif
-	
-	
-	/*if(address >= 0xff51 && address <= 0xff55)
-	{
-		printf("unhandled dma! %x\n",address);
-		exit(1);
-	}
-	*/
-	
-	
+		
 	switch(address & 0xff)
 	{ 
 		// update the timer freq (tac in gb docs)
@@ -938,11 +929,8 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				cpu->io[address & 0xff] = 0xff;
 				return;
 			}
-			
-			//puts("double speed mode unsupported!");
+
 			cpu->io[IO_SPEED] = (cpu->io[IO_SPEED] & 0x80) | (data & 0x1) | 0x7e;
-			//getchar();
-			//exit(1);
 			return;
 		}
 
