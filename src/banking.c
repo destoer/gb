@@ -18,174 +18,35 @@
 
 // mbc3 may not be enabling and disabling ram properly? 
 
-void do_change_rom_ram_mode(Cpu *cpu, uint8_t data);
-void do_ram_bank_change(Cpu *cpu, uint8_t data);
-void do_change_hi_rom_bank(Cpu *cpu, uint8_t data);
-void do_change_lo_rom_bank(Cpu *cpu,uint8_t data);
-void do_ram_bank_enable(Cpu * cpu,uint16_t address, uint8_t data);
+void do_change_rom_ram_mode(Cpu *cpu,uint16_t address,int data);
+void do_ram_bank_change(Cpu *cpu,int data);
+void do_change_hi_rom_bank_mbc1(Cpu *cpu,int data);
+void do_change_lo_rom_bank(Cpu *cpu,uint16_t address,int data);
+void do_ram_bank_enable(Cpu *cpu,uint16_t address,int data);
+void do_ram_bank_change_mbc1(Cpu *cpu, int data);
 
-void handle_banking(uint16_t address, uint8_t data,Cpu *cpu)
+
+
+void cache_banking_ptrs(Cpu *cpu)
 {
-
-	
-	// do ram enabling 
-	if(address < 0x2000)
-	{
-		// no ram banks dont enable it
-		if(cpu->rom_info.noRamBanks == 0)
-		{
-			return;
-		}
-
-		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2 || cpu->rom_info.mbc3 || cpu->rom_info.mbc5)
-		{
-			do_ram_bank_enable(cpu,address,data);
-		}
-	}
-	
-	// do rom or ram bank change
-	else if(address >= 0x2000 && address < 0x4000)
-	{
-		if(cpu->rom_info.mbc1 || cpu->rom_info.mbc2)
-		{
-			do_change_lo_rom_bank(cpu,data);
-		}
-
-		else if(cpu->rom_info.mbc3)
-		{
-			cpu->currentrom_bank = data & 127;
-			cpu->currentrom_bank &= 127;
-			
-			if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
-			{
-				//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
-				cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
-				//printf("new rom bank %d\n",cpu->currentrom_bank);
-				//exit(1);
-			}
-			
-			if(cpu->currentrom_bank == 0) cpu->currentrom_bank = 1;
-		}
-		
-		
-		else if(cpu->rom_info.mbc5)
-		{
-			if(address <= 0x2000 && address <= 0x2fff)
-			{
-				cpu->currentrom_bank &= ~0xff;
-				cpu->currentrom_bank |= data;
-				
-				if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
-				{
-					//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
-					cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
-					//printf("new rom bank %d\n",cpu->currentrom_bank);
-					//exit(1);
-				}
-				
-				// bank zero actullay acceses bank 0
-				
-			}
-			
-			
-			else if(address <= 0x3000 && address <= 0x3fff)
-			{
-				cpu->currentrom_bank &= 0xff;
-				cpu->currentrom_bank |= (data & 1) << 8; // 9th bank bit
-				if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
-				{
-					//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
-					cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
-					//printf("new rom bank %d\n",cpu->currentrom_bank);
-					//exit(1);
-				}
-				
-			}
-		}
-		
-	}
-	
-	else if((address >= 0x4000) && (address < 0x6000))
-	{
-		// no rambank in mbc2 use rambank 0
-		if(cpu->rom_info.mbc1) 
-		{
-			if(cpu->rom_banking)
-			{
-				do_change_hi_rom_bank(cpu,data);
-			}
-				
-			else
-			{
-				do_ram_bank_change(cpu,data);
-			}	
-		}
-		
-		
-		else if(cpu->rom_info.mbc3)
-		{
-			// change the ram bank
-			// if ram bank is greater than 0x3 disable writes
-			cpu->currentram_bank = data;
-			
-			if(cpu->currentram_bank > 3)
-			{
-				cpu->currentram_bank = RTC_ENABLED;
-			}
-			
-			else if(cpu->rom_info.noRamBanks == 0)
-			{
-				cpu->currentram_bank = 0;
-			}
-	
-			else if(cpu->currentram_bank <= 3 && cpu->currentram_bank >= cpu->rom_info.noRamBanks)
-			{
-				//printf("[BANKING] Attempted to set a  ram bank greater than max %d\n",cpu->currentram_bank);
-				cpu->currentram_bank %= cpu->rom_info.noRamBanks;
-				//exit(1);
-			}
-			
-			
-			//puts("MBC3 ram change");	
-		}
-		
-		else if(cpu->rom_info.mbc5)
-		{
-			cpu->currentram_bank = data & 0xf;
-			
-			
-			if(cpu->currentram_bank >= cpu->rom_info.noRamBanks)
-			{
-				cpu->currentram_bank %= cpu->rom_info.noRamBanks;	
-			}
-			
-		}
-		
-	}
-	
-	// this changes wether we want to rom or ram bank
-	// for the above
-	else if((address >= 0x6000 && address < 0x8000))
-	{
-		if(cpu->rom_info.mbc1)
-		{
-			do_change_rom_ram_mode(cpu,data);
-		}	
-	}	
+	cpu->current_bank_ptr4 = &cpu->rom_mem[(cpu->currentrom_bank*0x4000)];
+	cpu->current_bank_ptr5 = &cpu->rom_mem[0x1000 + (cpu->currentrom_bank*0x4000)];
+	cpu->current_bank_ptr6 = &cpu->rom_mem[0x2000 + (cpu->currentrom_bank*0x4000)];
+	cpu->current_bank_ptr7 = &cpu->rom_mem[0x3000 +(cpu->currentrom_bank*0x4000)];		
 }
 
-void do_ram_bank_enable(Cpu * cpu,uint16_t address, uint8_t data)
+// ram bank enables 0x0000-0x1fff
+// every mbc other than 2
+void do_ram_bank_enable(Cpu *cpu, uint16_t address, int data)
 {
-	
+	UNUSED(address);
 
-	
-	if(cpu->rom_info.mbc2)
+	// no ram banks dont enable it
+	if(cpu->rom_info.noRamBanks == 0)
 	{
-		if(is_set(address,4))
-		{
-			return;
-		}
+		return;
 	}
+	
 	
 	uint8_t test_data = data & 0xf;
 	
@@ -205,18 +66,28 @@ void do_ram_bank_enable(Cpu * cpu,uint16_t address, uint8_t data)
 	
 }
 
-
-void do_change_lo_rom_bank(Cpu *cpu,uint8_t data)
+// just mbc2
+void do_ram_bank_enable_mbc2(Cpu *cpu,uint16_t address,int data)
 {
-	
-	
+	UNUSED(address);
 	if(cpu->rom_info.mbc2)
 	{
-		cpu->currentrom_bank = data & 0xf;
-		if(cpu->currentrom_bank == 0) cpu->currentrom_bank++;
-		return;
+		if(is_set(address,4))
+		{
+			return;
+		}
 	}
-	
+
+	do_ram_bank_enable(cpu,address,data);
+}
+
+// ram bank change 
+// 0x2000 - 0x3fff
+
+// mbc1
+void do_change_lo_rom_bank_mbc1(Cpu *cpu, uint16_t address, int data)
+{
+	UNUSED(address);
 	uint8_t lower5 = data & 31; // get lower 5 bits 
 	cpu->currentrom_bank &= 224; // turn off bits lower than 5
 	cpu->currentrom_bank |= lower5;
@@ -237,10 +108,170 @@ void do_change_lo_rom_bank(Cpu *cpu,uint8_t data)
 	}
 
 	//printf("lo change %x\n",cpu->currentrom_bank);
-	
+	cache_banking_ptrs(cpu);
 }
 
-void do_change_hi_rom_bank(Cpu *cpu, uint8_t data)
+//mbc2
+void do_change_lo_rom_bank_mbc2(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	cpu->currentrom_bank = data & 0xf;
+	if(cpu->currentrom_bank == 0) cpu->currentrom_bank++;
+	cache_banking_ptrs(cpu);
+	return;
+}
+
+// mbc3
+void do_change_rom_bank_mbc3(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	cpu->currentrom_bank = data & 127;
+	cpu->currentrom_bank &= 127;
+			
+	if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
+	{
+		//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
+		cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
+		//printf("new rom bank %d\n",cpu->currentrom_bank);
+		//exit(1);
+	}		
+	if(cpu->currentrom_bank == 0) cpu->currentrom_bank = 1;	
+	cache_banking_ptrs(cpu);
+}
+
+
+// mbc5
+void do_change_lo_rom_bank_mbc5(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	cpu->currentrom_bank &= 0x100;
+	cpu->currentrom_bank |= data;
+				
+	if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
+	{
+		//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
+		cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
+		//printf("new rom bank %d\n",cpu->currentrom_bank);
+		//exit(1);
+	}			
+	// bank zero actually acceses bank 0
+	cache_banking_ptrs(cpu);
+}
+
+
+//mbc5 (9th bit) (03000 - 0x3fff)
+void do_change_hi_rom_bank_mbc5(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	cpu->currentrom_bank &= 0xff;
+	cpu->currentrom_bank |= (data & 1) << 8; // 9th bank bit
+	if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
+	{
+		//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);
+		cpu->currentrom_bank %= cpu->rom_info.noRomBanks;
+		//printf("new rom bank %d\n",cpu->currentrom_bank);
+		//exit(1);
+	}
+	cache_banking_ptrs(cpu);
+}
+
+
+// 0x4000 - 0x5fff
+
+// mbc1
+void mbc1_banking_change(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	if(cpu->rom_banking)
+	{
+		do_change_hi_rom_bank_mbc1(cpu,data);
+	}
+	
+	else
+	{
+		do_ram_bank_change_mbc1(cpu,data);
+	}
+}
+
+// mbc3
+void mbc3_ram_bank_change(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	// change the ram bank
+	// if ram bank is greater than 0x3 disable writes
+	cpu->currentram_bank = data;
+			
+	if(cpu->currentram_bank > 3)
+	{
+		cpu->currentram_bank = RTC_ENABLED;
+	}	
+	
+	else if(cpu->rom_info.noRamBanks == 0)
+	{
+		cpu->currentram_bank = 0;
+	}
+	
+	else if(cpu->currentram_bank <= 3 && cpu->currentram_bank >= cpu->rom_info.noRamBanks)
+	{
+		//printf("[BANKING] Attempted to set a  ram bank greater than max %d\n",cpu->currentram_bank);
+		cpu->currentram_bank %= cpu->rom_info.noRamBanks;
+		//exit(1);
+	}	
+	//puts("MBC3 ram change");
+}			
+// mbc5
+void mbc5_ram_bank_change(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	cpu->currentram_bank = data & 0xf;
+	
+	if(cpu->currentram_bank >= cpu->rom_info.noRamBanks)
+	{
+		cpu->currentram_bank %= cpu->rom_info.noRamBanks;	
+	}	
+}
+
+// 0x6000-0x7fff
+// mbc1
+void do_change_rom_ram_mode(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(address);
+	// may need to and data with 1
+	data &= 0x1;
+	
+	if(data == 1)
+	{
+		// enable ram banking mode
+		cpu->rom_banking = false;
+	}
+	
+	else
+	{
+		// enable rom banking mode
+		cpu->rom_banking = true;
+	}
+	
+	
+	if(cpu->rom_banking)
+	{
+		cpu->currentram_bank = 0;
+	}
+}
+
+// ideally a well behaved game wont call this but it might happen
+void banking_unused(Cpu *cpu,uint16_t address,int data)
+{
+	UNUSED(cpu); UNUSED(address); UNUSED(data);
+	return;
+}
+
+
+
+
+// both below are called by mbc1_banking_change
+
+// mbc1 high bank change
+void do_change_hi_rom_bank_mbc1(Cpu *cpu, int data)
 {
 	
 	cpu->currentrom_bank &= 0x1f;
@@ -266,14 +297,13 @@ void do_change_hi_rom_bank(Cpu *cpu, uint8_t data)
 	}
 	
 
-
-	
+	cache_banking_ptrs(cpu);
 	//printf("hi change %x\n",cpu->currentrom_bank);
 	
 }
 
-
-void do_ram_bank_change(Cpu *cpu, uint8_t data)
+// mbc1 ram bank change
+void do_ram_bank_change_mbc1(Cpu *cpu, int data)
 {
 	cpu->currentram_bank = data & 0x3;
 	
@@ -290,29 +320,4 @@ void do_ram_bank_change(Cpu *cpu, uint8_t data)
 		//exit(1);
 	}
 	
-}
-
-
-void do_change_rom_ram_mode(Cpu *cpu, uint8_t data)
-{
-	// may need to and data with 1
-	data &= 0x1;
-	
-	if(data == 1)
-	{
-		// enable ram banking mode
-		cpu->rom_banking = false;
-	}
-	
-	else
-	{
-		// enable rom banking mode
-		cpu->rom_banking = true;
-	}
-	
-	
-	if(cpu->rom_banking)
-	{
-		cpu->currentram_bank = 0;
-	}
 }

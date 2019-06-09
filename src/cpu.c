@@ -223,8 +223,121 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	// init the cgb stuff
 	memset(cpu.bg_pal,0xff,0x40);
 	memset(cpu.sp_pal,0xff,0x40);
+
+
+	// init our table our memory pointers
+	/* read */
+	cpu.memory_table[0x0].read_memf = read_rom_bank_zero; // 0x0000
+	cpu.memory_table[0x1].read_memf = read_rom_bank_zero; // 0x1000
+	cpu.memory_table[0x2].read_memf = read_rom_bank_zero; // 0x2000
+	cpu.memory_table[0x3].read_memf = read_rom_bank_zero; // 0x3000
+	cpu.memory_table[0x4].read_memf = read_rom_bank4; // 0x4000
+	cpu.memory_table[0x5].read_memf = read_rom_bank5; // 0x5000
+	cpu.memory_table[0x6].read_memf = read_rom_bank6; // 0x6000
+	cpu.memory_table[0x7].read_memf = read_rom_bank7; // 0x7000
+	cpu.memory_table[0x8].read_memf = read_mem_vram; // 0x8000
+	cpu.memory_table[0x9].read_memf = read_mem_vram; // 0x9000
+	cpu.memory_table[0xa].read_memf = read_cart_ram; // 0xa000
+	cpu.memory_table[0xb].read_memf = read_cart_ram; // 0xb000
+	cpu.memory_table[0xc].read_memf = read_wram_low; // 0xc000
+	cpu.memory_table[0xd].read_memf = read_wram_high; //0xd000
+	cpu.memory_table[0xe].read_memf = read_wram_low; // 0xe000 (echo ram)
+	cpu.memory_table[0xf].read_memf = read_mem_hram;
+	/* write */
+	// 0x7 - 0x8 is initialized in init_banking_pointers
+	cpu.memory_table[0x8].write_memf = write_vram_mem; // 0x8000
+	cpu.memory_table[0x9].write_memf = write_vram_mem; // 0x9000
+	cpu.memory_table[0xa].write_memf = write_cart_mem; // 0xa000
+	cpu.memory_table[0xb].write_memf = write_cart_mem; // 0xb000
+	cpu.memory_table[0xc].write_memf = write_wram_low; // 0xc000
+	cpu.memory_table[0xd].write_memf = write_wram_high; //0xd000
+	cpu.memory_table[0xe].write_memf = write_wram_low; // 0xe000 (echo ram)
+	cpu.memory_table[0xf].write_memf = write_hram;	
 	
 	return cpu;
+}
+
+void init_banking_pointers(Cpu *cpu)
+{
+	
+	cache_banking_ptrs(cpu);
+	
+	// mbc1 rom
+	if(cpu->rom_info.mbc1)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x2].write_memf = do_change_lo_rom_bank_mbc1;
+		cpu->memory_table[0x3].write_memf = do_change_lo_rom_bank_mbc1;
+		cpu->memory_table[0x4].write_memf = mbc1_banking_change;
+		cpu->memory_table[0x5].write_memf = mbc1_banking_change; 
+		cpu->memory_table[0x6].write_memf = do_change_rom_ram_mode;
+		cpu->memory_table[0x7].write_memf = do_change_rom_ram_mode;
+		return;
+	}
+	
+	// mbc2 rom
+	else if(cpu->rom_info.mbc2)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable_mbc2;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable_mbc2;
+		// this is shared with mbc1
+		cpu->memory_table[0x2].write_memf = do_change_lo_rom_bank_mbc1;
+		cpu->memory_table[0x3].write_memf = do_change_lo_rom_bank_mbc1;
+		
+		// no ram bank changing
+		cpu->memory_table[0x4].write_memf = banking_unused;
+		cpu->memory_table[0x5].write_memf = banking_unused;
+		
+		// as is the high banking for mbc2
+		cpu->memory_table[0x6].write_memf = banking_unused;
+		cpu->memory_table[0x7].write_memf = banking_unused;
+		return;
+	}
+	
+	// mbc3 rom
+	else if(cpu->rom_info.mbc3)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x2].write_memf = do_change_rom_bank_mbc3 ;
+		cpu->memory_table[0x3].write_memf = do_change_rom_bank_mbc3;
+		cpu->memory_table[0x4].write_memf = mbc3_ram_bank_change;
+		cpu->memory_table[0x5].write_memf = mbc3_ram_bank_change;
+		cpu->memory_table[0x6].write_memf = banking_unused;
+		cpu->memory_table[0x7].write_memf = banking_unused;
+		return;
+	}
+	
+	// mbc5 rom
+	else if(cpu->rom_info.mbc5)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x2].write_memf = do_change_lo_rom_bank_mbc5;
+		cpu->memory_table[0x3].write_memf = do_change_hi_rom_bank_mbc5;
+		cpu->memory_table[0x4].write_memf = mbc5_ram_bank_change;
+		cpu->memory_table[0x5].write_memf = mbc5_ram_bank_change;
+		cpu->memory_table[0x6].write_memf = banking_unused;
+		cpu->memory_table[0x7].write_memf = banking_unused;		
+		return;
+	}
+	
+	// zero in cart type is rom only 
+	// if aint this then somethign is wrong
+	else if(cpu->rom_info.cartType != 0)
+	{
+		printf("invalid rom type in init_banking_pointers!");
+		exit(1);
+	}
+	
+	
+	// rom only 
+	for(int i = 0; i < 8; i++)
+	{
+		cpu->memory_table[i].write_memf = banking_unused; // banking not used on rom only
+	}
+	
 }
 
 

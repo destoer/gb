@@ -279,6 +279,7 @@ void update_graphics(Cpu *cpu, int cycles)
 
 
 	
+	
 	// check coincidence  (lyc == ly)
 	uint8_t lyc = cpu->io[IO_LYC];
 	
@@ -289,12 +290,6 @@ void update_graphics(Cpu *cpu, int cycles)
 	if(lyc == cpu->current_line)
 	{
 		set_bit(status,2); // toggle coincidence bit
-		
-		if(is_set(status,6))
-		{
-			cpu->signal = true;
-		}
-		
 	}
 	
 	else
@@ -302,14 +297,12 @@ void update_graphics(Cpu *cpu, int cycles)
 		deset_bit(status,2); // deset coincidence bit
 	}
 	
-	
-	// if the lyc coeincidence is set and interrupt is enabled
+
 	if(is_set(status,6) && is_set(status,2))
 	{
 		cpu->signal = true;
-
-	}
-
+	}	
+	
 
 	// if we have changed from 0 to 1 for signal(signal edge)
 	// request a stat interrupt
@@ -975,9 +968,9 @@ bool sprite_fetch(Cpu *cpu)
 		// sprite that we draw fully
 		int pixel_start = 7; 
 
-		if(cpu->x_cord == 0 &&  x_pos + 8 > 255)
+		if(cpu->x_cord == 0 &&  x_pos + 7 > 255)
 		{
-			x_pos += 8;
+			x_pos += 7;
 			
 			// this will cause it to draw at the correct offset into the sprite
 			pixel_start = x_pos;

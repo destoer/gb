@@ -15,15 +15,158 @@
 
 
 
-
-
-
-
-
-
-void write_mem(Cpu *cpu,uint16_t address,int data);
-uint8_t read_mem(uint16_t address, Cpu *cpu);
+uint8_t read_oam(uint16_t address, Cpu *cpu);
+uint8_t read_vram(uint16_t address, Cpu *cpu);
+uint8_t read_io(uint16_t address, Cpu *cpu);
+void write_io(Cpu *cpu,uint16_t address, int data);
+uint8_t read_rom_bank_zero(Cpu *cpu, uint16_t addr);
 void do_dma(Cpu *cpu, uint8_t data);
+uint8_t read_vram(uint16_t address, Cpu *cpu);
+uint8_t read_mem(uint16_t address, Cpu *cpu);
+void write_mem(Cpu *cpu,uint16_t address,int data);
+
+uint8_t read_rom_bank_zero(Cpu *cpu, uint16_t address)
+{
+	return cpu->rom_mem[address];	
+}
+
+
+
+// cached ptrs for each section of the banked rom 
+// in 0x1000 segments
+uint8_t read_rom_bank4(Cpu *cpu, uint16_t address)
+{
+	uint16_t addr = address & 0xfff;
+	return cpu->current_bank_ptr4[addr];
+}
+
+uint8_t read_rom_bank5(Cpu *cpu, uint16_t address)
+{
+	uint16_t addr = address & 0xfff;
+	return cpu->current_bank_ptr5[addr];
+}
+
+uint8_t read_rom_bank6(Cpu *cpu, uint16_t address)
+{
+	uint16_t addr = address & 0xfff;
+	return cpu->current_bank_ptr6[addr];
+}
+
+uint8_t read_rom_bank7(Cpu *cpu, uint16_t address)
+{
+	uint16_t addr = address & 0xfff;
+	return cpu->current_bank_ptr7[addr];
+}
+
+
+// vram can only be accesed at mode 0-2
+// between 0x8000 - 0x9fff
+	
+uint8_t read_mem_vram(Cpu *cpu, uint16_t address)
+{
+	if(cpu->mode <= 2)
+	{
+		return read_vram(address,cpu);
+	}
+		
+	return 0xff; // return ff if you cant read
+}		
+
+// read out of cart ram 
+// 0xa000 - 0xbfff	
+uint8_t read_cart_ram(Cpu *cpu, uint16_t address)
+{	
+	// is ram enabled (ram bank of -1 indicates rtc reg)
+	if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
+	{
+		uint16_t new_address = address - 0xa000;
+		return cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
+	}
+		
+	else
+	{
+		return 0xff;
+	}	
+}
+
+
+// WRAM
+// 0xc000
+uint8_t read_wram_low(Cpu *cpu, uint16_t address)
+{	
+	uint16_t addr = address & 0xfff;
+	return cpu->wram[addr];
+}
+
+// 0xd000
+uint8_t read_wram_high(Cpu *cpu, uint16_t address)
+{
+	uint16_t addr = address & 0xfff;
+	// on dmg the work ram bank is fixed!
+	return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
+}
+
+// reads from 0xf000
+uint8_t read_mem_hram(Cpu *cpu, uint16_t address)
+{
+	// io mem
+	if(address >= 0xff00)
+	{	
+		return read_io(address, cpu);
+	}	
+	
+	else if(address >= 0xf000 && address <= 0xfdff)
+	{
+		uint16_t addr = address & 0xfff;
+		// on dmg the work ram bank is fixed!
+		return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
+	}	
+	
+	// oam is accesible during mode 0-1
+	else if(address >= 0xfe00 && address <= 0xfe9f)
+	{
+		if(cpu->mode <= 1 && !cpu->oam_dma_active) // cant access during dma? but ppu should?
+		{
+			return read_oam(address,cpu);
+		}
+		
+		return 0xff; // cant read so return ff
+	}
+
+	// restricted 
+	else if( (address >= 0xFEA0) && (address <= 0xFEFF) )
+	{
+		return 0xff;
+	}
+
+
+	// else 
+	printf("fell through at hram: %x\n",address);
+	exit(1);
+	
+}
+
+
+uint8_t read_mem(uint16_t address, Cpu *cpu)
+{
+	#ifdef DEBUG
+	// read breakpoint
+	if(address == cpu->memr_breakpoint)
+	{
+		int break_backup = cpu->memr_breakpoint;
+		cpu->memr_breakpoint = -1;
+		if(cpu->memr_value == -1 || cpu->memr_value == read_mem(address,cpu))
+		{
+			cpu->memr_breakpoint = break_backup;
+			printf("read breakpoint (%x)!\n",cpu->memr_breakpoint);
+			enter_debugger(cpu);
+		}
+		cpu->memr_breakpoint = break_backup;
+	}
+	#endif	
+	
+	return cpu->memory_table[(address & 0xf000) >> 12].read_memf(cpu,address);
+}
 
 
 void write_oam(Cpu *cpu, uint16_t address, int data)
@@ -34,6 +177,7 @@ void write_oam(Cpu *cpu, uint16_t address, int data)
 
 void start_gdma(Cpu *cpu)
 {
+	
 	//puts("GDMA!");
 	//exit(1);
 
@@ -1054,6 +1198,95 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 	}
 }
 
+
+
+
+
+// 0x8000 - 0x9fff
+void write_vram_mem(Cpu *cpu, uint16_t address ,int data)
+{
+	// vram can only be accesed at mode 0-2
+	
+	if(cpu->mode <= 2)
+	{
+		uint16_t addr = address - 0x8000;
+		// bank is allways zero in dmg mode
+		cpu->vram[cpu->vram_bank][addr] = data;	
+	}
+	return;
+}
+
+// 0xa000 - 0xbfff
+void write_cart_mem(Cpu *cpu, uint16_t address, int data)
+{
+	// if ram enabled
+	if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
+	{
+		uint16_t new_address = address - 0xa000;
+		//printf("write ram bank: %x : %x\n",cpu->currentram_bank,data);
+		cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)] = data;
+		return;
+	}
+}
+
+
+// WRAM
+// 0xc000 - 0xcfff
+void write_wram_low(Cpu *cpu, uint16_t address, int data)
+{
+	// same on both dmg and cgb
+	uint16_t addr = address & 0xfff;
+	cpu->wram[addr] = data;
+	return;
+}
+
+// 0xd000 - 0xdfff
+void write_wram_high(Cpu *cpu, uint16_t address, int data)
+{
+	uint16_t addr = address & 0xfff;
+	// on dmg the work ram bank is fixed!
+	cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr] = data;
+	return;	
+}
+
+void write_hram(Cpu *cpu, uint16_t address, int data)
+{
+	// io
+	if(address >= 0xff00)
+	{
+		write_io(cpu,address,data);
+		return;
+	}
+	
+	else if(address >= 0xf000 && address <= 0xfdff)
+	{
+		uint16_t addr = address & 0xfff;
+		// on dmg the work ram bank is fixed!
+		cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr] = data;
+		return;
+	}
+
+	// oam is accesible during mode 0-1
+	else if(address >= 0xfe00 && address <= 0xfe9f)
+	{
+		// should be blocked during dma but possibly not to the ppu
+		if(cpu->mode <= 1 && !cpu->oam_dma_active)
+		{
+			write_oam(cpu,address,data);
+		}
+		return;
+	}	
+	
+	// restricted 
+	else if( (address >= 0xFEA0) && (address <= 0xFEFF) )
+	{
+		return;
+	}
+	printf("write fall through: %x, %x!\n",address,data);
+	exit(1);
+}
+
+
 void write_mem(Cpu *cpu,uint16_t address,int data)
 {
 
@@ -1069,160 +1302,8 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 		}
 	}
 	#endif
-
-
-/*	// only allow reads from hram or from dma reg 
-	if(cpu->oam_dma_active)
-	{
-			if(address >= 0xFF80 && address <= 0xFFFE)
-			{
-				// allow the read to hram
-				
-			}
-			
-			// dma reg
-			else if(address == 0xff46)
-			{
-				do_dma(cpu,address); // restart dma
-				cpu->io[IO_DMA] = data;
-			}
-			
-			// block do nothing
-			return;
-	}
-*/
-
-	// handle banking 
-	if(address < 0x8000)
-	{
-		handle_banking(address,data,cpu);
-		return;
-	}
-			
-
-
-	else if(address >= 0xa000 && address < 0xc000)
-	{
-		// if ram enabled
-		if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
-		{
-			uint16_t new_address = address - 0xa000;
-
-
-			//printf("write ram bank: %x : %x\n",cpu->currentram_bank,data);
-			cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)] = data;
-			return;
-		}
-	}
-
-
-	// work ram
-	else if((address >= 0xc000) && (address <= 0xdfff))
-	{
-		if(!cpu->is_cgb) // return normally its on a dmg
-		{
-			cpu->wram[address - 0xc000] = data;
-		}
-		
-		else
-		{
-			uint16_t addr = address & 0xfff;
-			// if at 0xc000 - 0xcfff return from bank 0
-			if(address >= 0xc000 && address <= 0xcfff)
-			{
-				cpu->wram[addr] = data;
-			}
-
-			// if a 0xd000-0xdfff return the current 
-			// internal ram bank
-			else 
-			{
-				cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr] = data;
-			}
-		}
-		
-		return;
-	}
-
 	
-	// ECHO ram also writes in ram
-	else if( (address >= 0xE000) && (address < 0xFE00))
-	{
-		printf("echo ram write: %x!\n",address);
-		if(!cpu->is_cgb) // return normally its on a dmg
-		{
-			cpu->wram[address - 0xe000] = data;
-		}
-		
-		else
-		{
-			uint16_t addr = address & 0xfff;
-			// if at 0xe000 - 0xefff return from bank 0
-			if(address >= 0xe000 && address <= 0xefff)
-			{
-				cpu->wram[addr] = data;
-			}
-
-			// if a 0xf000-0xfe00 return the current 
-			// internal ram bank
-			else 
-			{
-				cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr] = data;
-			}
-		}		
-		return;
-	}
-	
-	// two below need imeplementing 
-	
-	// vram can only be accesed at mode 0-2
-	else if(address >= 0x8000 && address <= 0x9fff)
-	{
-		if(cpu->mode <= 2)
-		{
-			uint16_t addr = address - 0x8000;
-			// bank is allways zero in dmg mode
-			cpu->vram[cpu->vram_bank][addr] = data;
-			
-		}
-		return;
-	}
-
-	// oam is accesible during mode 0-1
-	else if(address >= 0xfe00 && address <= 0xfe9f)
-	{
-		// should be blocked during dma but possibly not to the ppu
-		if(cpu->mode <= 1 && !cpu->oam_dma_active)
-		{
-			write_oam(cpu,address,data);
-		}
-		return;
-	}
-
-	
-	// restricted 
-	else if( (address >= 0xFEA0) && (address <= 0xFEFF) )
-	{
-		return;
-	}
-	
-
-	// io
-	else if(address >= 0xff00)
-	{
-		write_io(cpu,address,data);
-	}
-	
-
-
-	#ifdef DEBUG
-	// unhandled write
-	else
-	{
-		printf("unhandled write %x\n",address);
-		exit(1);
-	}
-	#endif
+	cpu->memory_table[(address & 0xf000) >> 12].write_memf(cpu,address,data);
 }
 
 void do_dma(Cpu *cpu, uint8_t data)
@@ -1571,176 +1652,3 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 		}
 	}
 }
-
-// needs reads related to banking after tetris
-// also needs the vram related stuff 
-uint8_t read_mem(uint16_t address, Cpu *cpu)
-{
-	#ifdef DEBUG
-	// read breakpoint
-	if(address == cpu->memr_breakpoint)
-	{
-		int break_backup = cpu->memr_breakpoint;
-		cpu->memr_breakpoint = -1;
-		if(cpu->memr_value == -1 || cpu->memr_value == read_mem(address,cpu))
-		{
-			cpu->memr_breakpoint = break_backup;
-			printf("read breakpoint (%x)!\n",cpu->memr_breakpoint);
-			enter_debugger(cpu);
-		}
-		cpu->memr_breakpoint = break_backup;
-	}
-	#endif
-
-
-/*	// only allow reads from hram or from dma reg 
-	if(cpu->oam_dma_active)
-	{
-			if(address >= 0xFF80 && address <= 0xFFFE)
-			{
-				return cpu->io[address & 0xff];
-			}
-			
-			// dma reg
-			else if(address == 0xff46)
-			{
-				return cpu->io[IO_DMA];
-			}
-			
-			// block do nothing
-			return 0xff;
-	}
-*/
-	// rom bank 0
-	if(address < 0x4000)
-	{
-		return cpu->rom_mem[address];
-	}
-
-
-	// are we reading from a rom bank
-	else if((address >= 0x4000) && (address <= 0x7FFF))
-	{
-		uint16_t new_address = address - 0x4000;
-		return cpu->rom_mem[new_address + (cpu->currentrom_bank*0x4000)];
-	}
-		
-	
-	// are we reading from a ram bank
-	else if((address >= 0xa000) && (address <= 0xbfff))
-	{
-	
-		// is ram enabled (ram bank of -1 indicates rtc reg)
-		if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
-		{
-			uint16_t new_address = address - 0xa000;
-			return cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
-		}
-		
-		else
-		{
-			return 0xff;
-		}
-	}
-	
-
-	// work ram
-	else if((address >= 0xc000) && (address <= 0xdfff))
-	{
-		if(!cpu->is_cgb) // return normally its on a dmg
-		{
-			return cpu->wram[address - 0xc000];
-		}
-		
-		else
-		{
-			uint16_t addr = address & 0xfff;
-			// if at 0xc000 - 0xcfff return from bank 0
-			if(address >= 0xc000 && address <= 0xcfff)
-			{
-				return cpu->wram[addr];
-			}
-
-			// if a 0xd000-0xdfff return the current 
-			// internal ram bank
-			else 
-			{
-				return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
-			}
-
-		}
-	}
-
-	
-	// ECHO ram 
-	else if( (address >= 0xE000) && (address < 0xFE00))
-	{
-		printf("echo ram read: %x!\n",address);
-		if(!cpu->is_cgb) // return normally its on a dmg
-		{
-			return cpu->wram[address - 0xe000];
-		}
-		
-		else
-		{
-			uint16_t addr = address & 0xfff;
-			// if at 0xe000 - 0xefff return from bank 0
-			if(address >= 0xe000 && address <= 0xefff)
-			{
-				return cpu->wram[addr];
-			}
-
-			// if a 0xf000-0xfe00 return the current 
-			// internal ram bank
-			else 
-			{
-				return cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
-			}
-		}		
-	}	
-
-	// vram can only be accesed at mode 0-2
-	else if(address >= 0x8000 && address <= 0x9fff)
-	{
-		if(cpu->mode <= 2)
-		{
-			return read_vram(address,cpu);
-		}
-		
-		return 0xff; // return ff if you cant read
-		
-	}
-
-	// oam is accesible during mode 0-1
-	else if(address >= 0xfe00 && address <= 0xfe9f)
-	{
-		if(cpu->mode <= 1 && !cpu->oam_dma_active) // cant access during dma? but ppu should?
-		{
-			return read_oam(address,cpu);
-		}
-		
-		return 0xff; // cant read so return ff
-	}
-	
-	// restricted 
-	else if( (address >= 0xFEA0) && (address <= 0xFEFF) )
-	{
-		return 0xff;
-	}
-	
-	// io mem
-	else if(address >= 0xff00)
-	{	
-		return read_io(address, cpu);
-	}
-	
-	#ifdef DEBUG
-	else
-	{
-		printf("unhandled read %x\n",address);
-		exit(1);
-	}
-	#endif
-	return 0xff;
-}
-

@@ -90,6 +90,10 @@ typedef union
 }Register;
 
 
+
+
+
+
 // should have a bool for the channel being enabled
 // as it is better to cache it
 typedef struct {
@@ -113,7 +117,16 @@ typedef struct {
 // how many cycles in double speed mode
 #define MAXCYC_DOUBLE_SPEED MAXCYC_SINGLE_SPEED * 2
 
-typedef struct 
+struct CPU;
+
+struct Memory_table
+{
+	uint8_t (*read_memf)(struct CPU *cpu, uint16_t addr);
+	void (*write_memf) (struct CPU *cpu, uint16_t addr, int data);	
+};
+
+
+struct CPU
 {
 	Register af;  // F register is the flags register
 	Register bc;
@@ -127,10 +140,13 @@ typedef struct
 
 	// memory
 	uint8_t vram[2][0x2000]; // 2nd array is cgb vram
-	uint8_t wram[0x2000];
+	uint8_t wram[0x1000]; // 1st cgb ram bank used for 2nd half in dmg mode
 	uint8_t oam[0xA0];
 	uint8_t io[0x100]; // hram and io registers
 
+	
+	struct Memory_table memory_table[0x10]; // table of function pointers for memory
+	
 	uint8_t *rom_mem; // rom 
 	bool interrupt_enable; // affected by di and ei instr
 	
@@ -171,7 +187,11 @@ typedef struct
 	bool enable_ram; // is ram banking enabled
 //	bool rtc_enabled; // useless until the rtc is implemented!
 	RomInfo rom_info;
-
+	// pointer to the current banks range is on the end
+	uint8_t *current_bank_ptr4;
+	uint8_t *current_bank_ptr5;
+	uint8_t *current_bank_ptr6;
+	uint8_t *current_bank_ptr7;
 
 	// ------------- sound ------------------------
 	
@@ -271,7 +291,10 @@ typedef struct
 	int hdma_len; // length to transfer on a  gdma
 	int hdma_len_ticked; // how many total dma transfers we have done
 	
-} Cpu;
+};
+
+typedef struct CPU Cpu;
+
 
 // hb = high order byte
 // lb = low order byte
@@ -281,6 +304,7 @@ typedef struct
 
 
 Cpu init_cpu(void); // returns an initial cpu state
+void init_banking_pointers(Cpu *cpu); // init pointers for banking
 void update_timers(Cpu *cpu, int cycles); // update the cpu timers
 void do_interrupts(Cpu *cpu);
 void update_graphics(Cpu *cpu, int cycles);

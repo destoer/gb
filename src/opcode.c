@@ -206,6 +206,12 @@ void step_cpu(Cpu * cpu)
 			
 			}
 			
+			else
+			{
+				puts("unhandled normal stop!");
+			}
+			
+			
 			break;
 			
 		case 0x11: // ld de, nn
@@ -1410,7 +1416,7 @@ void step_cpu(Cpu * cpu)
 			#endif
 		/*	
 			memcpy(cpu,&cpu_save,sizeof(Cpu));
-			memcpy(cpu->ram_banks,ram_banks,0x8000);
+			memcpy(cpu->ram_banks,ram_banks,cpu->rom_info.noRamBanks*0x2000);
 			cpu->breakpoint = SAVE_BREAKPOINT;
 		*/	
 			//enter_debugger(cpu);

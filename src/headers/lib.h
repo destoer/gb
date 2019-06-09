@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 
+// supress error warnings for banking function ptrs
+#define UNUSED(X) (void)(X)
+
 // rtc enabled for mbc3
 #define RTC_ENABLED -1
 

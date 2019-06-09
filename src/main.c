@@ -1,8 +1,9 @@
-#include <stdio.h>
+ #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <time.h>
 #include "headers/cpu.h"
 #include "headers/rom.h"
 #include "headers/lib.h"
@@ -11,6 +12,7 @@
 #include "headers/opcode.h"
 #include "headers/debug.h"
 #include "headers/apu.h"
+#include "headers/memory.h"
 
 /* implementing cgb
 new vram bank
@@ -48,7 +50,7 @@ uint32_t time_left(void)
 
 // <----- Work on sound support pass test 04 
 
-// Kirby dream land 2 is broken now as well investigate... likely related to di / ei order again... (outright emulator lockup)
+// Kirby dream land 2 is broken now as well investigate... (outright emulator lockup inside halt)
 // then the ppu ones <---
 // implement oam bug and look at memory blocking during dma transfer
 // fix enable interrupt and disable interrupt timing (does not handle rapid toggles)
@@ -153,6 +155,7 @@ int main(int argc, char *argv[])
 #endif
 	
 	cpu.rom_info = parse_rom(cpu.rom_mem); // get rom info out of the header
+	init_banking_pointers(&cpu); // now we have rom info we can parse the banking ptrs
 	if(cpu.rom_info.noRamBanks > 0)
 	{
 		cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
@@ -222,8 +225,31 @@ int main(int argc, char *argv[])
 		SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STATIC, X, Y);
 	memset(cpu.screen ,255,Y * X *  4 * sizeof(uint8_t));
 	
-
+/*	// very basic memory profiling
+	time_t seconds = time(NULL);
 	
+
+	for(int j = 0; j < 200000; j++)
+	{
+	
+		// test memory speed
+		for(int i = 0; i < 0xffff; i++)
+		{
+			read_mem(i,&cpu);
+		}
+
+	    for(int i = 0; i < 0xffff; i++)
+		{
+			write_mem(&cpu,i,0xff);
+		}
+	
+		printf("%d\n",j);
+	
+	}
+
+	printf("elapsed: %ld\n",time(NULL) - seconds);
+	exit(1);
+*/
 	
 	for(;;)
 	{
@@ -451,7 +477,6 @@ int main(int argc, char *argv[])
 				cpu.di = false;
 				cpu.interrupt_enable = false; // di should disable immediately unlike ei!
 			}
-			
 			
 			
 			// this will make the cpu stop executing instr
