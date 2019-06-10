@@ -41,11 +41,6 @@ uint32_t time_left(void)
 }
 
 
-
-
-
-
-
 /* TODO */
 
 // <----- Work on sound support pass test 04 
@@ -421,8 +416,13 @@ int main(int argc, char *argv[])
 						free(cpu.rom_mem); // loaded below
 						free(cpu.ram_banks);
 						
-						fread(&cpu,sizeof(Cpu),1,savstate);
+						struct Memory_table memory_table[0x10];
 						
+						// save the memory table and recopy it in 
+						// so that function pointers aernt loaded from an untrusted source
+						memcpy(memory_table,cpu.memory_table,0x10*sizeof(struct Memory_table));
+						fread(&cpu,sizeof(Cpu),1,savstate);
+						memcpy(cpu.memory_table,memory_table,0x10*sizeof(struct Memory_table));
 						cpu.ram_banks = calloc(0x2000 * cpu.rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
 						
 						

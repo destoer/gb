@@ -78,7 +78,6 @@ void step_cpu(Cpu * cpu)
 	
 	// read an opcode and inc the program counter
 	uint8_t opcode;
-	int8_t operand;
 	uint8_t cbop;
 	uint16_t operandw;
 	
@@ -246,11 +245,7 @@ void step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x18: // jr n
-			
-			operand = read_memt(cpu->pc++, cpu);
-			write_log(cpu,"jr n at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
-			cycle_tick(cpu,1); // internal delay
-			cpu->pc += operand;
+			jr(cpu);
 			break;
 		
 		case 0x19: // add hl, de
@@ -288,14 +283,7 @@ void step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x20: // jr nz, n
-			
-			operand = read_memt(cpu->pc++, cpu);
-			if(!is_set(cpu->af.lb, Z))
-			{
-				write_log(cpu,"jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
-				cycle_tick(cpu,1); // internal delay
-				cpu->pc += operand;
-			}
+			jr_cond(cpu,false,Z);
 			break;
 			
 		case 0x21: // ld hl, nn
@@ -357,15 +345,7 @@ void step_cpu(Cpu * cpu)
 			break;
 			
 		case 0x28: // jr z, n
-			
-			operand = read_memt(cpu->pc++, cpu);
-			if(is_set(cpu->af.lb, Z))
-			{
-				write_log(cpu,"jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
-				cycle_tick(cpu,1); // internal delay
-				cpu->pc += operand;
-			}
-			
+			jr_cond(cpu,true,Z);
 			break;
 		
 		case 0x29: // add hl, hl
@@ -405,15 +385,7 @@ void step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x30: // jr nc, nn
-			
-			operand = read_memt(cpu->pc++, cpu);
-			if(!is_set(cpu->af.lb,C))
-			{
-				write_log(cpu,"jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
-				cpu->pc += operand;
-				cycle_tick(cpu,1); // internal delay
-			}
-			
+			jr_cond(cpu,false,C);
 			break;
 		
 		case 0x31: // ld sp, nn
@@ -455,13 +427,7 @@ void step_cpu(Cpu * cpu)
 			break;
 		
 		case 0x38: // jr c, nnnn
-			operand = read_memt(cpu->pc++, cpu);
-			if(is_set(cpu->af.lb,C))
-			{
-				write_log(cpu,"jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
-				cpu->pc += operand;
-				cycle_tick(cpu,1); // internal delay
-			}	
+			jr_cond(cpu,true,C);
 			break;
 			
 		case 0x39: // add hl, sp 

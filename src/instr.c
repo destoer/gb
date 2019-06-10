@@ -702,3 +702,33 @@ uint8_t rlc(Cpu *cpu, uint8_t reg)
 	return reg;
 
 }
+
+
+void jr(Cpu *cpu)
+{
+	int8_t operand = read_memt(cpu->pc++, cpu);
+	cycle_tick(cpu,1); // internal delay
+	cpu->pc += operand;	
+}
+
+void jr_cond(Cpu *cpu,bool cond, int bit)
+{
+	int8_t operand = read_memt(cpu->pc++, cpu);
+	if(is_set(cpu->af.lb, bit) == cond)
+	{
+		cycle_tick(cpu,1); // internal delay
+		cpu->pc += operand;
+	}
+	
+/*	// check that it is only 
+	// waiting on memory to change 
+	// and if so 
+	// tick until the memory it needs changes
+	// service interrupts along the way 
+	else 
+	{
+		
+	}
+*/
+	
+}
