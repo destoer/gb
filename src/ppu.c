@@ -1017,7 +1017,7 @@ bool sprite_fetch(Cpu *cpu)
 			uint16_t data_address = (0x8000 + (sprite_location * 16 )) + line;
 			if(is_set(attributes,3) && cpu->is_cgb) // if in cgb and attr has bit 3 set 
 			{
-				cpu->vram_bank = 1; // sprite data is out of vram bank 1
+				vram_bank = 1; // sprite data is out of vram bank 1
 			}
 				
 

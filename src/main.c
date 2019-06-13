@@ -14,6 +14,10 @@
 #include "headers/apu.h"
 #include "headers/memory.h"
 
+
+// colors are off in the oracle games 
+// likely a dma related issue or maybye even our palette writes
+
 /* implementing cgb
 new vram bank
 new wram banks
