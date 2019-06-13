@@ -290,6 +290,8 @@ struct CPU
 	
 	int hdma_len; // length to transfer on a  gdma
 	int hdma_len_ticked; // how many total dma transfers we have done
+	int dma_src;
+	int dma_dst;
 	
 };
 

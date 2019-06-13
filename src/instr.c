@@ -700,7 +700,6 @@ uint8_t rlc(Cpu *cpu, uint8_t reg)
 	set_zero(cpu,reg);
 	
 	return reg;
-
 }
 
 

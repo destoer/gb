@@ -71,11 +71,10 @@ void do_hdma(Cpu *cpu)
 {
 
 	//puts("HDMA!");
-	uint16_t source = cpu->io[IO_HDMA1] << 8;
-	source |= cpu->io[IO_HDMA2] & 0xf0;
+	uint16_t source = cpu->dma_src;
 
-	uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
-	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000; // dest is allways to vram
+	uint16_t dest = cpu->dma_dst | 0x8000;
+
 	
 	source += cpu->hdma_len_ticked*0x10;
 	dest += cpu->hdma_len_ticked*0x10;

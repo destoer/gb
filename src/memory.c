@@ -182,11 +182,9 @@ void start_gdma(Cpu *cpu)
 	//exit(1);
 
 
-	uint16_t source = cpu->io[IO_HDMA1] << 8;
-	source |= cpu->io[IO_HDMA2] & 0xf0;
+	uint16_t source = cpu->dma_src;
 	
-	uint16_t dest = (cpu->io[IO_HDMA3] & 0x1f) << 8;
-	dest |= (cpu->io[IO_HDMA4] & 0xf0) | 0x8000; 
+	uint16_t dest = cpu->dma_dst | 0x8000;
 	
 	// hdma5 stores how many 16 byte incremnts we have to transfer
 	int len = ((cpu->io[IO_HDMA5] & 0x7f) + 1) * 0x10;
@@ -1168,6 +1166,44 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			return;
 		}
 	
+	
+		// specifies src byte dest of dma
+		case IO_HDMA1:
+		{
+			cpu->dma_src &= 0xff;
+			cpu->dma_src |= data << 8;
+			cpu->io[IO_HDMA1] = data;
+			return;
+		}
+		
+		// lo byte dma src
+		case IO_HDMA2:
+		{
+			cpu->dma_src &= ~0xff;
+			cpu->dma_src |= data & 0xf0;
+			cpu->io[IO_HDMA2] = data;
+			return;
+		}
+		
+		
+		// high byte dma dst
+		case IO_HDMA3:
+		{
+			cpu->dma_dst &= 0xff;
+			cpu->dma_dst |= (data & 0x1f) << 8;
+			cpu->io[IO_HDMA3] = data;
+			return;
+		}
+		
+		// low byte dma dst
+		case IO_HDMA4:
+		{
+			cpu->dma_dst &= ~0xff;
+			cpu->dma_dst |= data;
+			cpu->io[IO_HDMA4] = data;
+			return;
+		}
+	
 		// cgb dma start
 		case IO_HDMA5:
 		{
@@ -1629,6 +1665,7 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 		{
 			return cpu->sp_pal[cpu->sp_pal_idx];
 		}
+
 		
 		case IO_HDMA5: // verify
 		{
