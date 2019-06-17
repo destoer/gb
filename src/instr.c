@@ -1,4 +1,5 @@
 #include "headers/cpu.h"
+#include "headers/memory.h"
 #include "headers/lib.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -12,6 +13,15 @@
 // add sub adc and sbc can have a accessed directely and not returned out
 // note if we use sub we will have to to change cp to use a different function
 // that does not access the value (probably for the best)
+
+
+// not triggered look for a slight variation for this 
+// cause currently it is just eating cycles not getting triggered
+bool waitloop_bit(Cpu *cpu, bool cond, int bit);
+
+// believe that this is used alot
+bool waitloop_and_read(Cpu *cpu, bool cond, int bit);
+
 
 void set_zero(Cpu *cpu, uint8_t reg)
 {
@@ -717,17 +727,107 @@ void jr_cond(Cpu *cpu,bool cond, int bit)
 	{
 		cycle_tick(cpu,1); // internal delay
 		cpu->pc += operand;
-	}
-	
-/*	// check that it is only 
-	// waiting on memory to change 
-	// and if so 
-	// tick until the memory it needs changes
-	// service interrupts along the way 
-	else 
-	{
 		
+#ifdef WAITLOOP_OPT		
+		// waitloop detection
+		if(operand < 0)
+		{
+		
+			if(waitloop_bit(cpu,cond,bit) && operand == -1)
+			{
+				return;
+			}
+			
+		}
+#endif	
 	}
-*/
+
 	
+}
+
+
+bool waitloop_and_read(Cpu *cpu, bool cond, int bit)
+{
+	// shortcuts wait loops for instruction sequences like this
+	/*
+		loop:
+			ld r, (nnnn)
+			and r, nn
+			jr z, loop
+	
+	*/
+	
+	UNUSED(cpu);
+	return bit & cond;
+}
+
+// waitloop detection for the bit instr
+// returns wether or not the waitloop of this manner was detected
+bool waitloop_bit(Cpu *cpu, bool cond, int bit)
+{
+	/* shorcuts wait loops with sequences like this
+		(testing for a bit being set)
+		loop:
+			bit x, (hl)
+			jr z, loop
+	*/
+			
+	// lets handle a very simple kind of busy loop 
+	// suppose the operand jumps to 1 instr behind
+	// with jr z, nnnn
+	// and performs bit x, (hl)
+	// this means that it is waiting for the bit to be set
+			
+	// we will rather than run instructions count the ammount of cycles
+	// for the whole loop and tick them until the bit changes then pass control back 
+			
+	// this works fine but we have to check it more throughly and handle the bit setting generally
+	// as well as this we have to handle interrupts being fired at each tick we need to check if 
+	// an enabled interrupt has fired and pass back control 
+	// it will eventually return here if the memory has not changed in the mean time
+			
+	if(!(cond && bit == Z)) // jr Z nnnn
+	{
+		return false;
+	}
+	
+	int cb = read_mem(cpu->pc,cpu);
+	
+	// not a cb opcode means it cant be bit instr return 
+	// may handle more cases in the future
+	if(cb != 0xcb)
+	{
+		return false;
+	}
+	
+	int opcode = read_mem(cpu->pc+1,cpu);
+			
+	/* ((opcode & 0x6) == 0x6)) (hl) is used 
+		((opcode & 0x40 ) == 0x40)  bit opcode
+		0x38 for the bit that the instr tests
+	*/
+	if(!((opcode & 0x46) == 0x46)) // bit x, (hl)
+	{
+		return false;
+	}
+
+
+	// conditons have been met lets shorcut the waitloop
+
+	// mem[hl] cache
+	const uint8_t *mem_cell = get_direct_mem_access(cpu,cpu->hl.reg);
+
+	int test_bit = (opcode & 0x38) >> 3;
+	int enabled = cpu->io[IO_IE];
+	puts("WAITLOOP DETECTED!");
+	int cycles = 5; // 5 m cycles for the bit op + the jr op 
+	// while the condition is not true and no interrupts have fired
+	while(!is_set(*mem_cell,test_bit) && !(enabled & (cpu->io[IO_IF] & 0xf)))
+	{
+		cycle_tick(cpu,cycles);
+	}
+	// now the value has changed we can pass back the control
+	// of the cpu
+
+	return true;
 }

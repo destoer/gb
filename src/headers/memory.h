@@ -29,3 +29,6 @@ uint8_t read_rom_bank4(Cpu *cpu, uint16_t address);
 uint8_t read_rom_bank5(Cpu *cpu, uint16_t address);
 uint8_t read_rom_bank6(Cpu *cpu, uint16_t address);
 uint8_t read_rom_bank7(Cpu *cpu, uint16_t address);
+
+
+uint8_t *get_direct_mem_access(Cpu *cpu, uint16_t address);

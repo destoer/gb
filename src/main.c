@@ -309,8 +309,9 @@ int main(int argc, char *argv[])
 					
 					free(savename);
 					fclose(fp);
-					fclose(cpu.fp);
-					
+					#ifdef LOGGER // close the log file
+						fclose(cpu.fp);
+					#endif				
 					done: // skip saving 
 					// should clean up our state here too 
 					SDL_DestroyRenderer(renderer);
@@ -506,7 +507,7 @@ int main(int argc, char *argv[])
 			// until an interrupt occurs and wakes it up 
 			
 			
-			if(cpu.halt) // halt occured in prev instruction
+			else if(cpu.halt) // halt occured in prev instruction
 			{
 			
 				cpu.halt = false;
@@ -528,11 +529,11 @@ int main(int argc, char *argv[])
 				}
 
 				
-				// not sure what defined behaviour is here
+				/*// not sure what defined behaviour is here
 				else if(enabled == 0)
 				{
 	
-				}
+				}*/
 				
 				// normal halt
 				

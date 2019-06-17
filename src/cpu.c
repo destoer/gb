@@ -17,7 +17,6 @@
 void cycle_tick(Cpu *cpu,int cycles);
 
 uint8_t read_mem(uint16_t address, Cpu *cpu);
-bool is_set(uint8_t reg, uint8_t bit);
 int set_clock_freq(Cpu *cpu);
 void service_interrupt(Cpu *cpu,int interrupt);
 
@@ -140,7 +139,6 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	
 	
 	// sound 
-	cpu.sequencer_cycles = 0;
 	cpu.sequencer_step = 0;
 	cpu.sound_enabled = true;
 	cpu.sweep_enabled = false;
@@ -533,38 +531,21 @@ uint16_t read_stackwt(Cpu *cpu)
 
 void cycle_tick(Cpu *cpu,int cycles)
 {
-	if(cpu->is_double) // in double speed mode
+	// if in double speed mode timers and oam dma
+	// should operate at double speed
+	int factor = cpu->is_double ? 2 : 1;
+
+	update_timers(cpu,cycles*4*factor); // <--- update timers 
+
+	if(cpu->oam_dma_active)
 	{
-		// timer and oam dma operate at double speed
-		// along with the cpu
-		update_timers(cpu,cycles*2); // <--- update timers 
-		if(cpu->oam_dma_active)
-		{
-			tick_dma(cpu, cycles*2); // oam should go at twice the speed
-		}
-		
-		// lcd and apu operate at normal speed
-		// i.e at half the speed
-	
-		// not sure if this is the correct way to emulate it 
-		// sound seems horribly broken in double speed mode :)
-		
-		update_graphics(cpu,cycles*2); // handle the lcd emulation
-		tick_apu(cpu,cycles*2); // advance the apu state
+		tick_dma(cpu, cycles*factor);
 	}
 	
-	else 
-	{
-		update_timers(cpu,cycles); // <--- update timers 
-		update_graphics(cpu,cycles*4); // handle the lcd emulation
-		tick_apu(cpu,cycles*4); // advance the apu state
-		// if dma transfer is active tick it 
-		
-		if(cpu->oam_dma_active)
-		{
-			tick_dma(cpu, cycles);
-		}
-	}
+
+	// in double speed mode gfx and apu should operate at half
+	update_graphics(cpu,(cycles*4) / factor); // handle the lcd emulation
+	tick_apu(cpu,(cycles*4) / factor); // advance the apu state
 }
 
 
@@ -585,36 +566,46 @@ void update_timers(Cpu *cpu, int cycles)
 		//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
 	//}
 	
-	int cycles_to_add = cycles*4;
 	
 	
 	
-	// if timer is enabled 
-	if(is_set(cpu->io[IO_TMC],2))
-	{	
-		while(cycles_to_add != 0)
-		{
-			// timer requires a reload?
-			//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
-			//{
-				//cpu->timer_reloading = false;
-				//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-			//}
-			uint8_t freq = cpu->io[IO_TMC] & 0x3;
-					
+
+
+		// timer requires a reload?
+		//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
+		//{
+			//cpu->timer_reloading = false;
+			//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
+		//}
+
+
+		// when this bit drops the sound fetcher is advanced
+		// in double speed to keep in sync this is a higher
+		// bit (eg takes twice the time to reach)
+		int sound_bit = cpu->is_double? 13 : 12;
+
+		bool sound_bit_set = is_set(cpu->internal_timer,sound_bit);
 				
+		
+			
+			
+			
+		// if our bit is deset and it was before (falling edge)
+		// and the timer is enabled of course
+		if(is_set(cpu->io[IO_TMC],2))
+		{
+			uint8_t freq = cpu->io[IO_TMC] & 0x3;
+						
+					
 
 			static const int freq_arr[4] = {9,3,5,7};
 
-			uint8_t bit = freq_arr[freq];
+			int bit = freq_arr[freq];
 
-			bool bit_set = is_set(cpu->internal_timer,bit);				
-			cpu->internal_timer += 1;
-			
+			bool bit_set = is_set(cpu->internal_timer,bit);
 
-			
-			
-			// if our bit is deset and it was before (falling edge)
+			cpu->internal_timer += cycles;
+
 			if(!is_set(cpu->internal_timer,bit) && bit_set)
 			{
 
@@ -624,22 +615,36 @@ void update_timers(Cpu *cpu, int cycles)
 					cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
 					//cpu->timer_reloading = true;
 					request_interrupt(cpu,2); // timer overflow interrupt
-					
+						
 				}
-				
+					
 				else
 				{
 					cpu->io[IO_TIMA]++;
 				}
 			}
-			cycles_to_add -= 1;
+			// we repeat this here because we have to add the cycles
+			// at the proper time for the falling edge det to work
+			// and we dont want to waste time handling the falling edge
+			// for the timer when its off
+			if(!is_set(cpu->internal_timer,sound_bit) && sound_bit_set)
+			{
+				advance_sequencer(cpu); // advance the sequencer
+			}
 		}
-	}
+
+		// falling edge for sound clk which allways ticks
+		// done when timer is off 
+		// (cycles should only ever be added once per function call)
+		else 
+		{
+			cpu->internal_timer += cycles;
+			if(!is_set(cpu->internal_timer,sound_bit) && sound_bit_set)
+			{
+				advance_sequencer(cpu); // advance the sequencer
+			}
+		}
 	
-	else // its not enabled so just tick div
-	{
-		cpu->internal_timer += cycles_to_add;	
-	}
 }
 
 

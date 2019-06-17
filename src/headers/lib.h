@@ -42,7 +42,10 @@ uint16_t load_word(uint16_t pc, uint8_t *mem);
 #define deset_bit(dest,bit) ((dest) &= ~(1 << bit)) 
 //uint8_t deset_bit(uint8_t num,uint8_t bit);
 
-bool is_set(uint8_t reg, uint8_t bit);
+
+
+
+bool is_set(int reg, int bit);
 uint8_t val_bit(uint8_t data, int position);
 
 #ifdef DEBUG
@@ -133,3 +136,42 @@ typedef struct
 
 
 // potentially add constants for unused bits
+
+
+
+
+// header guarded logger
+
+#ifdef LOGGER
+	#define write_log(cpu,fmt,args...) write_log_func(cpu,fmt,args)
+#else
+	#define write_log(cpu,fmt,arg...) ;
+#endif
+
+
+#ifdef LOGGER
+void write_log_func(Cpu *cpu,const char *fmt, ...)
+{
+
+		va_list args;
+		
+		va_start(args,fmt);
+		
+		// for obvious reasons dumping this much data to a file 
+		// in this way repeatedly is slow as hell
+		
+		//FILE *fp = fopen("log.txt","a+");
+		
+		//if(fp == NULL)
+		//{
+			//puts("Error writing to log");
+			//exit(1);
+		//}
+		
+		vfprintf(cpu->logger,fmt,args);
+		//fclose(fp);
+		va_end(args);
+
+}
+#endif
+

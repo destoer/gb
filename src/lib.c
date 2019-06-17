@@ -11,6 +11,7 @@ uint16_t load_word(uint16_t pc, uint8_t *mem) // <--- a word in this case is 16 
 	return operand;
 }
 
+/*
 uint8_t set_bit(uint8_t num,uint8_t bit)
 {
 	return ((num) | (1 << bit));
@@ -22,9 +23,9 @@ uint8_t deset_bit(uint8_t num,uint8_t bit)
 {
 	return ((num) & ~(1 << bit));
 }
+*/
 
-
-bool is_set(uint8_t reg, uint8_t bit)
+bool is_set(int reg, int bit)
 {
 	if((reg >> bit) & 1)
 	{

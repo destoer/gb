@@ -197,7 +197,7 @@ void start_gdma(Cpu *cpu)
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
 
-	//cycle_tick(cpu,8*(len / 0x10)); // 8 M cycles for each 10 byte block
+	cycle_tick(cpu,8*(len / 0x10)); // 8 M cycles for each 10 byte block
 
 	
 }
@@ -943,7 +943,6 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			if(is_set(cpu->io[IO_NR52] ^ data,7)) // if we are going from on to off reset the sequencer
 			{
 				cpu->sequencer_step = 0;
-				cpu->sequencer_cycles = 0;
 			}
 
 
@@ -1342,6 +1341,108 @@ void write_mem(Cpu *cpu,uint16_t address,int data)
 	cpu->memory_table[(address & 0xf000) >> 12].write_memf(cpu,address,data);
 }
 
+// returns a pointer directly to the memory at the requested address 
+// used internally by the emulator when we want to poll a section of memory 
+
+// need to optimise with switch on each 0x1000 range like read_mem
+
+uint8_t *get_direct_mem_access(Cpu *cpu, uint16_t address)
+{
+	uint8_t *mem_ptr = NULL;
+	
+	
+	switch((address & 0xf000) >> 12)
+	{
+		// rom bank 0
+		case 0 ... 3:
+		{
+			mem_ptr = &cpu->rom_mem[address];
+			break;
+		}
+		
+		// rom bank x
+		case 4 ... 7:
+		{
+			uint16_t new_address = address - 0x4000;
+			mem_ptr = &cpu->rom_mem[new_address + (cpu->currentrom_bank*0x4000)];
+			break;
+		}
+		
+		// vram
+		case 8 ... 9:
+		{
+			mem_ptr = &cpu->vram[cpu->vram_bank][address - 0x8000];
+			break;
+		}
+		
+		// cartridge ram banks
+		case 0xa ... 0xb:
+		{
+			// is ram enabled (ram bank of -1 indicates rtc reg)
+			if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
+			{
+				uint16_t new_address = address - 0xa000;
+				mem_ptr = &cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
+			}
+			
+			// may need to handle ram being locked		
+
+			break;
+		}
+		
+		// work ram
+		case 0xc ... 0xd:
+		{
+			uint16_t addr = address & 0xfff;
+			if(!cpu->is_cgb)
+			{
+				mem_ptr = &cpu->wram[addr];
+			}
+				
+			else 
+			{
+				
+				if(address >= 0xc000 && address <= 0xcfff)
+				{
+					mem_ptr = &cpu->wram[addr];
+				}
+					
+				// 0xd000-0xdfff
+				else
+				{
+					mem_ptr = &cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
+				}	
+			}
+			break;
+		}
+		
+		// echo ram
+		case 0xe:
+		{
+			mem_ptr = &cpu->wram[address & 0xfff];
+			break;
+		}
+		
+		// io
+		
+		case 0xf:
+		{
+			mem_ptr = &cpu->io[address & 0xfff];
+			break;
+		}
+		
+		
+		default:
+		{
+			printf("INVALID DIRECT MEM ACCESS AT %X\n", address);
+			exit(1);			
+		}
+	}
+	
+	return mem_ptr;
+}
+
+
 void do_dma(Cpu *cpu, uint8_t data)
 {
 	cpu->io[IO_DMA] = data; // write to the dma reg
@@ -1356,90 +1457,17 @@ void do_dma(Cpu *cpu, uint8_t data)
 	// tick immediatly but keep the timing
 	if(dma_address < 0xe000)
 	{
-		// old implementaiton
+		/*// old implementaiton
 		for(int i = 0; i < 0xA0; i++)
 		{
 			write_oam(cpu,0xfe00+i, read_mem(dma_address+i,cpu)); 	
 		}
-	
-	/*	optimised but likely error prone version...
-		
-		// check ranges and assign the correct array and offset to the pointer
-		// so it can be passed to memcpy
-		
-		
-		uint8_t *dma_src;
-	
-		if(dma_address < 0x4000)
-		{
-			dma_src = &cpu->rom_mem[dma_address];
-		}
-	
-		// are we reading from a rom bank
-		else if((dma_address >= 0x4000) && (dma_address <= 0x7FFF))
-		{
-			uint16_t new_address = dma_address - 0x4000;
-			dma_src = &cpu->rom_mem[new_address + (cpu->currentrom_bank*0x4000)];
-		}
+		*/
 
-		
-		// vram can only be accesed at mode 0-2
-		else if(dma_address >= 0x8000 && dma_address <= 0x9fff)
-		{
-			dma_src = &cpu->vram[cpu->vram_bank][dma_address - 0x8000];
-		}
-		
-		
-		
-		// are we reading from a ram bank
-		else if((dma_address >= 0xa000) && (dma_address <= 0xbfff))
-		{
-		
-			// is ram enabled (ram bank of -1 indicates rtc reg)
-			if(cpu->enable_ram && cpu->currentram_bank != RTC_ENABLED)
-			{
-				uint16_t new_address = dma_address - 0xa000;
-				dma_src = &cpu->ram_banks[new_address + (cpu->currentram_bank * 0x2000)];
-			}
-			
-			else {puts("dma from locked ram bank!"); exit(1); }
-			
-			//else // may require handling for it being blocked
-				   // but i cant imagine a game doing this.....
-			//{
-			//	return 0xff;
-			//}
-		}
-		
-		// work ram
-		else if((dma_address >= 0xc000) && (dma_address <= 0xdfff))
-		{
-			if(!cpu->is_cgb)
-			{
-				dma_src = &cpu->wram[dma_address - 0xc000];
-			}
-			
-			else 
-			{
-				uint16_t addr = dma_address & 0xfff;
-				if(dma_address >= 0xc000 && dma_address <= 0xcfff)
-				{
-					dma_src = &cpu->wram[addr];
-				}
-				
-				// 0xd000-0xdfff
-				else
-				{
-					dma_src = &cpu->cgb_ram_bank[cpu->cgb_ram_bank_num][addr];
-				}
-				
-			}
-			
-		}
-	
-	
+		//optimised but likely error prone version...
+		uint8_t *dma_src = get_direct_mem_access(cpu,dma_address);
 		memcpy(cpu->oam,dma_src,0xA0);	
-	*/
+	
 	}
 
 	// tell the emulator to start ticking the dma transfer

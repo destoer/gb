@@ -23,31 +23,12 @@ uint8_t ram_banks[0x8000];
 // Check every instr from mooneye tests for  order eg condiational calls 
 
 
+// need to optimse away instrucitons like or a, a 
+// to flag sets rather than running the full calc
 
 // may be broken for 16 bit operand jumps
-void write_log(Cpu *cpu,const char *fmt, ...)
-{
-#ifdef LOGGER
-		va_list args;
-		
-		va_start(args,fmt);
-		
-		// for obvious reasons dumping this much data to a file 
-		// in this way repeatedly is slow as hell
-		
-		//FILE *fp = fopen("log.txt","a+");
-		
-		//if(fp == NULL)
-		//{
-			//puts("Error writing to log");
-			//exit(1);
-		//}
-		
-		vfprintf(cpu->logger,fmt,args);
-		//fclose(fp);
-		va_end(args);
-#endif
-}
+
+
 
 // potentially need the rominfo too but not needed yet
 void step_cpu(Cpu * cpu)
@@ -936,10 +917,10 @@ void step_cpu(Cpu * cpu)
 			xor(cpu,cbop);
 			break;
 		
-		// shortcut case end up with just zero flag being set <-- should be optimized later
+		// shortcut case end up with just zero flag being set 
 		case 0xaf: // xor a, a
-			xor(cpu,cpu->af.hb);
-			//cpu->af.reg = 128; 
+			//xor(cpu,cpu->af.hb);
+			cpu->af.reg = 128; 
 			break;
 		
 		case 0xb0: // or b
@@ -971,7 +952,11 @@ void step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xb7: // or a
-			or(cpu,cpu->af.hb);
+			//or(cpu,cpu->af.hb);
+			// a | a = a 
+			// only thing that can happen is the zero flag setting
+			cpu->af.lb = 0; // clear flags
+			set_zero(cpu,cpu->af.hb);
 			break;
 		
 		case 0xb8: // cp b (sub but ignore result only keep flags)

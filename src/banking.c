@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+
+/* need to docuement the constants used here */
+/* with the info off gbdev wiki */
+
 // get the last test on mbc1 working
 // fix windows saving!?
 
@@ -51,7 +55,7 @@ void do_ram_bank_enable(Cpu *cpu, uint16_t address, int data)
 	uint8_t test_data = data & 0xf;
 	
 	
-	if(test_data == 0xa)
+	if(test_data == 0xa) // if 0xa is written enable it 
 	{
 		cpu->enable_ram = true;
 	}
@@ -72,7 +76,7 @@ void do_ram_bank_enable_mbc2(Cpu *cpu,uint16_t address,int data)
 	UNUSED(address);
 	if(cpu->rom_info.mbc2)
 	{
-		if(is_set(address,4))
+		if(is_set(address,4)) // dont enabel if bit 4 of address written to is set
 		{
 			return;
 		}
@@ -84,7 +88,7 @@ void do_ram_bank_enable_mbc2(Cpu *cpu,uint16_t address,int data)
 // ram bank change 
 // 0x2000 - 0x3fff
 
-// mbc1
+// mbc1 (writes here set the lower 5 bits of the bank index)
 void do_change_lo_rom_bank_mbc1(Cpu *cpu, uint16_t address, int data)
 {
 	UNUSED(address);
@@ -121,7 +125,7 @@ void do_change_lo_rom_bank_mbc2(Cpu *cpu,uint16_t address,int data)
 	return;
 }
 
-// mbc3
+// mbc3 ( lower 7 bits of rom bank index set here)
 void do_change_rom_bank_mbc3(Cpu *cpu,uint16_t address,int data)
 {
 	UNUSED(address);
@@ -287,7 +291,8 @@ void do_change_hi_rom_bank_mbc1(Cpu *cpu, int data)
 	}
 	
 	
-	// not sure what the defined behaviour is here
+	// a bank selected that is higher than the ammount of rombanks 
+	// on the cart the index should wrap back around
 	if(cpu->currentrom_bank >= cpu->rom_info.noRomBanks)
 	{
 		//printf("[BANKING] Attempted to set a rom bank greater than max %d\n",cpu->currentrom_bank);

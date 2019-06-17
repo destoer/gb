@@ -303,20 +303,8 @@ void tick_apu(Cpu *cpu, int cycles)
 	// when it does every other step it will clock our length counters 
 	// we will then use a switch and determine what to do 
 	// could also use function pointers but this is likely better
-	
-	// first we need to tick the frame sequencer
-	cpu->sequencer_cycles += cycles;
-	
-	// now if 8192 T cycles (2048 M cycles) have elapsed we need to inc the step
-	// and perform the action for the current step
-	
-	if(cpu->sequencer_cycles >= 8192)
-	{
-		advance_sequencer(cpu);
-			
-		// reset the cycles
-		cpu->sequencer_cycles = 0;
-	}
+	// this is done in timers at is driven by bit 12 (in single) or bit 13
+	// in double speed mode falling
 
 
 

@@ -196,7 +196,6 @@ struct CPU
 	// ------------- sound ------------------------
 	
 	bool sound_enabled; // is sound enabled in nr52 or not?
-	int sequencer_cycles; // keeps track of cycles for frame sequencer when it his 8192 inc the seq step
 	int sequencer_step; // keeps track of the current set goes from 0-8 and loops back around
 	Sqaure square[4]; // holds common variables for sqaure channels
 
@@ -310,7 +309,6 @@ void init_banking_pointers(Cpu *cpu); // init pointers for banking
 void update_timers(Cpu *cpu, int cycles); // update the cpu timers
 void do_interrupts(Cpu *cpu);
 void update_graphics(Cpu *cpu, int cycles);
-bool is_set(uint8_t reg, uint8_t bit);
 uint16_t read_word(int address, Cpu *cpu);
 void write_word(Cpu *cpu,uint16_t address,int data);
 void write_stack(Cpu *cpu, uint8_t data);

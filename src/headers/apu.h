@@ -6,6 +6,8 @@ void tick_lengthc(Cpu *cpu);
 void do_freqsweep(Cpu *cpu);
 uint16_t calc_freqsweep(Cpu *cpu);
 uint16_t get_wave_freq(Cpu *cpu);
+void advance_sequencer(Cpu *cpu);
+
 
 static const uint8_t duty[4][8] = 
 {

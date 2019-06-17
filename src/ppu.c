@@ -92,7 +92,7 @@ void do_hdma(Cpu *cpu)
 	}
 
 	// 8 M cycles for each 0x10 block
-	//cycle_tick(cpu,8);
+	cycle_tick(cpu,8);
 	
 	// hdma is over 
 	if(--cpu->hdma_len <= 0)
@@ -342,13 +342,6 @@ void push_pixel(Cpu *cpu)
 
 	
 	int col_num = cpu->ppu_fifo[0].colour_num; // save the pixel we will shift
-	
-	// each  rgb value takes two bytes in the pallete for cgb
-	if(cpu->is_cgb)
-	{
-		col_num *= 2;
-	}
-	
 	int scanline = cpu->current_line;
 	
 	if(!cpu->is_cgb)
@@ -390,6 +383,9 @@ void push_pixel(Cpu *cpu)
 	
 	else // gameboy color
 	{
+		// each  rgb value takes two bytes in the pallete for cgb
+		col_num *= 2;
+
 		// for now we will assume tile just for arugments sake 
 		int cgb_pal = cpu->ppu_fifo[0].cgb_pal;
 		int col = 0;
@@ -678,7 +674,7 @@ void tile_fetch(Cpu *cpu)
 	}
 	
 	// which of the 8 vertical pixels of the scanline are we on
-	uint16_t tile_row = (((uint8_t)(y_pos/8))*32);
+	uint16_t tile_row = ((y_pos/8)*32);
 	
 	int i = 0;
 	//printf("pixel: %d\n", cpu->x_cord);
@@ -718,7 +714,7 @@ void tile_fetch(Cpu *cpu)
 		// tile number is allways bank 0
 		if(unsig)
 		{
-			tile_num = (uint8_t)cpu->vram[0][tile_address-0x8000];
+			tile_num = cpu->vram[0][tile_address-0x8000];
 		}
 		else
 		{
@@ -810,23 +806,23 @@ void tile_fetch(Cpu *cpu)
 		if(!cpu->is_cgb)
 		{
 			cpu->fetcher_tile[i].colour_num = colour_num;
+			cpu->fetcher_tile[i].source = TILE;
 		}
 		
 		else // cgb save the pallete value... 
 		{
 			cpu->fetcher_tile[i].colour_num = colour_num;
 			cpu->fetcher_tile[i].cgb_pal = cgb_pal;
-		}
-		
-		// in cgb an priority bit is set
-		if(priority)
-		{
-			cpu->fetcher_tile[i].source = TILE_CGBD;
-		}
-		
-		else 
-		{
-			cpu->fetcher_tile[i].source = TILE;
+			// in cgb an priority bit is set
+			if(priority)
+			{
+				cpu->fetcher_tile[i].source = TILE_CGBD;
+			}
+			
+			else 
+			{
+				cpu->fetcher_tile[i].source = TILE;
+			}
 		}
 		
 		i++; // goto next tile
@@ -989,11 +985,9 @@ bool sprite_fetch(Cpu *cpu)
 		
 		// sprite takes 4 bytes in the sprite attributes table
 		uint8_t sprite_index = cpu->objects_priority[i].index;
-		uint8_t y_pos = read_oam(0xfe00+sprite_index,cpu);
-		
-		
-		uint8_t sprite_location = read_oam(0xfe00+sprite_index+2,cpu);
-		uint8_t attributes = read_oam(0xfe00+sprite_index+3, cpu);
+		uint8_t y_pos = cpu->oam[sprite_index];
+		uint8_t sprite_location = cpu->oam[(sprite_index+2)];
+		uint8_t attributes = cpu->oam[(sprite_index+3)];
 		
 		bool y_flip = is_set(attributes,6);
 		bool x_flip = is_set(attributes,5);
@@ -1014,15 +1008,15 @@ bool sprite_fetch(Cpu *cpu)
 			}
 			
 			line *= 2; // same as for tiles
-			uint16_t data_address = (0x8000 + (sprite_location * 16 )) + line;
+			uint16_t data_address = ((sprite_location * 16 )) + line; // in realitly this is offset into vram at 0x8000
 			if(is_set(attributes,3) && cpu->is_cgb) // if in cgb and attr has bit 3 set 
 			{
 				vram_bank = 1; // sprite data is out of vram bank 1
 			}
 				
 
-			uint8_t data1 = cpu->vram[vram_bank][data_address-0x8000];
-			uint8_t data2 = cpu->vram[vram_bank][(data_address+1)-0x8000];
+			uint8_t data1 = cpu->vram[vram_bank][data_address];
+			uint8_t data2 = cpu->vram[vram_bank][(data_address+1)];
 			
 			// eaiser to read in from right to left as pixel 0
 			// is bit 7 in the color data pixel 1 is bit 6 etc 
@@ -1057,7 +1051,7 @@ bool sprite_fetch(Cpu *cpu)
 				x_pix += pixel_start;
 
 				
-				// transparent tile wins
+				// transparent sprite so the tile wins
 				if(colour_num == 0)
 				{
 					continue;
@@ -1096,12 +1090,13 @@ bool sprite_fetch(Cpu *cpu)
 				{
 					cpu->ppu_fifo[x_pix].colour_num = colour_num;
 					cpu->ppu_fifo[x_pix].source = source;
-					if(cpu->is_cgb)
-					{
+					//if(cpu->is_cgb) probably faster to just write the value anyways
+					//{
 						cpu->ppu_fifo[x_pix].cgb_pal = attributes & 0x7;
-					}
+					//}
 				}
 			}
+			return did_draw; // should not have two sprites at same x cord
 		}
 	}
 
