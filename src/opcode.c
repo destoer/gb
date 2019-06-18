@@ -189,6 +189,7 @@ void step_cpu(Cpu * cpu)
 			else
 			{
 				puts("unhandled normal stop!");
+				exit(1);
 			}
 			
 			

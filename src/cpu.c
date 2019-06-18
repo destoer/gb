@@ -535,7 +535,7 @@ void cycle_tick(Cpu *cpu,int cycles)
 	// should operate at double speed
 	int factor = cpu->is_double ? 2 : 1;
 
-	update_timers(cpu,cycles*4*factor); // <--- update timers 
+	update_timers(cpu,(cycles*4)*factor); // <--- update timers 
 
 	if(cpu->oam_dma_active)
 	{
@@ -582,7 +582,7 @@ void update_timers(Cpu *cpu, int cycles)
 		// when this bit drops the sound fetcher is advanced
 		// in double speed to keep in sync this is a higher
 		// bit (eg takes twice the time to reach)
-		int sound_bit = cpu->is_double? 13 : 12;
+		int sound_bit = cpu->is_double? 14 : 12;
 
 		bool sound_bit_set = is_set(cpu->internal_timer,sound_bit);
 				

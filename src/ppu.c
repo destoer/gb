@@ -346,29 +346,14 @@ void push_pixel(Cpu *cpu)
 	
 	if(!cpu->is_cgb)
 	{
-		int colour_address;
-		
-		if(cpu->ppu_fifo[0].source == TILE)
-		{
-			colour_address = 0xff47;
-		}
-		
-		else if(cpu->ppu_fifo[0].source == SPRITE_ONE)
-		{
-			colour_address = 0xff49;
-		}
-		
-		else //(cpu->ppu_fifo[0].source == SPRITE_ZERO)
-		{
-			colour_address = 0xff48;
-		}
-
-		
+		int colour_address = cpu->ppu_fifo[0].source + 0xff47;
+			
 		int col = get_colour(cpu,col_num,colour_address); 
 		int red = 0;
 		int green = 0;
 		int blue = 0;
 		
+		// black is default
 		switch(col)
 		{
 			case WHITE: red = 255; green = 255; blue = 255; break;
@@ -388,18 +373,20 @@ void push_pixel(Cpu *cpu)
 
 		// for now we will assume tile just for arugments sake 
 		int cgb_pal = cpu->ppu_fifo[0].cgb_pal;
-		int col = 0;
+		int offset = (cgb_pal*8) + col_num;
+
+		int col;
 		if(cpu->ppu_fifo[0].source == TILE)
 		{
-			col = cpu->bg_pal[(cgb_pal * 8) + col_num];
-			col |= cpu->bg_pal[(cgb_pal * 8) + col_num + 1] << 8;
+			col = cpu->bg_pal[offset];
+			col |= cpu->bg_pal[offset + 1] << 8;
 		}
 		
 		
 		else // is a sprite
 		{
-			col = cpu->sp_pal[(cgb_pal * 8) + col_num];
-			col |= cpu->sp_pal[(cgb_pal * 8) + col_num + 1] << 8;			
+			col = cpu->sp_pal[offset];
+			col |= cpu->sp_pal[offset + 1] << 8;			
 		}
 		
 	
@@ -412,20 +399,14 @@ void push_pixel(Cpu *cpu)
 		red = (red << 3) | (red >> 2);
 		blue = (blue << 3) | (blue >> 2);
 		green = (green << 3) | (green >> 2);
-		
-		//red = (red * 13 + green * 2 + blue) >> 1;
-		//green = (green * 3 + blue) << 1;
-		//blue = (red * 3 + green * 2 + blue * 11) >> 1;
-		
+			
 		cpu->screen[scanline][cpu->x_cord][0] = red;
 		cpu->screen[scanline][cpu->x_cord][1] = green;
 		cpu->screen[scanline][cpu->x_cord][2] = blue;
-		
 	}
 	
 	shift_fifo(cpu,1); // shift a pixel out by one
-	cpu->x_cord++; // goto next pixel 
-	if(cpu->x_cord >= 160)
+	if(++cpu->x_cord == 160)
 	{
 		// done drawing enter hblank
 		cpu->hblank = true;
@@ -491,7 +472,16 @@ void tick_fetcher(Cpu *cpu) {
 		// should fetch the number then low and then high byte
 		// but we will ignore this fact for now
 
-		if(cpu->ppu_cyc == 6)
+		// 1 cycle is tile num 
+		// 2nd is lb of data 
+		// 3rd is high byte of data 
+		if(cpu->ppu_cyc <= 5)
+		{
+			cpu->ppu_cyc += 1; // further along 
+		}		
+				
+		//else if(cpu->ppu_cyc == 6)
+		else
 		{
 			// not sure if we should dump the fetcher into the fifo by here
 			
@@ -501,13 +491,7 @@ void tick_fetcher(Cpu *cpu) {
 			cpu->ppu_cyc = 0;
 		}	
 	
-		// 1 cycle is tile num 
-		// 2nd is lb of data 
-		// 3rd is high byte of data 
-		else if(cpu->ppu_cyc <= 5)
-		{
-			cpu->ppu_cyc += 1; // further along 
-		}
+
 	}
 	
 
@@ -551,7 +535,7 @@ void tick_fetcher(Cpu *cpu) {
 			}
 		}
 			
-		if(cpu->sprite_drawn)
+		else if(cpu->sprite_drawn)
 		{
 			if(cpu->ppu_scyc <= 5)
 			{
@@ -564,7 +548,8 @@ void tick_fetcher(Cpu *cpu) {
 				cpu->sprite_drawn = false; // we are done 
 			}
 		}
-		
+	
+
 		// blit the pixel
 		push_pixel(cpu);
 	}	
@@ -581,9 +566,6 @@ void draw_scanline(Cpu *cpu, int cycles)
 }
 
 // fetch a single tile into the fifo
-
-// needs horizontal and vertical flip 
-// implemented for the cgb bg attributes
 
 void tile_fetch(Cpu *cpu)
 {
@@ -602,7 +584,6 @@ void tile_fetch(Cpu *cpu)
 	uint8_t window_y = cpu->io[IO_WY];
 	uint8_t window_x = cpu->io[IO_WX] - 7; // 0,0 is at offest - 7 for window
 	
-	//uint8_t lcd_control = read_mem(0xff40,cpu); // get lcd control reg
 	int lcd_control = cpu->io[IO_LCDC];
 	
 	bool using_window = false;
@@ -632,6 +613,9 @@ void tile_fetch(Cpu *cpu)
 		unsig = false;
 	}
 	
+	// ypos is used to calc which of the 32 vertical tiles 
+	// the current scanline is drawing	
+	uint8_t y_pos = 0;
 	
 	// which background mem?
 	if(!using_window)
@@ -644,6 +628,7 @@ void tile_fetch(Cpu *cpu)
 		{
 			background_mem = 0x9800;
 		}
+		y_pos = scroll_y + scanline;
 	}
 	
 	else
@@ -657,127 +642,116 @@ void tile_fetch(Cpu *cpu)
 		{
 			background_mem = 0x9800;
 		}
-	}
-	
-	uint8_t y_pos = 0;
-	
-	// ypos is used to calc which of the 32 vertical tiles 
-	// the current scanline is drawing
-	if(!using_window)
-	{
-		y_pos = scroll_y + scanline;
-	}
-	
-	else
-	{	
 		y_pos = scanline - window_y;
 	}
-	
-	// which of the 8 vertical pixels of the scanline are we on
-	uint16_t tile_row = ((y_pos/8)*32);
-	
-	int i = 0;
-	//printf("pixel: %d\n", cpu->x_cord);
-	
 
 	
-	for(int pixel = cpu->tile_cord; i < 8; pixel++)
+	// which of the 8 vertical pixels of the scanline are we on
+	int tile_row = ((y_pos/8)*32);
+
+	
+	int cgb_pal = -1;
+	bool priority = false;
+	bool x_flip = false;
+	bool y_flip = false;
+	uint8_t data1 = -1; 
+	uint8_t data2 = - 1; 
+	int tile_col_last = -1;
+
+	for(int pixel = 0; pixel < 8; pixel++)
 	{
-		uint8_t x_pos = pixel;
+		uint8_t x_pos = pixel+cpu->tile_cord;
 		
 		if(!using_window) // <-- dont think this is correct
 		{
 			x_pos += scroll_x;
 		}
-		// translate the current x pos to window space // <--- think this causes the weird wrapping behavior with links awakening
+
+		// translate the current x pos to window space
 		// if needed
-		if(using_window)
+		//if(using_window)
+		else
 		{
 			if(x_pos >= window_x)
 			{
-				x_pos = pixel - window_x;
+				x_pos = (pixel+cpu->tile_cord) - window_x;
 			}
 		}
 	
 	
 		// which of the 32 horizontal tiles does x_pos fall in
-		uint16_t tile_col = (x_pos/8);
-		int16_t tile_num;
+		int tile_col = (x_pos/8);
+		
 	
 
-	
-	
-		// get the tile identity num it can be signed or unsigned
-		uint16_t tile_address = background_mem + tile_row+tile_col;
-		
+		// if we are still drawing the same tile 
+		// dont bother reloading the tile data
+		// it can switch to a different tile if we start drawing 
+		// a tile in the middle due to scroll x
+		if(tile_col != tile_col_last)
+		{
+			// update the "last" col
+			tile_col_last = tile_col;
+			// get the tile identity num it can be signed or unsigned
+			// -0x8000 to account for the vram 
+			int tile_address = (background_mem + tile_row+tile_col) - 0x8000;
 
-		// tile number is allways bank 0
-		if(unsig)
-		{
-			tile_num = cpu->vram[0][tile_address-0x8000];
-		}
-		else
-		{
-			tile_num = (int8_t)cpu->vram[0][tile_address-0x8000];
-		}
+			// deduce where this tile identifier is in memory
+			int tile_location = tile_data;		
 
-	
-		// deduce where this tile identifier is in memory
-		uint16_t tile_location = tile_data;
-		
-		if(unsig)
-		{
-			tile_location += (tile_num *16);
-		}
-		else
-		{
-			tile_location += ((tile_num+128)*16);
-		}
-	
-		
-		
-		// should cache these values before the loop but ignore for now
-		// x and y flip + priority needs to be implemented
-		int cgb_pal = -1;
-		bool priority = false;
-		bool x_flip = false;
-		bool y_flip = false;
-		if(cpu->is_cgb) // we are drawing in cgb mode 
-		{
-			uint8_t attr = cpu->vram[1][tile_address - 0x8000];
-			cgb_pal = attr & 0x7; // get the pal number
-			
-			
-			// draw over sprites
-			priority = is_set(attr,7);
-			
-			x_flip = is_set(attr,5);
-			y_flip = is_set(attr,6);
-			
-			//if(x_flip) { puts("flipping x"); }
-			//if(y_flip) { puts("flipping y"); }
-			
-			// decide what bank data is coming out of
-			// allready one so dont check the other condition
-			if(is_set(attr,3))
+			int tile_num;
+			// tile number is allways bank 0
+			if(unsig)
 			{
-				vram_bank = 1;
+				tile_num = cpu->vram[0][tile_address];
+				tile_location += (tile_num *16);
 			}
+			else
+			{
+				tile_num = (int8_t)cpu->vram[0][tile_address];
+				tile_location += ((tile_num+128)*16);
+			}
+			
+			// map to our array
+			tile_location -= 0x8000;
+			
+			// should cache these values before the loop but ignore for now
+			// x and y flip + priority needs to be implemented
+
+			if(cpu->is_cgb) // we are drawing in cgb mode 
+			{
+				uint8_t attr = cpu->vram[1][tile_address];
+				cgb_pal = attr & 0x7; // get the pal number
+				
+				
+				// draw over sprites
+				priority = is_set(attr,7);
+				
+				x_flip = is_set(attr,5);
+				y_flip = is_set(attr,6);
+
+				// decide what bank data is coming out of
+				// allready one so dont check the other condition
+				if(is_set(attr,3))
+				{
+					vram_bank = 1;
+				}
+			}
+			
+			// find the correct vertical line we are on of the
+			// tile to get the tile data		
+			int line = y_pos % 8;
+			
+			// read the sprite backwards in y axis
+			if(y_flip)
+			{
+				line = 7 - line;
+			}		
+		
+			line *= 2; // each line takes up two bytes of mem
+			data1 = cpu->vram[vram_bank][(tile_location+line)];
+			data2 = cpu->vram[vram_bank][(tile_location+line+1)];
 		}
-		
-		// find the correct vertical line we are on of the
-		// tile to get the tile data		
-		uint8_t line = y_pos % 8;
-		
-		// read the sprite backwards in y axis
-		if(y_flip)
-		{
-			line = 7 - line;
-		}		
-	
-		line *= 2; // each line takes up two bytes of mem
-		uint8_t data1 = cpu->vram[vram_bank][(tile_location+line)-0x8000];
-		uint8_t data2 = cpu->vram[vram_bank][(tile_location+line+1)-0x8000];
 	
 		// pixel 0 in the tile is bit 7 of data1 and data2
 		// pixel 1 is bit 6 etc
@@ -805,35 +779,31 @@ void tile_fetch(Cpu *cpu)
 		
 		if(!cpu->is_cgb)
 		{
-			cpu->fetcher_tile[i].colour_num = colour_num;
-			cpu->fetcher_tile[i].source = TILE;
+			cpu->fetcher_tile[pixel].colour_num = colour_num;
+			cpu->fetcher_tile[pixel].source = TILE;		
 		}
 		
 		else // cgb save the pallete value... 
 		{
-			cpu->fetcher_tile[i].colour_num = colour_num;
-			cpu->fetcher_tile[i].cgb_pal = cgb_pal;
+			cpu->fetcher_tile[pixel].colour_num = colour_num;
+			cpu->fetcher_tile[pixel].cgb_pal = cgb_pal;
 			// in cgb an priority bit is set
 			if(priority)
 			{
-				cpu->fetcher_tile[i].source = TILE_CGBD;
+				cpu->fetcher_tile[pixel].source = TILE_CGBD;
 			}
 			
 			else 
 			{
-				cpu->fetcher_tile[i].source = TILE;
+				cpu->fetcher_tile[pixel].source = TILE;
 			}
 		}
-		
-		i++; // goto next tile
-		
 	}
 	cpu->tile_cord += 8; // goto next tile fetch
 }
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
 {
-	int res = WHITE;
 	uint8_t palette = read_mem(address,cpu);
 	int hi = 0;
 	int lo = 0;
@@ -851,15 +821,10 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
 	colour = val_bit(palette,hi) << 1;
 	colour |= val_bit(palette,lo);
 	
-	// convert game color to emulator color
-	switch(colour)
-	{
-		case 0: res = WHITE; break;
-		case 1: res = LIGHT_GRAY; break;
-		case 2: res = DARK_GRAY; break;
-		case 3: res = BLACK; break;
-	}
-	return res;
+
+	static const int colors[] = {WHITE,LIGHT_GRAY,DARK_GRAY,BLACK};
+
+	return colors[colour];
 }
 
 

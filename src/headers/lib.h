@@ -143,35 +143,19 @@ typedef struct
 // header guarded logger
 
 #ifdef LOGGER
-	#define write_log(cpu,fmt,args...) write_log_func(cpu,fmt,args)
+	#define write_log(cpu,fmt,...) write_log_func(cpu,fmt,__VA_ARGS__)
 #else
-	#define write_log(cpu,fmt,arg...) ;
+	#define write_log(cpu,fmt,...) ;
 #endif
 
 
 #ifdef LOGGER
 void write_log_func(Cpu *cpu,const char *fmt, ...)
 {
-
-		va_list args;
-		
-		va_start(args,fmt);
-		
-		// for obvious reasons dumping this much data to a file 
-		// in this way repeatedly is slow as hell
-		
-		//FILE *fp = fopen("log.txt","a+");
-		
-		//if(fp == NULL)
-		//{
-			//puts("Error writing to log");
-			//exit(1);
-		//}
-		
-		vfprintf(cpu->logger,fmt,args);
-		//fclose(fp);
-		va_end(args);
-
+	va_list args;
+	va_start(args,fmt);
+	vfprintf(cpu->logger,fmt,args);
+	va_end(args);
 }
 #endif
 
