@@ -321,8 +321,9 @@ void step_cpu(Cpu * cpu)
 				}
 			}
 			
-			
-			deset_bit(cpu->af.lb,H);
+			// preserve C and N flags
+			cpu->af.lb &= (1 << C) | (1 << N);
+
 			set_zero(cpu, cpu->af.hb);
 			break;
 			

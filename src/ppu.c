@@ -166,17 +166,7 @@ void update_graphics(Cpu *cpu, int cycles)
 				else 
 				{
 					cpu->mode = 2;
-				}
-
-				// reset our fetcher :)
-				cpu->x_cord = 0;
-				cpu->tile_ready = false;
-				cpu->pixel_count = 0;
-				cpu->ppu_cyc = 0;
-				cpu->hblank = false;
-				cpu->tile_cord = 0;
-				cpu->window_start = false;
-				cpu->ppu_scyc = 0;			
+				}		
 			}
 			break;
 		}
@@ -236,6 +226,17 @@ void update_graphics(Cpu *cpu, int cycles)
 				{
 					// switch to hblank
 					cpu->mode = 0;
+					
+					// reset our fetcher :)
+					cpu->x_cord = 0;
+					cpu->tile_ready = false;
+					cpu->pixel_count = 0;
+					cpu->ppu_cyc = 0;
+					cpu->hblank = false;
+					cpu->tile_cord = 0;
+					cpu->window_start = false;
+					cpu->ppu_scyc = 0;						
+					
 					// on cgb do hdma
 					if(cpu->is_cgb && is_set(cpu->io[IO_HDMA5],7))
 					{
