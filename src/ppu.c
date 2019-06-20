@@ -108,7 +108,7 @@ void do_hdma(Cpu *cpu)
 	}
 }
 
-
+// needs optimization in the rewrite
 void update_graphics(Cpu *cpu, int cycles)
 {
 	//-----------------------
@@ -348,8 +348,7 @@ void push_pixel(Cpu *cpu)
 	
 	if(!cpu->is_cgb)
 	{
-		int colour_address = cpu->ppu_fifo[0].source + 0xff47;
-			
+		int colour_address = cpu->ppu_fifo[0].source + 0xff47;	
 		int col = get_colour(cpu,col_num,colour_address); 
 		int red = 0;
 		int green = 0;
@@ -434,7 +433,7 @@ void tick_fetcher(Cpu *cpu) {
 
 
 	// get lcd control reg
-	int control = cpu->io[IO_LCDC];
+	const int control = cpu->io[IO_LCDC];
 /*	int scanline = cpu->current_line;
 	int window_y  = cpu->io[IO_WY];
 	int window_x = cpu->io[IO_WX];
@@ -571,79 +570,47 @@ void draw_scanline(Cpu *cpu, int cycles)
 
 void tile_fetch(Cpu *cpu)
 {
-
-	uint16_t tile_data = 0;
-	uint16_t background_mem = 0;
-	bool unsig = true;
-	
-	
-	int vram_bank = 0;
-	
-	
 	// where to draw the visual area and window
-	uint8_t scroll_y = cpu->io[IO_SCY];
-	uint8_t scroll_x = cpu->io[IO_SCX];
-	uint8_t window_y = cpu->io[IO_WY];
-	uint8_t window_x = cpu->io[IO_WX] - 7; // 0,0 is at offest - 7 for window
+	const uint8_t scroll_y = cpu->io[IO_SCY];
+	const uint8_t scroll_x = cpu->io[IO_SCX];
+	const uint8_t window_y = cpu->io[IO_WY];
+	const uint8_t window_x = cpu->io[IO_WX] - 7; // 0,0 is at offest - 7 for window
 	
-	int lcd_control = cpu->io[IO_LCDC];
+	const int lcd_control = cpu->io[IO_LCDC];
 	
-	bool using_window = false;
-	
-	int scanline = cpu->current_line;
+
+	const int scanline = cpu->current_line;
 	
 	// is the window enabled check in lcd control
-	if(is_set(lcd_control,5)) 
-	{
-		// is the current scanline the window pos?
-		if(window_y <= scanline)
-		{
-			using_window = true;
-		}
-	}
+	// and is the current scanline the window pos?
+	const bool using_window = is_set(lcd_control,5) && (window_y <= scanline); 
+
 	
-	// which tile data are we using
-	if(is_set(lcd_control,4))
-	{
-		tile_data = 0x8000;
-	}
-	else
-	{
-		// this mem region uses signed bytes
-		// for tile identifiers 
-		tile_data = 0x8800;
-		unsig = false;
-	}
+	// what kind of address are we using
+	const bool unsig = is_set(lcd_control,4);
+	
+	// what tile data are we using
+	const int tile_data = unsig ? 0x8000 : 0x8800; 
+	
 	
 	// ypos is used to calc which of the 32 vertical tiles 
 	// the current scanline is drawing	
 	uint8_t y_pos = 0;
 	
+
+	int background_mem = 0;
+	
 	// which background mem?
 	if(!using_window)
 	{
-		if(is_set(lcd_control,3))
-		{
-			background_mem = 0x9c00;
-		}
-		else
-		{
-			background_mem = 0x9800;
-		}
+		background_mem = is_set(lcd_control,3) ? 0x9c00 : 0x9800;
 		y_pos = scroll_y + scanline;
 	}
 	
 	else
 	{
 		// which window mem?
-		if(is_set(lcd_control,6))
-		{
-			background_mem = 0x9c00;
-		}
-		else
-		{
-			background_mem = 0x9800;
-		}
+		background_mem = is_set(lcd_control,6) ? 0x9c00 : 0x9800;
 		y_pos = scanline - window_y;
 	}
 
@@ -659,7 +626,7 @@ void tile_fetch(Cpu *cpu)
 	uint8_t data1 = -1; 
 	uint8_t data2 = - 1; 
 	int tile_col_last = -1;
-
+	int vram_bank = 0;
 	for(int pixel = 0; pixel < 8; pixel++)
 	{
 		uint8_t x_pos = pixel+cpu->tile_cord;
@@ -672,13 +639,11 @@ void tile_fetch(Cpu *cpu)
 		// translate the current x pos to window space
 		// if needed
 		//if(using_window)
-		else
+		else if(x_pos >= window_x)
 		{
-			if(x_pos >= window_x)
-			{
-				x_pos = (pixel+cpu->tile_cord) - window_x;
-			}
+			x_pos = (pixel+cpu->tile_cord) - window_x;
 		}
+		
 	
 	
 		// which of the 32 horizontal tiles does x_pos fall in
@@ -734,16 +699,7 @@ void tile_fetch(Cpu *cpu)
 
 				// decide what bank data is coming out of
 				// allready one so dont check the other condition
-				if(is_set(attr,3))
-				{
-					vram_bank = 1;
-				}
-				
-				else 
-				{
-					vram_bank = 0;
-				}
-				
+				vram_bank = is_set(attr,3) ? 1 : 0;
 			}
 			
 			// find the correct vertical line we are on of the
@@ -795,16 +751,9 @@ void tile_fetch(Cpu *cpu)
 		{
 			cpu->fetcher_tile[pixel].colour_num = colour_num;
 			cpu->fetcher_tile[pixel].cgb_pal = cgb_pal;
-			// in cgb an priority bit is set
-			if(priority)
-			{
-				cpu->fetcher_tile[pixel].source = TILE_CGBD;
-			}
-			
-			else 
-			{
-				cpu->fetcher_tile[pixel].source = TILE;
-			}
+			// in cgb an priority bit is set it has priority over sprites
+			// unless lcdc has the master overide enabled
+			cpu->fetcher_tile[pixel].source = priority ? TILE_CGBD : TILE;		
 		}
 	}
 	cpu->tile_cord += 8; // goto next tile fetch
@@ -1074,7 +1023,6 @@ bool sprite_fetch(Cpu *cpu)
 	}
 
 	return did_draw; // <-- unsure on sprite timings
-	//return false;
 }
 
 
