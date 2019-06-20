@@ -1087,8 +1087,8 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			if(cpu->is_cgb)
 			{
 				cpu->vram_bank = data & 1;
+				cpu->io[IO_VBANK] = data | 254;
 			}
-			cpu->io[IO_VBANK] = data | 254;
 			return;
 		}
 
@@ -1178,8 +1178,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		// lo byte dma src
 		case IO_HDMA2:
 		{
+			data &= 0xf0;
 			cpu->dma_src &= ~0xff;
-			cpu->dma_src |= data & 0xf0;
+			cpu->dma_src |= data;
 			cpu->io[IO_HDMA2] = data;
 			return;
 		}
@@ -1188,8 +1189,9 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		// high byte dma dst
 		case IO_HDMA3:
 		{
+			data &= 0x1f;
 			cpu->dma_dst &= 0xff;
-			cpu->dma_dst |= (data & 0x1f) << 8;
+			cpu->dma_dst |= data << 8;
 			cpu->io[IO_HDMA3] = data;
 			return;
 		}
@@ -1197,6 +1199,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		// low byte dma dst
 		case IO_HDMA4:
 		{
+			data &= 0xf0;
 			cpu->dma_dst &= ~0xff;
 			cpu->dma_dst |= data;
 			cpu->io[IO_HDMA4] = data;

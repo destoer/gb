@@ -531,11 +531,12 @@ uint16_t read_stackwt(Cpu *cpu)
 
 void cycle_tick(Cpu *cpu,int cycles)
 {
-	// if in double speed mode timers and oam dma
+	// if in double speed oam dma
 	// should operate at double speed
 	int factor = cpu->is_double ? 2 : 1;
 
-	update_timers(cpu,(cycles*4)*factor); // <--- update timers 
+	// timers act at constant speed
+	update_timers(cpu,cycles*4); 
 
 	if(cpu->oam_dma_active)
 	{

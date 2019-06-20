@@ -71,13 +71,14 @@ void do_hdma(Cpu *cpu)
 {
 
 	//puts("HDMA!");
-	uint16_t source = cpu->dma_src;
+	uint16_t source = cpu->dma_src & 0xfff0;
 
-	uint16_t dest = cpu->dma_dst | 0x8000;
+	uint16_t dest = (cpu->dma_dst & 0x1ff0) | 0x8000;
 
 	
 	source += cpu->hdma_len_ticked*0x10;
 	dest += cpu->hdma_len_ticked*0x10;
+	
 	/*if(!(source <= 0x7ff0 || ( source >= 0xa000 && source <= 0xdff0)))
 	{
 						printf("ILEGGAL HDMA SOURCE: %X!\n",source);
@@ -737,6 +738,12 @@ void tile_fetch(Cpu *cpu)
 				{
 					vram_bank = 1;
 				}
+				
+				else 
+				{
+					vram_bank = 0;
+				}
+				
 			}
 			
 			// find the correct vertical line we are on of the
