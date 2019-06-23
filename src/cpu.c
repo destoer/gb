@@ -250,7 +250,7 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.memory_table[0xc].write_memf = write_wram_low; // 0xc000
 	cpu.memory_table[0xd].write_memf = write_wram_high; //0xd000
 	cpu.memory_table[0xe].write_memf = write_wram_low; // 0xe000 (echo ram)
-	cpu.memory_table[0xf].write_memf = write_hram;	
+	cpu.memory_table[0xf].write_memf = write_hram;	   // 0xf000
 	
 	return cpu;
 }
@@ -338,7 +338,8 @@ void init_banking_pointers(Cpu *cpu)
 	
 }
 
-
+// needs accuracy improvement with the precise interrupt 
+// timings to pass ie_push
 
 void request_interrupt(Cpu * cpu,int interrupt)
 {
@@ -531,6 +532,7 @@ uint16_t read_stackwt(Cpu *cpu)
 
 void cycle_tick(Cpu *cpu,int cycles)
 {
+
 	// if in double speed oam dma
 	// should operate at double speed
 	int factor = cpu->is_double ? 2 : 1;
@@ -547,6 +549,7 @@ void cycle_tick(Cpu *cpu,int cycles)
 	// in double speed mode gfx and apu should operate at half
 	update_graphics(cpu,(cycles*4) / factor); // handle the lcd emulation
 	tick_apu(cpu,(cycles*4) / factor); // advance the apu state
+
 }
 
 

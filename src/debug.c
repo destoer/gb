@@ -267,7 +267,7 @@ void breakpoint(char *token, Cpu* cpu)
 	// else find what was specified 
 	int len = strlen(token);
 	
-	if(len > 3)
+	if(len > 3) 
 	{
 		len = 3; // can only pass max of 3 for types
 	}

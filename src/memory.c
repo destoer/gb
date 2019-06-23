@@ -1212,9 +1212,11 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 			cpu->io[IO_HDMA5] = data;
 			// if data is zero do a gdma
 			// bit 1 will start a hdma during hblank
-			if(is_set(data,0)) 
+			
+			// writing 0 to bit 7 terminates a hdma transfer
+			if(!is_set(data,7))
 			{
-				start_gdma(cpu);
+				cpu->hdma_active = false;
 			}
 			
 			else // start a hdma
@@ -1223,6 +1225,12 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				// number of 16 byte incremnts to transfer
 				cpu->hdma_len = (data & 0x7f)+1;
 				cpu->hdma_len_ticked = 0;
+				cpu->hdma_active = true;
+			}
+			
+			if(is_set(data,0)) 
+			{
+				start_gdma(cpu);
 			}
 			return;
 		}
@@ -1460,17 +1468,17 @@ void do_dma(Cpu *cpu, uint8_t data)
 	// tick immediatly but keep the timing
 	if(dma_address < 0xe000)
 	{
-		/*// old implementaiton
+		// old implementaiton
 		for(int i = 0; i < 0xA0; i++)
 		{
 			write_oam(cpu,0xfe00+i, read_mem(dma_address+i,cpu)); 	
 		}
-		*/
-
+		
+/*
 		//optimised but likely error prone version...
 		uint8_t *dma_src = get_direct_mem_access(cpu,dma_address);
 		memcpy(cpu->oam,dma_src,0xA0);	
-	
+*/	
 	}
 
 	// tell the emulator to start ticking the dma transfer
@@ -1497,8 +1505,14 @@ uint8_t read_vram(uint16_t address, Cpu *cpu)
 	
 	uint16_t addr = address - 0x8000;
 	
-	// in dmg mode the bank will allways be zero
-	return cpu->vram[cpu->vram_bank][addr];	
+	// onlly accessible between mode 0-2
+	if(cpu->mode <= 2)
+	{
+		// in dmg mode the bank will allways be zero
+		return cpu->vram[cpu->vram_bank][addr];	
+	}
+	
+	return 0xff;
 }
 
 uint8_t read_oam(uint16_t address, Cpu *cpu)
@@ -1700,7 +1714,7 @@ uint8_t read_io(uint16_t address, Cpu *cpu)
 		
 		case IO_HDMA5: // verify
 		{
-			if(!is_set(cpu->io[IO_HDMA5],7))
+			if(!cpu->hdma_active)
 			{
 				return 0xff;
 			}

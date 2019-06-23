@@ -1,4 +1,6 @@
 
+// <--- this needs a massive refactor and optimization
+
 // everything in here is done in terms of T cycles
 // https://github.com/sinamas/gambatte/tree/master/test/hwtests
 // + gekkio's tests need to be passed
@@ -71,9 +73,9 @@ void do_hdma(Cpu *cpu)
 {
 
 	//puts("HDMA!");
-	uint16_t source = cpu->dma_src & 0xfff0;
+	uint16_t source = cpu->dma_src;
 
-	uint16_t dest = (cpu->dma_dst & 0x1ff0) | 0x8000;
+	uint16_t dest = cpu->dma_dst | 0x8000;
 
 	
 	source += cpu->hdma_len_ticked*0x10;
@@ -81,12 +83,11 @@ void do_hdma(Cpu *cpu)
 	
 	/*if(!(source <= 0x7ff0 || ( source >= 0xa000 && source <= 0xdff0)))
 	{
-						printf("ILEGGAL HDMA SOURCE: %X!\n",source);
-						exit(1);
+		printf("ILEGGAL HDMA SOURCE: %X!\n",source);
+		exit(1);
 	}
 	*/
-	// find out how many cycles we tick but for now just copy the whole damb thing 
-							
+	// find out how many cycles we tick but for now just copy the whole damb thing 						
 	for(int i = source; i < 0x10; i++)
 	{
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
@@ -98,7 +99,9 @@ void do_hdma(Cpu *cpu)
 	// hdma is over 
 	if(--cpu->hdma_len <= 0)
 	{
-		deset_bit(cpu->io[IO_HDMA5],7);
+		// indicate the tranfser is over
+		cpu->io[IO_HDMA5] = 0xff;
+		cpu->hdma_active = false;
 	}
 
 	// goto next block
@@ -239,7 +242,7 @@ void update_graphics(Cpu *cpu, int cycles)
 					cpu->ppu_scyc = 0;						
 					
 					// on cgb do hdma
-					if(cpu->is_cgb && is_set(cpu->io[IO_HDMA5],7))
+					if(cpu->is_cgb && cpu->hdma_active)
 					{
 						do_hdma(cpu);
 					}
@@ -320,17 +323,6 @@ void update_graphics(Cpu *cpu, int cycles)
 
 void shift_fifo(Cpu *cpu, int shift)
 {
-	/*for(int j = 0; j < shift; j++)
-	{
-		for(int i = 1; i < cpu->pixel_count; i++) 
-		{
-			//printf("%d\n",cpu->ppu_fifo[i]);
-			cpu->ppu_fifo[i-1] = cpu->ppu_fifo[i]; // shift the array
-		}
-		cpu->pixel_count--;
-	}*/
-	
-	
 	memmove(cpu->ppu_fifo,&cpu->ppu_fifo[shift],cpu->pixel_count *sizeof(Pixel_Obj));
 	cpu->pixel_count -= shift;
 }
@@ -616,7 +608,7 @@ void tile_fetch(Cpu *cpu)
 
 	
 	// which of the 8 vertical pixels of the scanline are we on
-	int tile_row = ((y_pos/8)*32);
+	const int tile_row = ((y_pos/8)*32);
 
 	
 	int cgb_pal = -1;
@@ -687,6 +679,7 @@ void tile_fetch(Cpu *cpu)
 
 			if(cpu->is_cgb) // we are drawing in cgb mode 
 			{
+				// bg attributes allways in bank 1
 				uint8_t attr = cpu->vram[1][tile_address];
 				cgb_pal = attr & 0x7; // get the pal number
 				
@@ -739,8 +732,7 @@ void tile_fetch(Cpu *cpu)
 		
 		
 		
-		// save the color_num to the current pos int the tile fifo
-		
+		// save the color_num to the current pos int the tile fifo		
 		if(!cpu->is_cgb)
 		{
 			cpu->fetcher_tile[pixel].colour_num = colour_num;
@@ -817,7 +809,7 @@ void read_sprites(Cpu *cpu)
 	
 	uint8_t scanline = cpu->current_line;
 
-	memset(&cpu->objects_priority,0,sizeof(Obj) * 10);
+
 	int x = 0;
 
 	for(int sprite = 0; sprite < 40; sprite++) // should fetch all these as soon as we leave oam search

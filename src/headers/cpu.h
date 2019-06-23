@@ -237,7 +237,10 @@ struct CPU
 	
 	// rtc 
 
-	
+	// sdl gfx 
+	SDL_Window * window;
+	SDL_Renderer * renderer;
+	SDL_Texture * texture;
 	
 	
 	
@@ -291,6 +294,11 @@ struct CPU
 	int hdma_len_ticked; // how many total dma transfers we have done
 	int dma_src;
 	int dma_dst;
+	bool hdma_active;
+	
+	
+	char rom_name[256];
+	int romname_len;
 	
 };
 

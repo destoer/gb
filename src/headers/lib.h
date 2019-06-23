@@ -44,7 +44,6 @@ uint16_t load_word(uint16_t pc, uint8_t *mem);
 
 
 
-
 bool is_set(int reg, int bit);
 uint8_t val_bit(uint8_t data, int position);
 

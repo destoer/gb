@@ -14,11 +14,7 @@
 
 #include <stdarg.h>
 
-/*
-Cpu cpu_save;
-uint8_t ram_banks[0x8000];
-#define SAVE_BREAKPOINT 0x4a3e
-*/
+
 
 // Check every instr from mooneye tests for  order eg condiational calls 
 
@@ -26,20 +22,13 @@ uint8_t ram_banks[0x8000];
 // need to optimse away instrucitons like or a, a 
 // to flag sets rather than running the full calc
 
-// may be broken for 16 bit operand jumps
 
 
 
-// potentially need the rominfo too but not needed yet
+
+
 void step_cpu(Cpu * cpu)
 {
-/*	
-	if(cpu->pc == SAVE_BREAKPOINT)
-	{
-		memcpy(&cpu_save,cpu,sizeof(Cpu));
-		memcpy(ram_banks,cpu->ram_banks,0x8000);
-	}
-*/	
 	#ifdef DEBUG
 	if(cpu->pc == cpu->breakpoint || cpu->step) 
 	{
@@ -1367,16 +1356,86 @@ void step_cpu(Cpu * cpu)
 			fprintf(cpu->logger,"Fatal unknown opcode at: %x\n",cpu->pc);
 			fflush(cpu->logger); // flush the log file
 			#endif
-		/*	
-			memcpy(cpu,&cpu_save,sizeof(Cpu));
-			memcpy(cpu->ram_banks,ram_banks,cpu->rom_info.noRamBanks*0x2000);
-			cpu->breakpoint = SAVE_BREAKPOINT;
-		*/	
+
 			//enter_debugger(cpu);
 			
 			//for(;;) { }
 			exit(1);
 			#endif
 			break;
+	}
+}
+
+void handle_instr_effects(Cpu *cpu)
+{
+	if(cpu->ei) // ei
+	{
+		cpu->ei = false; // assume a di was executed next instr
+		step_cpu(cpu); 
+		// we have done an instruction now set ime
+		// needs to be just after the instruction service
+		// but before we service interrupts
+		
+		if(!cpu->di) // if we have just executed di do not renable interrupts
+		{	
+			cpu->interrupt_enable = true;
+		}
+				
+		do_interrupts(cpu); // handle interrupts 
+	}
+			
+	else if(cpu->di) // di
+	{
+		cpu->di = false;
+		cpu->interrupt_enable = false; // di should disable immediately unlike ei!
+	}
+			
+			
+	// this will make the cpu stop executing instr
+	// until an interrupt occurs and wakes it up 
+			
+			
+	else if(cpu->halt) // halt occured in prev instruction
+	{
+			
+		cpu->halt = false;
+
+		uint8_t req = cpu->io[IO_IF]; // requested ints 
+		uint8_t enabled = cpu->io[IO_IE]; // enabled interrutps
+		
+		// halt bug
+		// halt state not entered and the pc fails to increment for
+		// one instruction read 
+				
+		// appears to detect when it happens but does not emulate the behavior properly
+				
+
+				
+		if( (cpu->interrupt_enable == false) &&  (req & enabled & 0x1f) != 0)
+		{
+			cpu->halt_bug = true;
+		}
+
+				
+		/*// not sure what defined behaviour is here
+		else if(enabled == 0)
+		{
+	
+		}*/
+				
+		// normal halt
+				
+		else 
+		{
+			while( ( req & enabled & 0x1f) == 0) // <--- needs debugger access or a bailout condition
+			{
+				// just tick it
+				cycle_tick(cpu,1);
+					
+				req = cpu->io[IO_IF];
+				enabled = cpu->io[IO_IE];
+			}
+			do_interrupts(cpu); // handle interrupts
+		}
 	}
 }
