@@ -252,6 +252,10 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.memory_table[0xe].write_memf = write_wram_low; // 0xe000 (echo ram)
 	cpu.memory_table[0xf].write_memf = write_hram;	   // 0xf000
 	
+	
+	cpu.current_buffer = cpu.ppu_fifo;
+	cpu.next_buffer = &cpu.ppu_fifo[8];
+	
 	return cpu;
 }
 
@@ -371,7 +375,7 @@ void do_interrupts(Cpu *cpu)
 				if(is_set(req,i) && is_set(enabled,i))
 				{
 					service_interrupt(cpu,i);
-					cycle_tick(cpu,5); // every interrupt service costs 5 M cycles
+					cycle_tick(cpu,5); // every interrupt service costs 5 M cycles <-- break this up tomorrow
 					break;
 				}
 			}
@@ -563,92 +567,62 @@ void cycle_tick(Cpu *cpu,int cycles)
 void update_timers(Cpu *cpu, int cycles)
 {
 	
-	// timer requires a reload?
-	//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
-	//{
-		//cpu->timer_reloading = false;
-		//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-	//}
-	
-	
-	
-	
+	int sound_bit = cpu->is_double? 14 : 12;
 
-
-		// timer requires a reload?
-		//if(cpu->timer_reloading) // should be done one cycle later but this is the best we can do...
-		//{
-			//cpu->timer_reloading = false;
-			//cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-		//}
-
-
-		// when this bit drops the sound fetcher is advanced
-		// in double speed to keep in sync this is a higher
-		// bit (eg takes twice the time to reach)
-		int sound_bit = cpu->is_double? 14 : 12;
-
-		bool sound_bit_set = is_set(cpu->internal_timer,sound_bit);
+	bool sound_bit_set = is_set(cpu->internal_timer,sound_bit);
 				
-		
-			
-			
-			
-		// if our bit is deset and it was before (falling edge)
-		// and the timer is enabled of course
-		if(is_set(cpu->io[IO_TMC],2))
+
+	// if our bit is deset and it was before (falling edge)
+	// and the timer is enabled of course
+	if(is_set(cpu->io[IO_TMC],2))
+	{
+		uint8_t freq = cpu->io[IO_TMC] & 0x3;
+
+		static const int freq_arr[4] = {9,3,5,7};
+
+		int bit = freq_arr[freq];
+
+		bool bit_set = is_set(cpu->internal_timer,bit);
+
+		cpu->internal_timer += cycles;
+
+		if(!is_set(cpu->internal_timer,bit) && bit_set)
 		{
-			uint8_t freq = cpu->io[IO_TMC] & 0x3;
+
+			// timer about to overflow
+			if(cpu->io[IO_TIMA] == 255)
+			{	
+				cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
+				request_interrupt(cpu,2); // timer overflow interrupt
 						
-					
-
-			static const int freq_arr[4] = {9,3,5,7};
-
-			int bit = freq_arr[freq];
-
-			bool bit_set = is_set(cpu->internal_timer,bit);
-
-			cpu->internal_timer += cycles;
-
-			if(!is_set(cpu->internal_timer,bit) && bit_set)
-			{
-
-				// timer about to overflow
-				if(cpu->io[IO_TIMA] == 255)
-				{	
-					cpu->io[IO_TIMA] = cpu->io[IO_TMA]; // reset to value in tma
-					//cpu->timer_reloading = true;
-					request_interrupt(cpu,2); // timer overflow interrupt
-						
-				}
-					
-				else
-				{
-					cpu->io[IO_TIMA]++;
-				}
 			}
-			// we repeat this here because we have to add the cycles
-			// at the proper time for the falling edge det to work
-			// and we dont want to waste time handling the falling edge
-			// for the timer when its off
-			if(!is_set(cpu->internal_timer,sound_bit) && sound_bit_set)
+					
+			else
 			{
-				advance_sequencer(cpu); // advance the sequencer
+			cpu->io[IO_TIMA]++;
 			}
 		}
-
-		// falling edge for sound clk which allways ticks
-		// done when timer is off 
-		// (cycles should only ever be added once per function call)
-		else 
+		// we repeat this here because we have to add the cycles
+		// at the proper time for the falling edge det to work
+		// and we dont want to waste time handling the falling edge
+		// for the timer when its off
+		if(!is_set(cpu->internal_timer,sound_bit) && sound_bit_set)
 		{
-			cpu->internal_timer += cycles;
-			if(!is_set(cpu->internal_timer,sound_bit) && sound_bit_set)
-			{
-				advance_sequencer(cpu); // advance the sequencer
-			}
+			advance_sequencer(cpu); // advance the sequencer
 		}
-	
+	}
+
+	// falling edge for sound clk which allways ticks
+	// done when timer is off 
+	// (cycles should only ever be added once per function call)
+	else 
+	{
+		cpu->internal_timer += cycles;
+		if(!is_set(cpu->internal_timer,sound_bit) && sound_bit_set)
+		{
+				advance_sequencer(cpu); // advance the sequencer
+		}
+	}
 }
 
 

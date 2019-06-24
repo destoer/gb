@@ -1,16 +1,8 @@
-#ifndef PPU_APPROX
+#ifdef PPU_APPROX
 
-// fetcher code needs a rework as it is beyond slow
-// constantly copying around data it ideally should not
-// also has a strange accuracy issue in oracles games 
-// where the top hud (window) does not render with
-// the correct color (but the approximated version does...)
 
-// everything in here is done in terms of T cycles
-// https://github.com/sinamas/gambatte/tree/master/test/hwtests
-// + gekkio's tests need to be passed
-
-// then move onto cgb support
+// approximated ppu implementation that is less accurate than the main one 
+// and does not account for mid scanline timings
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -20,13 +12,6 @@
 #include "headers/lib.h"
 #include "headers/memory.h"
 
-
-
-
-// need lcdon test passing 
-// then the lcd timing tests 
-// with scx sprite and window ones done last
-// metroid 2 final boss
 
 
 
@@ -40,19 +25,12 @@ int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 #define BLACK 4
 
 
-void draw_scanline(Cpu *cpu, int cycles);
+void draw_scanline(Cpu *cpu);
 void tile_fetch(Cpu *cpu);
-bool sprite_fetch(Cpu *cpu);
+void sprite_fetch(Cpu *cpu);
 void set_lcd_status(Cpu *cpu);
 int is_sprite_present(Cpu *cpu);
 void read_sprites(Cpu *cpu);
-
-// probably the largest room for optimization
-
-bool is_lcd_enabled(Cpu *cpu)
-{
-	return ( is_set(cpu->io[IO_LCDC],7) );	
-}
 
 
 void do_hdma(Cpu *cpu)
@@ -97,7 +75,14 @@ void do_hdma(Cpu *cpu)
 	}
 }
 
-// needs optimization in the rewrite
+
+bool is_lcd_enabled(Cpu *cpu)
+{
+	return ( is_set(cpu->io[IO_LCDC],7) );	
+}
+
+
+
 void update_graphics(Cpu *cpu, int cycles)
 {
 	//-----------------------
@@ -209,31 +194,20 @@ void update_graphics(Cpu *cpu, int cycles)
 		// pixel transfer
 		case 3: 
 		{
-			if(!cpu->x_scroll_tick)
+			
+			if(cpu->scanline_counter >= 252)
 			{
-				draw_scanline(cpu,cycles);
-				if(cpu->hblank) // if just entering hblank 
+				// switch to hblank
+				cpu->mode = 0;
+					
+				draw_scanline(cpu);	
+				// on cgb do hdma
+				if(cpu->is_cgb && cpu->hdma_active)
 				{
-					// switch to hblank
-					cpu->mode = 0;
-					
-					// reset our fetcher :)
-					cpu->x_cord = 0;
-					cpu->tile_ready = false;
-					cpu->pixel_count = 0;
-					cpu->ppu_cyc = 0;
-					cpu->hblank = false;
-					cpu->tile_cord = 0;
-					cpu->window_start = false;
-					cpu->ppu_scyc = 0;						
-					
-					// on cgb do hdma
-					if(cpu->is_cgb && cpu->hdma_active)
-					{
-						do_hdma(cpu);
-					}
+					do_hdma(cpu);
 				}
-			}	
+			}
+				
 			
 			// tick of the cycles
 			// for the x scroll
@@ -308,185 +282,11 @@ void update_graphics(Cpu *cpu, int cycles)
 	cpu->io[IO_STAT] = status | 128 | cpu->mode;		
 }
 
-void shift_fifo(Cpu *cpu, int shift)
+void draw_scanline(Cpu *cpu)
 {
-	memcpy(cpu->ppu_fifo,&cpu->ppu_fifo[shift],cpu->pixel_count *sizeof(Pixel_Obj));
-	cpu->pixel_count -= shift;
+	tile_fetch(cpu);
+	sprite_fetch(cpu);
 }
-
-
-
-// shift a pixel out of the array and smash it to the screen 
-// increment x afterwards
-
-// returns wether it can keep pushing or not
-
-bool push_pixel(Cpu *cpu) 
-{
-
-	// cant push anymore
-	if(!(cpu->pixel_count > 8)) { return false; }
-
-	
-	int col_num = cpu->ppu_fifo[0].colour_num; // save the pixel we will shift
-	int scanline = cpu->current_line;
-	
-	if(!cpu->is_cgb)
-	{
-		int colour_address = cpu->ppu_fifo[0].source + 0xff47;	
-		int col = get_colour(cpu,col_num,colour_address); 
-		int red = 0;
-		int green = 0;
-		int blue = 0;
-		
-		// black is default
-		switch(col)
-		{
-			case WHITE: red = 255; green = 255; blue = 255; break;
-			case LIGHT_GRAY: red = 0xCC; green = 0xCC; blue = 0xCC;  break;
-			case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77;  break;
-		}
-		
-		cpu->screen[scanline][cpu->x_cord][0] = red;
-		cpu->screen[scanline][cpu->x_cord][1] = green;
-		cpu->screen[scanline][cpu->x_cord][2] = blue;
-	}
-	
-	else // gameboy color
-	{
-		
-		
-
-		// for now we will assume tile just for arugments sake 
-		int cgb_pal = cpu->ppu_fifo[0].cgb_pal;
-		// each  rgb value takes two bytes in the pallete for cgb
-		int offset = (cgb_pal*8) + (col_num * 2); 
-
-		int col;
-		if(cpu->ppu_fifo[0].source == TILE)
-		{
-			col = cpu->bg_pal[offset];
-			col |= cpu->bg_pal[offset + 1] << 8;
-		}
-		
-		
-		else // is a sprite
-		{
-			col = cpu->sp_pal[offset];
-			col |= cpu->sp_pal[offset + 1] << 8;			
-		}
-		
-	
-		// gameboy stores palletes in bgr format?
-		int blue = col & 0x1f;
-		int green = (col >> 5) & 0x1f;
-		int red = (col >> 10) & 0x1f;
-		
-		// convert rgb15 to rgb888
-		red = (red << 3) | (red >> 2);
-		blue = (blue << 3) | (blue >> 2);
-		green = (green << 3) | (green >> 2);
-			
-		cpu->screen[scanline][cpu->x_cord][0] = red;
-		cpu->screen[scanline][cpu->x_cord][1] = green;
-		cpu->screen[scanline][cpu->x_cord][2] = blue;
-	}
-	
-	shift_fifo(cpu,1); // shift a pixel out by one
-	if(++cpu->x_cord == 160)
-	{
-		// done drawing enter hblank
-		cpu->hblank = true;
-		return false;
-	}
-	return true;
-}	
-	
-
-
-
-
-
-// todo proper scx and window timings
-// as we current do not implement them at all 
-// window should restart the fetcher when triggered 
-// and take 6 cycles (this is now done)
-
-// and we should implement scx properly with the fetcher...
-// ^ this needs researching and implementing
-
-// need to handle bugs with the window
-void tick_fetcher(Cpu *cpu, int cycles) 
-{
-
-	// advance the fetcher if we dont have a tile dump waiting
-	// fetcher operates at half of base clock (4mhz)
-	if(!cpu->tile_ready) // fetch the tile
-	{
-		// should fetch the number then low and then high byte
-		// but we will ignore this fact for now
-
-		// 1 cycle is tile num 
-		// 2nd is lb of data 
-		// 3rd is high byte of data 
-
-		cpu->ppu_cyc += cycles; // further along 
-
-		if(cpu->ppu_cyc >= 3) // takes 3 cycles to fetch 8 pixels
-		{
-			tile_fetch(cpu);
-			cpu->tile_ready = true;
-			// any over flow will be used to push the next tile
-			// into the fifo (the 4th clock)
-			cpu->ppu_cyc = 0;
-		}	
-	}
-	
-	// if we have room to dump into the fifo
-	// and we are ready to do so, do it now 
-	// at 0 dump at start at 8 pixels dump in higher half
-	if(cpu->tile_ready && cpu->pixel_count <= 8)
-	{
-		memcpy(&cpu->ppu_fifo[cpu->pixel_count], cpu->fetcher_tile,8*sizeof(Pixel_Obj));
-		cpu->tile_ready = false;
-		cpu->pixel_count += 8;
-	}		
-}	
-	
-
-void draw_scanline(Cpu *cpu, int cycles) 
-{
-	// get lcd control reg
-	const int control = cpu->io[IO_LCDC];
-	
-	// fetcher operates at half of base clock
-	tick_fetcher(cpu,cycles/2);
-	
-	// push out of fifo
-	if(cpu->pixel_count > 8)
-	{
-
-
-		for(int i = 0; i < cycles; i++) // 1 pixel pushed per cycle
-		{
-			// ignore sprite timings for now
-			if(is_set(control,1))
-			{
-				sprite_fetch(cpu);
-			}
-		
-			// blit the pixel 
-			// stop at hblank 
-			// or if the fifo only has 8 pixels inside it
-			if(!push_pixel(cpu)) 
-			{ 
-				return; 
-			}
-		}
-	}
-}
-
-// fetch a single tile into the fifo
 
 void tile_fetch(Cpu *cpu)
 {
@@ -547,9 +347,9 @@ void tile_fetch(Cpu *cpu)
 	uint8_t data2 = - 1; 
 	int tile_col_last = -1;
 	int vram_bank = 0;
-	for(int pixel = 0; pixel < 8; pixel++)
+	for(int pixel = 0; pixel < 160; pixel++)
 	{
-		uint8_t x_pos = pixel+cpu->tile_cord;
+		uint8_t x_pos = pixel;
 		
 		if(!using_window) // <-- dont think this is correct
 		{
@@ -561,7 +361,7 @@ void tile_fetch(Cpu *cpu)
 		//if(using_window)
 		else if(x_pos >= window_x)
 		{
-			x_pos = (pixel+cpu->tile_cord) - window_x;
+			x_pos = pixel - window_x;
 		}
 		
 	
@@ -660,20 +460,59 @@ void tile_fetch(Cpu *cpu)
 		
 		
 		
-		// save the color_num to the current pos int the tile fifo		
+		
+		
+			
 		if(!cpu->is_cgb)
 		{
-			cpu->fetcher_tile[pixel].colour_num = colour_num;
-			cpu->fetcher_tile[pixel].source = TILE;		
+			int colour_address = TILE + 0xff47;	
+			int col = get_colour(cpu,colour_num,colour_address); 
+			int red = 0;
+			int green = 0;
+			int blue = 0;
+			
+			// black is default
+			switch(col)
+			{
+				case WHITE: red = 255; green = 255; blue = 255; break;
+				case LIGHT_GRAY: red = 0xCC; green = 0xCC; blue = 0xCC;  break;
+				case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77;  break;
+			}
+			
+			cpu->screen[scanline][pixel][0] = red;
+			cpu->screen[scanline][pixel][1] = green;
+			cpu->screen[scanline][pixel][2] = blue;
+			cpu->screenp[scanline][pixel].source = TILE;
+			cpu->screenp[scanline][pixel].colour_num = colour_num;
 		}
 		
-		else // cgb save the pallete value... 
+		else 
 		{
-			cpu->fetcher_tile[pixel].colour_num = colour_num;
-			cpu->fetcher_tile[pixel].cgb_pal = cgb_pal;
-			// in cgb an priority bit is set it has priority over sprites
-			// unless lcdc has the master overide enabled
-			cpu->fetcher_tile[pixel].source = priority ? TILE_CGBD : TILE;		
+			cpu->screenp[scanline][pixel].source = priority ? TILE_CGBD : TILE;	
+			cpu->screenp[scanline][pixel].colour_num = colour_num;			
+
+
+			// for now we will assume tile just for arugments sake 
+			int offset = (cgb_pal*8) + (colour_num * 2); // (each rgb value is two bytes)
+
+			int col = cpu->bg_pal[offset];
+			col |= cpu->bg_pal[offset + 1] << 8;			
+			
+			
+		
+			// gameboy stores palletes in bgr format?
+			int blue = col & 0x1f;
+			int green = (col >> 5) & 0x1f;
+			int red = (col >> 10) & 0x1f;
+			
+			// convert rgb15 to rgb888
+			red = (red << 3) | (red >> 2);
+			blue = (blue << 3) | (blue >> 2);
+			green = (green << 3) | (green >> 2);
+				
+			cpu->screen[scanline][pixel][0] = red;
+			cpu->screen[scanline][pixel][1] = green;
+			cpu->screen[scanline][pixel][2] = blue;			
 		}
 	}
 	cpu->tile_cord += 8; // goto next tile fetch
@@ -766,7 +605,7 @@ void read_sprites(Cpu *cpu)
 
 // returns if they have been rendered
 // because we will delay if they have been
-bool sprite_fetch(Cpu *cpu) 
+void sprite_fetch(Cpu *cpu) 
 {
 
 	
@@ -779,52 +618,14 @@ bool sprite_fetch(Cpu *cpu)
 
 	int scanline = cpu->current_line;
 	
-	bool did_draw;
-	
 	for(int i = 0; i < cpu->no_sprites; i++)
 	{
+		
 		int vram_bank = 0;
-		uint8_t x_pos = cpu->objects_priority[i].x_pos;
-		
-		
-		// if wrap with the x posistion will cause it to wrap around
-		// where its in range of the current sprite we still need to draw it
-		// for thje pixels its in range 
-		
-		// say we have one at 255
-		// it will draw 7 pixels starting from zero
-		// so from 0-6
-		// so if the xcord = 0 then the first 6 pixels must be mixed
-		// but i have no clue how to actually do this under a fifo...
-		
-		
-		// offset into the sprite we start drawing at 
-		// 7 is the 0th pixel and is defualt for a 
-		// sprite that we draw fully
-		int pixel_start = 7; 
-
-		if(cpu->x_cord == 0 &&  x_pos + 7 > 255)
-		{
-			x_pos += 7;
-			
-			// this will cause it to draw at the correct offset into the sprite
-			pixel_start = x_pos;
-		}
-		
-		
-		
-		// if it does not start at the current x cord 
-		// and does not overflow then we dont care
-		else if(x_pos != cpu->x_cord)
-		{
-			continue;
-		}
-		
-		
-		
 		
 		// sprite takes 4 bytes in the sprite attributes table
 		uint8_t sprite_index = cpu->objects_priority[i].index;
+		uint8_t x_pos = cpu->objects_priority[i].x_pos;
 		uint8_t y_pos = cpu->oam[sprite_index];
 		uint8_t sprite_location = cpu->oam[(sprite_index+2)];
 		uint8_t attributes = cpu->oam[(sprite_index+3)];
@@ -859,7 +660,7 @@ bool sprite_fetch(Cpu *cpu)
 			
 			// eaiser to read in from right to left as pixel 0
 			// is bit 7 in the color data pixel 1 is bit 6 etc 
-			for(int sprite_pixel = pixel_start; sprite_pixel >= 0; sprite_pixel--)
+			for(int sprite_pixel = 7; sprite_pixel >= 0; sprite_pixel--)
 			{
 				int colour_bit = sprite_pixel;
 				// red backwards for x axis
@@ -887,8 +688,10 @@ bool sprite_fetch(Cpu *cpu)
 				// the color itself dosent matter we only care about the id
 				
 				uint8_t x_pix = 0 - sprite_pixel;
-				x_pix += pixel_start;
+				x_pix += 7;
 
+				int pixel = x_pos + x_pix;
+				
 				
 				// transparent sprite so the tile wins
 				if(colour_num == 0)
@@ -901,7 +704,7 @@ bool sprite_fetch(Cpu *cpu)
 				// white is transparent even if the flag is set
 				if(is_set(attributes,7))
 				{
-					if(cpu->ppu_fifo[x_pix].colour_num != 0)
+					if(cpu->screenp[scanline][pixel].colour_num != 0)
 					{
 						// need to test for the overide in lcdc on cgb
 						if(!draw_over_everything)
@@ -925,22 +728,60 @@ bool sprite_fetch(Cpu *cpu)
 				// if this is not set it can only draw if the tile does not have its priority 
 				// bit set in cgb mode
 				
-				if(cpu->ppu_fifo[x_pix].source != TILE_CGBD || draw_over_everything)
+				if(cpu->screenp[scanline][pixel].source != TILE_CGBD || draw_over_everything)
 				{
-					cpu->ppu_fifo[x_pix].colour_num = colour_num;
-					cpu->ppu_fifo[x_pix].source = source;
-					//if(cpu->is_cgb) probably faster to just write the value anyways
-					//{
-						cpu->ppu_fifo[x_pix].cgb_pal = attributes & 0x7;
-					//}
+					if(!cpu->is_cgb)
+					{
+						int colour_address = source + 0xff47;	
+						int col = get_colour(cpu,colour_num,colour_address); 
+						int red = 0;
+						int green = 0;
+						int blue = 0;
+						
+						// black is default
+						switch(col)
+						{
+							case WHITE: red = 255; green = 255; blue = 255; break;
+							case LIGHT_GRAY: red = 0xCC; green = 0xCC; blue = 0xCC;  break;
+							case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77;  break;
+						}
+						
+						cpu->screen[scanline][pixel][0] = red;
+						cpu->screen[scanline][pixel][1] = green;
+						cpu->screen[scanline][pixel][2] = blue;
+					}
+					
+					
+					else 
+					{
+						// each  rgb value takes two bytes in the pallete for cgb
+						colour_num *= 2;
+
+						// for now we will assume tile just for arugments sake 
+						int cgb_pal = attributes & 0x7;
+						int offset = (cgb_pal*8) + colour_num;
+						int col = cpu->sp_pal[offset];
+						col |= cpu->sp_pal[offset + 1] << 8;			
+						
+					
+						// gameboy stores palletes in bgr format?
+						int blue = col & 0x1f;
+						int green = (col >> 5) & 0x1f;
+						int red = (col >> 10) & 0x1f;
+						
+						// convert rgb15 to rgb888
+						red = (red << 3) | (red >> 2);
+						blue = (blue << 3) | (blue >> 2);
+						green = (green << 3) | (green >> 2);
+							
+						cpu->screen[scanline][pixel][0] = red;
+						cpu->screen[scanline][pixel][1] = green;
+						cpu->screen[scanline][pixel][2] = blue;						
+					}
 				}
+				
 			}
-			did_draw = true;
 		}
 	}
-
-	return did_draw;
 }
-
-
 #endif

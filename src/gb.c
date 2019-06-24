@@ -1,4 +1,5 @@
 #include "headers/cpu.h"
+#include "headers/banking.h"
 #include "headers/joypad.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -232,6 +233,7 @@ void handle_input(Cpu *cpu)
 				
 							fread(cpu->ram_banks,1,0x2000*cpu->rom_info.noRamBanks,savstate);
 							cpu->rom_mem = load_rom(cpu->rom_name); 
+							cache_banking_ptrs(cpu); // old bank pointers are invalid rechace them
 							fclose(savstate);
 							break;
 						}
