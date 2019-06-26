@@ -1,4 +1,3 @@
-#ifndef PPU_APPROX
 
 // fetcher code needs a rework as it is beyond slow
 // constantly copying around data it ideally should not
@@ -74,7 +73,7 @@ void do_hdma(Cpu *cpu)
 	}
 	*/
 	// find out how many cycles we tick but for now just copy the whole damb thing 						
-	for(int i = source; i < 0x10; i++)
+	for(int i = 0; i < 0x10; i++)
 	{
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
@@ -941,6 +940,3 @@ bool sprite_fetch(Cpu *cpu)
 
 	return did_draw;
 }
-
-
-#endif
