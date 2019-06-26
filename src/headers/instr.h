@@ -28,3 +28,5 @@ uint8_t rr(Cpu *cpu, uint8_t reg);
 uint8_t rrc(Cpu *cpu,uint8_t reg);
 uint8_t rlc(Cpu *cpu, uint8_t reg);
 
+void jr_cond(Cpu *cpu,bool cond, int bit);
+void jr(Cpu *cpu);

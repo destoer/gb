@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
+
 
 uint16_t load_word(uint16_t pc, uint8_t *mem) // <--- a word in this case is 16 bytes
 {
@@ -10,41 +12,6 @@ uint16_t load_word(uint16_t pc, uint8_t *mem) // <--- a word in this case is 16 
 	operand += mem[pc] & 0xff; // only get byte
 	return operand;
 }
-
-uint8_t set_bit(uint8_t num,uint8_t bit)
-{
-	return ((num) | (1 << bit));
-}
-
-
-
-uint8_t deset_bit(uint8_t num,uint8_t bit)
-{
-	return ((num) & ~(1 << bit));
-}
-
-
-bool is_set(uint8_t reg, uint8_t bit)
-{
-	if((reg >> bit) & 1)
-	{
-		return true;
-	}
-	
-	else
-	{
-		return false;
-	}
-}
-
-
-
-uint8_t val_bit(uint8_t data, int position)
-{
-	uint8_t mask = 1 << position ;
-	return ( data & mask ) ? 1 : 0 ;
-}
-
 
 void binary(int number)
 {

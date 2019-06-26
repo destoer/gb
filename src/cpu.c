@@ -5,18 +5,18 @@
 #include <stdbool.h>
 #include "headers/cpu.h"
 #include "headers/disass.h"
+#include "headers/opcode.h"
 #include "headers/lib.h"
 #include "headers/banking.h"
 #include "headers/instr.h"
 #include "headers/debug.h"
 #include "headers/ppu.h"
 #include "headers/memory.h"
+#include "headers/apu.h"
 
-
-
+void cycle_tick(Cpu *cpu,int cycles);
 
 uint8_t read_mem(uint16_t address, Cpu *cpu);
-bool is_set(uint8_t reg, uint8_t bit);
 int set_clock_freq(Cpu *cpu);
 void service_interrupt(Cpu *cpu,int interrupt);
 
@@ -32,13 +32,29 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 {	
 	Cpu cpu;
 
+	memset(&cpu, 0, sizeof(Cpu));
+
+
+	
+	#ifdef LOGGER
+	cpu.logger = fopen("log.txt","w");
+	if(cpu.logger == NULL)
+	{
+		puts("Could not open log file for logging");
+		exit(1);
+	}
+	#endif
+	
 	cpu.currentram_bank = 0;
 	cpu.currentrom_bank = 1; // all ways at least one
 	cpu.rom_banking = true; // default
 	cpu.enable_ram = false;
-	cpu.rtc_enabled = false;
-	//different values for the test!?
-	cpu.af.reg = 0x01B0; // <-- correct values
+//	cpu.rtc_enabled = false;
+
+
+	// dmg boot reg values 
+	// need alternate ones for when we switch to cgb
+	cpu.af.reg = 0x01B0; 
 	cpu.bc.reg = 0x0013;
 	cpu.de.reg = 0x00D8;
 	cpu.hl.reg = 0x014d;
@@ -86,9 +102,9 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 
 	
 	cpu.pc = 0x100; // reset at 0x100
-	cpu.tacfreq = 256; // number of machine cycles till update
-	cpu.div_counter = 0;
+
 	cpu.scanline_counter = 0;
+	cpu.current_line = 0;
 	cpu.signal = false;
 	cpu.joypad_state = 0xff;
 	cpu.interrupt_enable = false;
@@ -97,6 +113,8 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.ei = false;
 	cpu.halt = false;
 	cpu.halt_bug = false;
+	
+
 	
 	#ifdef DEBUG
 	// debugging vars 
@@ -108,10 +126,210 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	#endif
 
 
+	
+	
+	// sound 
+	cpu.sequencer_step = 0;
+	cpu.sound_enabled = true;
+	cpu.sweep_enabled = false;
+	
+
+
+	// init sdl sound 
+	// Set up SDL audio spec
+	cpu.audio_spec.freq = 44100;
+	cpu.audio_spec.format = AUDIO_F32SYS;
+	cpu.audio_spec.channels = 2;
+	cpu.audio_spec.samples = SAMPLE_SIZE;	
+	cpu.audio_spec.callback = NULL; // we will use SDL_QueueAudio()  rather than 
+	cpu.audio_spec.userdata = NULL; // using a callback :)
+
+	cpu.audio_buf_idx = 0;
+	cpu.down_sample_cnt = 23;
+	
+	
+	
+	//const int ndev = SDL_GetNumAudioDevices(0);
+	
+	printf("no of audio devices: %d\n",SDL_GetNumAudioDevices(0));
+	
+/*	bool success = false;
+	int dev = -1;
+	for(int i = 0; i < ndev; i++)
+	{
+		char *device = SDL_GetAudioDeviceName(i,0);
+		printf("device %d: %s\n",i,device);
+		//dev = SDL_OpenAudioDevice(NULL,0,&cpu.audio_spec,NULL,0);
+		dev = SDL_OpenAudioDevice(device,0,&cpu.audio_spec,NULL,0);
+		if(dev >= 0)
+		{
+			printf("opened device %d(%s)!\n",dev,SDL_GetAudioDeviceName(dev,0));
+			success = true; break;
+		}
+	}
+
+	printf("success = %s\n", success ? "true" : "false");
+	
+	//if(SDL_OpenAudio(&cpu.audio_spec, NULL) < 0)
+		
+	if(!success)
+	{
+		fprintf(stderr, "Could not open audio %s", SDL_GetError());
+		exit(1);
+	}
+
+	// enable playback
+	SDL_PauseAudioDevice(dev, 0);
+*/
+
+	// using the legacy interface
+	
+	int dev = 1;
+	
+	SDL_OpenAudio(&cpu.audio_spec,NULL);
+	SDL_PauseAudio(0);
+	
+	printf("opened device %d(%s)!\n",dev,SDL_GetAudioDeviceName(dev,0));
+	
+	printf("Device state: ");
+    switch (SDL_GetAudioDeviceStatus(dev))
+    {
+        case SDL_AUDIO_STOPPED: printf("stopped\n"); break;
+        case SDL_AUDIO_PLAYING: printf("playing\n"); break;
+        case SDL_AUDIO_PAUSED: printf("paused\n"); break;
+        default: printf("???"); break;
+    }
+
+	cpu.initial_sample =  SDL_GetQueuedAudioSize(dev);
+
+	printf("Queued audio: %d!\n",cpu.initial_sample);
+	
+	//cpu.fp = fopen("audio.pcm","wb+");
+
+	
+	
+	// init the cgb stuff
+	memset(cpu.bg_pal,0xff,0x40);
+	memset(cpu.sp_pal,0xff,0x40);
+
+
+	// init our table our memory pointers
+	/* read */
+	cpu.memory_table[0x0].read_memf = read_rom_bank_zero; // 0x0000
+	cpu.memory_table[0x1].read_memf = read_rom_bank_zero; // 0x1000
+	cpu.memory_table[0x2].read_memf = read_rom_bank_zero; // 0x2000
+	cpu.memory_table[0x3].read_memf = read_rom_bank_zero; // 0x3000
+	cpu.memory_table[0x4].read_memf = read_rom_bank4; // 0x4000
+	cpu.memory_table[0x5].read_memf = read_rom_bank5; // 0x5000
+	cpu.memory_table[0x6].read_memf = read_rom_bank6; // 0x6000
+	cpu.memory_table[0x7].read_memf = read_rom_bank7; // 0x7000
+	cpu.memory_table[0x8].read_memf = read_mem_vram; // 0x8000
+	cpu.memory_table[0x9].read_memf = read_mem_vram; // 0x9000
+	cpu.memory_table[0xa].read_memf = read_cart_ram; // 0xa000
+	cpu.memory_table[0xb].read_memf = read_cart_ram; // 0xb000
+	cpu.memory_table[0xc].read_memf = read_wram_low; // 0xc000
+	cpu.memory_table[0xd].read_memf = read_wram_high; //0xd000
+	cpu.memory_table[0xe].read_memf = read_wram_low; // 0xe000 (echo ram)
+	cpu.memory_table[0xf].read_memf = read_mem_hram;
+	/* write */
+	// 0x7 - 0x8 is initialized in init_banking_pointers
+	cpu.memory_table[0x8].write_memf = write_vram_mem; // 0x8000
+	cpu.memory_table[0x9].write_memf = write_vram_mem; // 0x9000
+	cpu.memory_table[0xa].write_memf = write_cart_mem; // 0xa000
+	cpu.memory_table[0xb].write_memf = write_cart_mem; // 0xb000
+	cpu.memory_table[0xc].write_memf = write_wram_low; // 0xc000
+	cpu.memory_table[0xd].write_memf = write_wram_high; //0xd000
+	cpu.memory_table[0xe].write_memf = write_wram_low; // 0xe000 (echo ram)
+	cpu.memory_table[0xf].write_memf = write_hram;	   // 0xf000
+
 	return cpu;
 }
 
+void init_banking_pointers(Cpu *cpu)
+{
+	
+	cache_banking_ptrs(cpu);
+	
+	// mbc1 rom
+	if(cpu->rom_info.mbc1)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x2].write_memf = do_change_lo_rom_bank_mbc1;
+		cpu->memory_table[0x3].write_memf = do_change_lo_rom_bank_mbc1;
+		cpu->memory_table[0x4].write_memf = mbc1_banking_change;
+		cpu->memory_table[0x5].write_memf = mbc1_banking_change; 
+		cpu->memory_table[0x6].write_memf = do_change_rom_ram_mode;
+		cpu->memory_table[0x7].write_memf = do_change_rom_ram_mode;
+		return;
+	}
+	
+	// mbc2 rom
+	else if(cpu->rom_info.mbc2)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable_mbc2;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable_mbc2;
+		// this is shared with mbc1
+		cpu->memory_table[0x2].write_memf = do_change_lo_rom_bank_mbc1;
+		cpu->memory_table[0x3].write_memf = do_change_lo_rom_bank_mbc1;
+		
+		// no ram bank changing
+		cpu->memory_table[0x4].write_memf = banking_unused;
+		cpu->memory_table[0x5].write_memf = banking_unused;
+		
+		// as is the high banking for mbc2
+		cpu->memory_table[0x6].write_memf = banking_unused;
+		cpu->memory_table[0x7].write_memf = banking_unused;
+		return;
+	}
+	
+	// mbc3 rom
+	else if(cpu->rom_info.mbc3)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x2].write_memf = do_change_rom_bank_mbc3 ;
+		cpu->memory_table[0x3].write_memf = do_change_rom_bank_mbc3;
+		cpu->memory_table[0x4].write_memf = mbc3_ram_bank_change;
+		cpu->memory_table[0x5].write_memf = mbc3_ram_bank_change;
+		cpu->memory_table[0x6].write_memf = banking_unused;
+		cpu->memory_table[0x7].write_memf = banking_unused;
+		return;
+	}
+	
+	// mbc5 rom
+	else if(cpu->rom_info.mbc5)
+	{
+		cpu->memory_table[0x0].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x1].write_memf = do_ram_bank_enable;
+		cpu->memory_table[0x2].write_memf = do_change_lo_rom_bank_mbc5;
+		cpu->memory_table[0x3].write_memf = do_change_hi_rom_bank_mbc5;
+		cpu->memory_table[0x4].write_memf = mbc5_ram_bank_change;
+		cpu->memory_table[0x5].write_memf = mbc5_ram_bank_change;
+		cpu->memory_table[0x6].write_memf = banking_unused;
+		cpu->memory_table[0x7].write_memf = banking_unused;		
+		return;
+	}
+	
+	// zero in cart type is rom only 
+	// if aint this then somethign is wrong
+	else if(cpu->rom_info.cartType != 0)
+	{
+		printf("invalid rom type in init_banking_pointers!");
+		exit(1);
+	}
+	
+	
+	// rom only 
+	for(int i = 0; i < 8; i++)
+	{
+		cpu->memory_table[i].write_memf = banking_unused; // banking not used on rom only
+	}
+	
+}
 
+// needs accuracy improvement with the precise interrupt 
+// timings to pass ie_push
 
 void request_interrupt(Cpu * cpu,int interrupt)
 {
@@ -126,7 +344,6 @@ void request_interrupt(Cpu * cpu,int interrupt)
 
 void do_interrupts(Cpu *cpu)
 {
-	//int cycles = 0;
 	// if interrupts are enabled
 	if(cpu->interrupt_enable)
 	{	
@@ -140,36 +357,27 @@ void do_interrupts(Cpu *cpu)
 			// priority for servicing starts at interrupt 0
 			for(int i = 0; i < 5; i++)
 			{
-				
-				// if requested
-				if(is_set(req,i))
+				// if requested & is enabled
+				if(is_set(req,i) && is_set(enabled,i))
 				{
-					// check that the particular interrupt is enabled
-					if(is_set(enabled,i))
-					{
-						service_interrupt(cpu,i);
-						//cycles += 5;
-					}
+					service_interrupt(cpu,i);
+					break;
 				}
 			}
 		}
 	}
-	//if(cycles > 0)
-	//{
-		//update_timers(cpu,cycles);
-	//}
 }
 
 void service_interrupt(Cpu *cpu,int interrupt)
 {
-	
+	write_log(cpu,"Interrupt serviced at: %x, interrupt req: %x\n",cpu->pc,interrupt);
 	
 	cpu->interrupt_enable = false; // disable interrupts now one is serviced
 		
 	// reset the bit of in the if to indicate it has been serviced
-	uint8_t req = read_mem(0xff0f,cpu);
+	uint8_t req = cpu->io[IO_IF];
 	deset_bit(req,interrupt);
-	write_mem(cpu,0xff0f,req);
+	cpu->io[IO_IF] = req;
 		
 	// push the current pc on the stack to save it
 	// it will be pulled off by reti or ret later
@@ -179,25 +387,28 @@ void service_interrupt(Cpu *cpu,int interrupt)
 	// set the program counter to the start of the
 	// interrupt handler for the request interrupt
 		
-	switch(interrupt)
-	{
-		// interrupts are one less than listed in cpu manual
-		// as our bit macros work from bits 0-7 not 1-8
-		case 0: cpu->pc = 0x40;  break; //vblank
-		case 1: cpu->pc = 0x48; break; //lcd-state 
-		case 2: cpu->pc = 0x50; break; // timer 
-		case 3: cpu->pc = 0x58; break; //serial (not fully implemented)
-		case 4: cpu->pc = 0x60; break; // joypad
-		default: printf("Invalid interrupt %d at %x\n",interrupt,cpu->pc); exit(1);
-	}	
+	const uint16_t vector_table[] = { 0x40, 0x48, 0x50, 0x58, 0x60 };
+	cpu->pc = vector_table[interrupt];
 }
 
 
 
 
+// writes
 
 
 
+void write_wordt(Cpu *cpu,uint16_t address,int data) // <- verify 
+{
+	write_memt(cpu,address+1,((data & 0xff00) >> 8));
+	write_memt(cpu,address,(data & 0x00ff));
+}
+
+void write_memt(Cpu *cpu,uint16_t address,int data)
+{
+	write_mem(cpu,address,data);
+	cycle_tick(cpu,1); // update cycles for memory write
+}
 
 void write_word(Cpu *cpu,uint16_t address,int data) // <- verify 
 {
@@ -206,6 +417,12 @@ void write_word(Cpu *cpu,uint16_t address,int data) // <- verify
 }
 
 
+uint8_t read_iot(uint16_t address, Cpu *cpu)
+{
+	uint8_t val = read_io(address,cpu);
+	cycle_tick(cpu,1);
+	return val;
+}
 
 
 
@@ -214,6 +431,27 @@ uint16_t read_word(int address, Cpu *cpu)
 {
 	return read_mem(address,cpu) | (read_mem(address+1,cpu) << 8);
 }
+
+
+uint8_t read_memt(int address, Cpu *cpu)
+{
+	uint8_t val = read_mem(address,cpu);
+	cycle_tick(cpu,1); // update cycles for memory read
+	return val;
+}
+
+
+uint16_t read_wordt(int address, Cpu *cpu)
+{
+	return read_memt(address,cpu) | (read_memt(address+1,cpu) << 8);
+}
+
+void write_iot(Cpu *cpu,uint16_t address, int data)
+{
+	write_io(cpu,address,data);
+	cycle_tick(cpu,1);
+}
+
 
 // implement the memory stuff for stack minips
 
@@ -225,6 +463,12 @@ void write_stack(Cpu *cpu, uint8_t data)
 
 }
 
+void write_stackt(Cpu *cpu, uint8_t data)
+{
+	cpu->sp -= 1; // dec stack pointer before writing mem for push
+	write_memt(cpu,cpu->sp,data); // write to stack
+
+}
 
 void write_stackw(Cpu *cpu,uint16_t data)
 {
@@ -232,10 +476,24 @@ void write_stackw(Cpu *cpu,uint16_t data)
 	write_stack(cpu,(data &0x00ff));
 }
 
+void write_stackwt(Cpu *cpu,uint16_t data)
+{
+	write_stackt(cpu,(data & 0xff00) >> 8);
+	write_stackt(cpu,(data & 0x00ff));
+}
+
 uint8_t read_stack(Cpu *cpu)
 {
 	
 	uint8_t data = read_mem(cpu->sp,cpu);
+	cpu->sp += 1;
+	return data;
+}
+
+uint8_t read_stackt(Cpu *cpu)
+{
+	
+	uint8_t data = read_memt(cpu->sp,cpu);
 	cpu->sp += 1;
 	return data;
 }
@@ -247,43 +505,52 @@ uint16_t read_stackw(Cpu *cpu)
 }
 
 
+uint16_t read_stackwt(Cpu *cpu)
+{
+	return read_stackt(cpu) | (read_stackt(cpu) << 8);
+}
+
+void cycle_tick(Cpu *cpu,int cycles)
+{
+	// convert from M cycles to T cycles
+	const int c = cycles * 4;
+	
+	// timers act at constant speed
+	update_timers(cpu,c); 
+
+	// in double speed mode gfx and apu should operate at half
+	update_graphics(cpu,c >> cpu->is_double); // handle the lcd emulation
+	tick_apu(cpu,c >> cpu->is_double,cycles); // advance the apu state
+}
 
 
 
 
 
 
-
-
-
-// implement internal timer behavior with div and tima
-// being one reg 
 
 // updates the timers
 void update_timers(Cpu *cpu, int cycles)
-{	
+{
 	
 	// divider reg in here for convenience
 	cpu->div_counter += cycles;
-	if(cpu->div_counter > 64)
+	if(cpu->div_counter > 255)
 	{
-		cpu->div_counter = 0; // inc rate
-		cpu->io[IO_DIV]++; // inc the div timer 
-						
+		cpu->div_counter = 0;
+		cpu->io[IO_DIV]++; // inc the div timer 					
 	}
 	
 	// if timer is enabled <--- edge case with timer is failing the timing test
-	if(is_set(cpu->io[IO_TMC],2))
+	if(cpu->timer_enabled)
 	{	
 		cpu->timer_counter += cycles;
 		
-		int threshold = set_clock_freq(cpu);
-		
 		// update tima register cycles have elapsed
-		while(cpu->timer_counter >= threshold)
+		if(cpu->timer_counter >= cpu->threshold)
 		{
-			cpu->timer_counter -= threshold;
 			
+			cpu->timer_counter = 0;
 			// about to overflow
 			if(cpu->io[IO_TIMA] == 255)
 			{	
@@ -296,10 +563,12 @@ void update_timers(Cpu *cpu, int cycles)
 				cpu->io[IO_TIMA]++;
 			}
 		}
-	}
+	}	
 }
 
-int set_clock_freq(Cpu *cpu)
+
+
+int set_clock_freq(Cpu *cpu) // should cache this threshold
 {
 	uint8_t freq = cpu->io[IO_TMC] & 0x3;
 	
@@ -307,10 +576,10 @@ int set_clock_freq(Cpu *cpu)
 	
 	switch(freq)
 	{				
-		case 0: newfreq = 256; break; // freq 4096
-		case 1: newfreq = 4; break; //freq 262144
-		case 2: newfreq = 16; break; // freq 65536
-		case 3: newfreq = 64; break; // freq 16382
+		case 0: newfreq = 1024; break; // freq 4096
+		case 1: newfreq = 16; break; //freq 262144
+		case 2: newfreq = 64; break; // freq 65536
+		case 3: newfreq = 256; break; // freq 16382
 		default: puts("Invalid freq"); exit(1);
 	}
 	

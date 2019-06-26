@@ -14,26 +14,6 @@
 /* todo add memory range printing */
 
 
-const int lens[] =
-{
-
-    1,3,1,1,1,1,2,1,3,1,1,1,1,1,2,1,
-    1,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
-    2,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
-    2,3,1,1,1,1,2,1,2,1,1,1,1,1,2,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    1,1,3,3,3,1,2,1,1,1,3,0,3,3,2,1,
-	1,1,3,0,3,1,2,1,1,1,3,0,3,0,2,1,
-    2,1,1,0,0,1,2,1,2,1,3,0,0,0,2,1,
-    2,1,1,1,0,1,2,1,2,1,3,1,0,0,2,1
-};	
 
 // 1st word of commands
 const char c1[COMMANDS][7] = 
@@ -174,6 +154,13 @@ void write_addr(char *token, Cpu* cpu)
 		write_mem(cpu,addr,val);
 	}
 
+	// write to bank 0
+	if(addr <= 0x4000)
+	{
+		cpu->rom_mem[addr] = val;
+	}
+
+
 	if(addr >= 0x4000 && addr < 0x8000)
 	{
 		// write to rom we will bypass checks
@@ -197,7 +184,6 @@ void disass_addr(char *token, Cpu* cpu)
 	// if two just break the address
 	// if 3 break the mem read or execute
 	token = strtok(NULL," ");
-	uint16_t pc_backup = cpu->pc;
 	if(token == NULL)
 	{
 		puts("[ERROR] no address for disass");
@@ -207,7 +193,6 @@ void disass_addr(char *token, Cpu* cpu)
 	if(token[0] == '*') token += 1;
 
 	int address = strtol(token,NULL,16);
-	cpu->pc = address;
 	
 	// get the next token if there isnt one just disas the address
 	// else get the number and disass that many instructions from the address
@@ -217,7 +202,7 @@ void disass_addr(char *token, Cpu* cpu)
 	// just disass it
 	if(token == NULL)
 	{
-		disass_8080(read_mem(cpu->pc++,cpu),cpu);
+		disass_8080(cpu,address);
 	}
 	
 	else
@@ -226,13 +211,9 @@ void disass_addr(char *token, Cpu* cpu)
 	
 		for(int i = 0; i < num; i++)
 		{
-			uint8_t opcode = read_mem(cpu->pc++,cpu);
-			disass_8080(opcode,cpu);	
-			cpu->pc += lens[opcode]-1;
+			address += disass_8080(cpu,address);
 		}
 	}
-	
-	cpu->pc = pc_backup;
 }
 
 void breakpoint(char *token, Cpu* cpu)
@@ -286,7 +267,7 @@ void breakpoint(char *token, Cpu* cpu)
 	// else find what was specified 
 	int len = strlen(token);
 	
-	if(len > 3)
+	if(len > 3) 
 	{
 		len = 3; // can only pass max of 3 for types
 	}
@@ -421,8 +402,7 @@ void info(char *token, Cpu *cpu)
 	// print various control registers
 	else if(0 == strcmp(token,"control"))
 	{
-		//printf("ly = %x\n",cpu->mem[0xff44]);
-		printf("ly = %x\n",read_mem(0xff44,cpu));
+		printf("ly = %x\n",cpu->io[IO_LY]);
 		printf("div = %x\n",cpu->io[IO_DIV]);
 		printf("tima = %x\n",cpu->io[IO_TIMA]);
 		printf("lcdc = %x\n",cpu->io[0x40]);

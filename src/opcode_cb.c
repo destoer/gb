@@ -7,11 +7,6 @@
 
 void decode_cb(uint8_t cbop, Cpu *cpu)
 {
-	
-			
-			// figure out instruction bits and decode fields
-			// unless u want 100s of switch statements 
-			// ^ not going with above may resort to later
 			switch(cbop)
 			{
 				
@@ -378,7 +373,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					bit(cpu,cpu->hl.lb,2);
 					break;
 				
-				case 0x56: // bit 2, (hl) 
+				case 0x56: // bit 2, (hl)
 					bit(cpu,read_mem(cpu->hl.reg,cpu),2);
 					break;
 				
@@ -446,7 +441,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					bit(cpu,cpu->hl.lb,4);
 					break;
 				
-				case 0x66: // bit 4, (hl) 
+				case 0x66: // bit 4, (hl)
 					bit(cpu,read_mem(cpu->hl.reg,cpu),4);
 					break;
 				
@@ -511,7 +506,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					bit(cpu,cpu->hl.lb,6);
 					break;
 				
-				case 0x76: // bit 6, (hl) 
+				case 0x76: // bit 6, (hl)
 					bit(cpu,read_mem(cpu->hl.reg,cpu),6);
 					break;
 				
@@ -957,7 +952,7 @@ void decode_cb(uint8_t cbop, Cpu *cpu)
 					set_bit(cpu->hl.lb,3);
 					break;
 				
-				case 0xde: // set 3, (hl)	
+				case 0xde: // set 3, (hl)
 					cbop = read_mem(cpu->hl.reg,cpu);
 					set_bit(cbop,3);
 					write_mem(cpu,cpu->hl.reg,cbop);

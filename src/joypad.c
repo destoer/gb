@@ -24,19 +24,12 @@ void key_pressed(int key, Cpu *cpu)
 	// remember if a key is pressed its bit is 0 not 1
 	deset_bit(cpu->joypad_state, key);
 	
-	// button pressed
-	bool button = true;
+
 	
 	
 	// is this a standard button or a directional one?
-	if(key > 3)
-	{
-		button = true; // <--- kinda redundant
-	}
-	else
-	{
-		button = false; // directional one pressed
-	}
+	bool button = (key > 3);
+
 	
 	uint8_t key_req = cpu->io[0x00];
 	bool req_int = false;

@@ -10,6 +10,7 @@ typedef struct
 	bool mbc1;
 	bool mbc2;
 	bool mbc3;
+	bool mbc5;
 	bool has_rtc;
 } RomInfo;
 

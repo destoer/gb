@@ -9,74 +9,23 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 
 #include <stdarg.h>
 
-inline void write_log(const char *fmt, ...);
+
+
+// Check every instr from mooneye tests for  order eg condiational calls 
+
+
+// need to optimse away instrucitons like or a, a 
+// to flag sets rather than running the full calc
 
 
 
-
-
-void write_log(const char *fmt, ...)
+void step_cpu(Cpu * cpu)
 {
-/*#ifdef DEBUG
-		va_list args;
-		
-		va_start(args,fmt);
-		
-		// for obvious reasons dumping this much data to a file 
-		// in this way repeatedly is slow as hell
-		
-		//FILE *fp = fopen("log.txt","a+");
-		
-		//if(fp == NULL)
-		//{
-			//puts("Error writing to log");
-			//exit(1);
-		//}
-		
-		vprintf(fmt,args);
-		//fclose(fp);
-		va_end(args);
-#endif*/
-}
-
-
-
-
-
-
-
-
-
-// potentially need the rominfo too but not needed yet
-int step_cpu(Cpu * cpu)
-{
-	
-
-	
-	#ifdef DEBUG
-	if(cpu->pc == cpu->breakpoint || cpu->step) 
-	{
-		
-		
-		// enter into the debug console
-		// enter commands exit when run command typed
-		cpu->step = false; // disable stepping
-		printf("execution breakpoint hit at %x\n",cpu->pc);
-		uint8_t opcode = read_mem(cpu->pc++,cpu);
-		disass_8080(opcode,cpu);
-		enter_debugger(cpu);
-		cpu->pc -= 1; // correct pc 
-		
-	} 
-	#endif
-
-	
-
-	
 	// read an opcode and inc the program counter
 	uint8_t opcode;
 	int8_t operand;
@@ -182,7 +131,32 @@ int step_cpu(Cpu * cpu)
 			
 			// most games should never even execute this 
 		case 0x10: // stop <-- FIX THIS LATER
-			puts("fix stop");
+			cpu->pc += 1; // skip over next byte
+			
+			// if bit one is set we are gonna do a speed switch
+			if(cpu->is_cgb && is_set(cpu->io[IO_SPEED],0))
+			{
+				deset_bit(cpu->io[IO_SPEED],0); // clear the bit
+				puts("double speed!");
+				cpu->is_double = !cpu->is_double;
+				
+				if(cpu->is_double)
+				{
+					set_bit(cpu->io[IO_SPEED],7);
+				}
+			
+				else // single speed 
+				{
+					deset_bit(cpu->io[IO_SPEED],7);
+				}
+			
+			}
+			
+			else
+			{
+				puts("unhandled normal stop!");
+				exit(1);
+			}
 			//exit(1);
 			break;
 			
@@ -261,7 +235,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jr nz at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 			
@@ -321,7 +295,9 @@ int step_cpu(Cpu * cpu)
 			}
 			
 			
-			deset_bit(cpu->af.lb,H);
+			// preserve C and N flags
+			cpu->af.lb &= (1 << C) | (1 << N);
+
 			set_zero(cpu, cpu->af.hb);
 			break;
 			
@@ -331,7 +307,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jr z at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 		
@@ -373,7 +349,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jr nc at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 		
@@ -423,7 +399,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jr c at %x -> %x\n",cpu->pc-2,cpu->pc+operand);
 				cpu->pc += operand;
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 			
@@ -1006,7 +982,7 @@ int step_cpu(Cpu * cpu)
 			if(!is_set(cpu->af.lb,Z))
 			{
 				cpu->pc = read_stackw(cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 	
@@ -1020,7 +996,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else 
@@ -1040,7 +1016,7 @@ int step_cpu(Cpu * cpu)
 				write_log("call nz at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else 
@@ -1067,7 +1043,7 @@ int step_cpu(Cpu * cpu)
 			if(is_set(cpu->af.lb,Z))
 			{
 				cpu->pc = read_stackw(cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 		
@@ -1080,7 +1056,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp z at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else
@@ -1098,7 +1074,8 @@ int step_cpu(Cpu * cpu)
 			cbop = read_mem(cpu->pc++, cpu); // fetch the opcode
 			decode_cb(cbop,cpu); // exec it 
 
-			return cbmcycles[cbop]; // update machine cylces for cb prefix
+			cycle_tick(cpu,cbmcycles[cbop]); // update machine cylces for cb prefix
+			return;
 			break; 
 		
 		
@@ -1107,7 +1084,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
-				return  mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else
@@ -1135,7 +1112,7 @@ int step_cpu(Cpu * cpu)
 			if(!is_set(cpu->af.lb,C))
 			{
 				cpu->pc = read_stackw(cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 		
@@ -1148,7 +1125,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else
@@ -1163,7 +1140,7 @@ int step_cpu(Cpu * cpu)
 				write_log("call nc at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc, cpu);
-				return  mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else 
@@ -1189,7 +1166,7 @@ int step_cpu(Cpu * cpu)
 			if(is_set(cpu->af.lb,C))
 			{
 				cpu->pc = read_stackw(cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			break;
 			
@@ -1203,7 +1180,7 @@ int step_cpu(Cpu * cpu)
 			{
 				write_log("jp c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				cpu->pc = read_word(cpu->pc,cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else
@@ -1218,7 +1195,7 @@ int step_cpu(Cpu * cpu)
 				write_log("call c at %x -> %x\n",cpu->pc-1,read_word(cpu->pc,cpu));
 				write_stackw(cpu,cpu->pc+2);
 				cpu->pc = read_word(cpu->pc,cpu);
-				return mtcycles[opcode];
+				cycle_tick(cpu,mtcycles[opcode]); return;
 			}
 			
 			else
@@ -1238,7 +1215,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xE0: // ld (ff00+n),a
-			write_mem(cpu,(0xff00+read_mem(cpu->pc++,cpu)),cpu->af.hb);
+			write_io(cpu,(0xff00+read_mem(cpu->pc++,cpu)),cpu->af.hb);
 			break;
 
 		case 0xe1: // pop hl
@@ -1246,7 +1223,7 @@ int step_cpu(Cpu * cpu)
 			break;
 			
 		case 0xE2: // LD ($FF00+C),A
-			write_mem(cpu,0xff00 + cpu->bc.lb, cpu->af.hb);
+			write_io(cpu,0xff00 + cpu->bc.lb, cpu->af.hb);
 			break;
 
 		case 0xe5: // push hl
@@ -1287,7 +1264,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xF0: // ld a, (ff00+n)
-			cpu->af.hb = read_mem(0xff00+read_mem(cpu->pc++, cpu),cpu);
+			cpu->af.hb = read_io(0xff00+read_mem(cpu->pc++, cpu),cpu);
 			break;
 		
 		case 0xf1: // pop af
@@ -1296,7 +1273,7 @@ int step_cpu(Cpu * cpu)
 			break;
 		
 		case 0xf2: // ld a, (ff00+c)
-			cpu->af.hb = read_mem(0xff00 + cpu->bc.lb ,cpu);
+			cpu->af.hb = read_io(0xff00 + cpu->bc.lb ,cpu);
 			break;
 		
 		case 0xf3: // disable interrupt
@@ -1365,5 +1342,81 @@ int step_cpu(Cpu * cpu)
 			break;
 	}
 	
-    return mcycles[opcode]; // update the machine cycles		
+    cycle_tick(cpu,mcycles[opcode]); // update the machine cycles		
+}
+
+
+
+void handle_instr_effects(Cpu *cpu)
+{
+	if(cpu->ei) // ei
+	{
+		cpu->ei = false; // assume a di was executed next instr
+		step_cpu(cpu); 
+		// we have done an instruction now set ime
+		// needs to be just after the instruction service
+		// but before we service interrupts
+		
+		if(!cpu->di) // if we have just executed di do not renable interrupts
+		{	
+			cpu->interrupt_enable = true;
+		}
+				
+		do_interrupts(cpu); // handle interrupts 
+	}
+			
+	else if(cpu->di) // di
+	{
+		cpu->di = false;
+		cpu->interrupt_enable = false; // di should disable immediately unlike ei!
+	}
+			
+			
+	// this will make the cpu stop executing instr
+	// until an interrupt occurs and wakes it up 
+			
+			
+	else if(cpu->halt) // halt occured in prev instruction
+	{
+			
+		cpu->halt = false;
+
+		uint8_t req = cpu->io[IO_IF]; // requested ints 
+		uint8_t enabled = cpu->io[IO_IE]; // enabled interrutps
+		
+		// halt bug
+		// halt state not entered and the pc fails to increment for
+		// one instruction read 
+				
+		// appears to detect when it happens but does not emulate the behavior properly
+				
+
+				
+		if( (cpu->interrupt_enable == false) &&  (req & enabled & 0x1f) != 0)
+		{
+			cpu->halt_bug = true;
+		}
+
+				
+		/*// not sure what defined behaviour is here
+		else if(enabled == 0)
+		{
+	
+		}*/
+				
+		// normal halt
+				
+		else 
+		{
+			while( ( req & enabled & 0x1f) == 0) // <--- needs debugger access or a bailout condition
+			{
+				// just tick it
+				cycle_tick(cpu,1);
+					
+				req = cpu->io[IO_IF];
+				enabled = cpu->io[IO_IE];
+			}
+			do_interrupts(cpu); // handle interrupts
+		}
+	}
 }
