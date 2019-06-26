@@ -71,9 +71,6 @@ void do_hdma(Cpu *cpu)
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
 
-	// 8 M cycles for each 0x10 block
-	cycle_tick(cpu,8);
-	
 	// tick to next block 
 	// terinate if it exceeds len
 	if(cpu->hdma_len < ++cpu->hdma_len_ticked)
@@ -247,8 +244,19 @@ void update_graphics(Cpu *cpu, int cycles)
 
 void draw_scanline(Cpu *cpu) 
 {
-	tile_fetch(cpu);
-	sprite_fetch(cpu);
+	const int control = cpu->io[IO_LCDC];
+	
+	
+	if(is_set(control,0))
+	{
+		tile_fetch(cpu);
+	}
+	
+	
+	if(is_set(control,1))
+	{
+		sprite_fetch(cpu);
+	}
 }
 
 void tile_fetch(Cpu *cpu)
@@ -266,14 +274,17 @@ void tile_fetch(Cpu *cpu)
 	
 	// is the window enabled check in lcd control
 	// and is the current scanline the window pos?
-	const bool using_window = is_set(lcd_control,5) && (window_y <= scanline); 
+	const bool using_window = is_set(lcd_control,5) && (window_y <= scanline) && (window_x < 166); 
 
 	
 	// what kind of address are we using
 	const bool unsig = is_set(lcd_control,4);
 	
+	// all the addresses below here have -0x8000 off the actual address in memory
+	// as vram is located starting at 0x8000
+	
 	// what tile data are we using
-	const int tile_data = unsig ? 0x8000 : 0x8800; 
+	const int tile_data = unsig ? 0 : 0x800; 
 	
 	
 	// ypos is used to calc which of the 32 vertical tiles 
@@ -286,14 +297,14 @@ void tile_fetch(Cpu *cpu)
 	// which background mem?
 	if(!using_window)
 	{
-		background_mem = is_set(lcd_control,3) ? 0x9c00 : 0x9800;
+		background_mem = is_set(lcd_control,3) ? 0x1c00 : 0x1800;
 		y_pos = scroll_y + scanline;
 	}
 	
 	else
 	{
 		// which window mem?
-		background_mem = is_set(lcd_control,6) ? 0x9c00 : 0x9800;
+		background_mem = is_set(lcd_control,6) ? 0x1c00 : 0x1800;
 		y_pos = scanline - window_y;
 	}
 
@@ -306,30 +317,35 @@ void tile_fetch(Cpu *cpu)
 	bool priority = false;
 	bool x_flip = false;
 	bool y_flip = false;
-	uint8_t data1 = -1; 
-	uint8_t data2 = - 1; 
+	int data1 = -1; 
+	int data2 = - 1; 
 	int tile_col_last = -1;
 	int vram_bank = 0;
+	
+	const int tile_address_start = background_mem + tile_row;
+	
+	y_pos &= 0x7;
+	
 	for(int pixel = 159; pixel >= 0; pixel--)
 	{
 		uint8_t x_pos = pixel;
 		
-		
-		if(!using_window) // <-- dont think this is correct
+		// window does not scroll :)
+		if(!using_window)
 		{
 			x_pos += scroll_x;
 		}
-
-		// translate the current x pos to window space
-		// if needed
-		//if(using_window)
-		else if(x_pos >= window_x)
+		
+		
+		// if we are using window 
+		// it starts at window_x 
+		// so if we are less than it dont draw
+		else if(x_pos < window_x)
 		{
-			x_pos = pixel - window_x;
+			continue;	
 		}
 		
-	
-	
+		
 		// which of the 32 horizontal tiles does x_pos fall in
 		int tile_col = (x_pos/8);
 		
@@ -345,14 +361,13 @@ void tile_fetch(Cpu *cpu)
 			tile_col_last = tile_col;
 			// get the tile identity num it can be signed or unsigned
 			// -0x8000 to account for the vram 
-			const int tile_address = (background_mem + tile_row+tile_col) - 0x8000;
+			const int tile_address = (tile_address_start + tile_col);
 
 			// deduce where this tile identifier is in memory
-			int tile_location = unsig ? tile_data +	(cpu->vram[0][tile_address] * 16)
+			const int tile_location = unsig ? tile_data + (cpu->vram[0][tile_address] * 16)
 				: tile_data + (((int8_t)cpu->vram[0][tile_address]+128)*16);
 
-			// map to our array
-			tile_location -= 0x8000;
+			
 			
 			// should cache these values before the loop but ignore for now
 			// x and y flip + priority needs to be implemented
@@ -360,7 +375,7 @@ void tile_fetch(Cpu *cpu)
 			if(cpu->is_cgb) // we are drawing in cgb mode 
 			{
 				// bg attributes allways in bank 1
-				uint8_t attr = cpu->vram[1][tile_address];
+				const int attr = cpu->vram[1][tile_address];
 				cgb_pal = attr & 0x7; // get the pal number
 				
 				
@@ -377,10 +392,8 @@ void tile_fetch(Cpu *cpu)
 			
 			// find the correct vertical line we are on of the
 			// tile to get the tile data		
-			int line = y_pos & 0x7;
-			
 			// read the sprite backwards in y axis
-			line = y_flip? 14 - line*2 : line*2;	
+			const int line = y_flip? 14 - (y_pos*2) : (y_pos*2);	
 			
 			data1 = cpu->vram[vram_bank][(tile_location+line)];
 			data2 = cpu->vram[vram_bank][(tile_location+line+1)];

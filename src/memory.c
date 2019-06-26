@@ -180,10 +180,6 @@ void start_gdma(Cpu *cpu)
 	{
 		write_mem(cpu,dest+i,read_mem(source+i,cpu));
 	}
-	
-	
-	cycle_tick(cpu,8*(len / 0x10)); // 8 M cycles for each 10 byte block
-	
 }
 
 

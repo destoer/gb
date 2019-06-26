@@ -169,6 +169,25 @@ struct CPU
 	bool hblank;
 	Obj objects_priority[10]; // sprites for the current scanline
 	int no_sprites; // how many sprites
+// fetcher
+
+	int x_cord; // current x cord of the ppu
+	Pixel_Obj ppu_fifo[16];
+	int pixel_idx;
+	
+	Pixel_Obj *current_buffer;
+	Pixel_Obj *next_buffer;
+	
+	uint8_t ppu_cyc; // how far for a tile fetch is
+	uint8_t ppu_scyc; // how far along a sprite fetch is
+	int pixel_count; // how many pixels are in the fifo
+	Pixel_Obj fetcher_tile[8];
+	int tile_cord;
+	bool tile_ready; // is the tile fetch ready to go into the fio 
+	bool sprite_drawn;
+	bool window_start;
+	bool x_scroll_tick;
+	int scx_cnt;
 
 	
 	uint8_t joypad_state; // has state of held down buttons
@@ -193,7 +212,8 @@ struct CPU
 	int sequencer_step; // keeps track of the current set goes from 0-8 and loops back around
 	Sqaure square[4]; // holds common variables for sqaure channels
 	int sequencer_cycles;
-
+	
+	
 	// Sweep
 	bool sweep_enabled;
 	uint16_t sweep_shadow;
@@ -293,8 +313,8 @@ struct CPU
 	// timers 
 	int timer_counter;
 	int div_counter;
-	bool timer_enabled;
 	int threshold;
+	bool timer_enabled;
 };
 
 typedef struct CPU Cpu;
