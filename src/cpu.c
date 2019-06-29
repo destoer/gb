@@ -253,8 +253,6 @@ Cpu init_cpu(void) // <--- memory should be randomized on startup
 	cpu.memory_table[0xf].write_memf = write_hram;	   // 0xf000
 	
 	
-	cpu.current_buffer = cpu.ppu_fifo;
-	cpu.next_buffer = &cpu.ppu_fifo[8];
 	
 	return cpu;
 }

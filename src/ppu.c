@@ -312,7 +312,7 @@ void update_graphics(Cpu *cpu, int cycles)
 // awful code
 void shift_fifo(Cpu *cpu, int shift)
 {
-	memcpy(cpu->ppu_fifo,&cpu->ppu_fifo[shift],cpu->pixel_count *sizeof(Pixel_Obj));
+	memmove(cpu->ppu_fifo,&cpu->ppu_fifo[shift],cpu->pixel_count *sizeof(Pixel_Obj));
 	cpu->pixel_count -= shift;
 }
 

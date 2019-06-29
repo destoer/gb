@@ -89,15 +89,7 @@ typedef union
 	uint16_t reg;
 }Register;
 
-#ifdef PPU_APPROX
- // screen priority
-typedef struct 
-{
-	int source;
-	int colour_num;
-}  SCREENP;
 
-#endif 
 
 // should have a bool for the channel being enabled
 // as it is better to cache it
@@ -158,9 +150,6 @@ struct CPU
 	// ppu
 	int scanline_counter;
 	uint8_t screen[Y][X][4]; // <--- need an extra one for this format?
-#ifdef PPU_APPROX	
-	SCREENP screenp[Y][X];
-#endif
 	bool signal;
 	int current_line;
 	int mode; // current ppu mode
@@ -172,10 +161,7 @@ struct CPU
 	int x_cord; // current x cord of the ppu
 	Pixel_Obj ppu_fifo[16];
 	int pixel_idx;
-	
-	Pixel_Obj *current_buffer;
-	Pixel_Obj *next_buffer;
-	
+
 	uint8_t ppu_cyc; // how far for a tile fetch is
 	uint8_t ppu_scyc; // how far along a sprite fetch is
 	int pixel_count; // how many pixels are in the fifo
