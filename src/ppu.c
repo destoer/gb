@@ -1,9 +1,11 @@
 
 // fetcher code needs a rework as it is beyond slow
 // constantly copying around data it ideally should not
-// also has a strange accuracy issue in oracles games 
-// where the top hud (window) does not render with
-// the correct color (but the approximated version does...)
+// (use a circular buffer)
+// as well as make the tile fetch linear
+// then just shift the first few pixels out of the fifo
+// also fix a error in the oracle games 
+// where the hud is the wrong palette
 
 // everything in here is done in terms of T cycles
 // https://github.com/sinamas/gambatte/tree/master/test/hwtests
@@ -307,6 +309,7 @@ void update_graphics(Cpu *cpu, int cycles)
 	cpu->io[IO_STAT] = status | 128 | cpu->mode;		
 }
 
+// awful code
 void shift_fifo(Cpu *cpu, int shift)
 {
 	memcpy(cpu->ppu_fifo,&cpu->ppu_fifo[shift],cpu->pixel_count *sizeof(Pixel_Obj));
