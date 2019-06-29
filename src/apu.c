@@ -292,7 +292,6 @@ void tick_period_square(Cpu *cpu, int idx, int cycles)
 	}	
 }
 
-
 void tick_apu(Cpu *cpu,int cycles, int ticks)
 {
 

@@ -403,7 +403,7 @@ void tile_fetch(Cpu *cpu)
 		// pixel 1 is bit 6 etc
 		int color_bit = x_pos & 0x7;
 
-		// read backwards horizontally
+		// read backwards horizontally if xflip set
 		color_bit = x_flip? color_bit : 7 - color_bit;
 	
 	

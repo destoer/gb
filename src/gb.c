@@ -225,10 +225,19 @@ void handle_input(Cpu *cpu)
 							// save the memory table and recopy it in 
 							// so that function pointers aernt loaded from an untrusted source
 							memcpy(memory_table,cpu->memory_table,0x10*sizeof(struct Memory_table));
+							
+							// save our sdl pointers 
+							SDL_Window * window = cpu->window;
+							SDL_Renderer * renderer = cpu->renderer;
+							SDL_Texture * texture = cpu->texture;
+							
 							fread(&cpu,sizeof(Cpu),1,savstate);
 							memcpy(cpu->memory_table,memory_table,0x10*sizeof(struct Memory_table));
 							cpu->ram_banks = calloc(0x2000 * cpu->rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
 							
+							cpu->window = window;
+							cpu->renderer = renderer;
+							cpu->texture = texture;
 							
 				
 							fread(cpu->ram_banks,1,0x2000*cpu->rom_info.noRamBanks,savstate);
