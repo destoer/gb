@@ -17,15 +17,11 @@
 
 
 // colors are off in the oracle games 
-// likely a dma related issue or maybye even our palette writes
+// appaers to be due to a bug in the fetcher
 
-/* implementing cgb
-new vram bank
-new wram banks
-new dma transfers 
-double speed mode 
-new drawing functions 
-*/
+// sound needs improving 
+// and the fetcher needs to be redone
+// (linear tile fetch) & (refactor the fifo so we aint doing a ton of memcpys)
 
 static int next_time;
 
