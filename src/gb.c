@@ -48,201 +48,203 @@ void init_sdl(Cpu *cpu)
 
 void handle_input(Cpu *cpu) 
 {
-		SDL_Event event;
+	SDL_Event event;
 	
 		// handle input
-		while(SDL_PollEvent(&event))
-		{	
-			switch(event.type) // <-- this needs factoring out of main
+	while(SDL_PollEvent(&event))
+	{	
+		switch(event.type) // <-- this needs factoring out of main
+		{
+	
+			case SDL_WINDOWEVENT:
 			{
-	
-				case SDL_WINDOWEVENT:
+				if(event.window.event == SDL_WINDOWEVENT_RESIZED)
 				{
-					if(event.window.event == SDL_WINDOWEVENT_RESIZED)
-					{
-						SDL_SetWindowSize(cpu->window,event.window.data1, event.window.data2);
-					}
-					break;
+					SDL_SetWindowSize(cpu->window,event.window.data1, event.window.data2);
 				}
+				break;
+			}
 		
 	
-				case SDL_QUIT:
+			case SDL_QUIT:
+			{
+					
+				#ifdef LOGGER
+				fclose(cpu->logger);
+				#endif
+					
+					
+				// save the ram and load it later
+				// should do detection on the save battery
+				char *savename = calloc(cpu->romname_len+5,1);
+				strcpy(savename,cpu->rom_name);
+					
+				strcat(savename,"sv");
+					
+				FILE *fp = fopen(savename,"wb");
+				if(fp == NULL)
 				{
-					
-					#ifdef LOGGER
-					fclose(cpu->logger);
-					#endif
-					
-					
-					// save the ram and load it later
-					// should do detection on the save battery
-					char *savename = calloc(cpu->romname_len+5,1);
-					strcpy(savename,cpu->rom_name);
-					
-					strcat(savename,"sv");
-					
-					FILE *fp = fopen(savename,"wb");
-					if(fp == NULL)
-					{
-						printf("Error opening save file %s for saving\n",savename);
-						free(savename);
-						goto done;
-					}
-					
-					
-					fwrite(cpu->ram_banks,sizeof(uint8_t),(0x2000*cpu->rom_info.noRamBanks),fp);
-					
-					
-
-					
+					printf("Error opening save file %s for saving\n",savename);
 					free(savename);
-					fclose(fp);
-					#ifdef LOGGER // close the log file
-						fclose(cpu->fp);
-					#endif				
-					done: // skip saving 
-					// should clean up our state here too 
-					SDL_DestroyRenderer(cpu->renderer);
-					SDL_DestroyWindow(cpu->window);
-					SDL_QuitSubSystem(SDL_INIT_EVERYTHING);
-					SDL_Quit();
-					
-					puts("Emulator shutting down...");
-					
-
-					// clean up
-
-					if(cpu->ram_banks != NULL)
-					{
-						free(cpu->ram_banks);
-					}
-					free(cpu->rom_mem);
-					exit(0);
-				}	
-			
-				case SDL_KEYDOWN:
-				{
-					switch(event.key.keysym.sym) // <--- could remove as repeated code
-					{
-						case SDLK_a: key_pressed(4,cpu); break;
-						case SDLK_s: key_pressed(5,cpu); break;
-						case SDLK_RETURN: key_pressed(7,cpu); break;
-						case SDLK_SPACE: key_pressed(6,cpu); break;
-						case SDLK_RIGHT: key_pressed(0,cpu); break;
-						case SDLK_LEFT: key_pressed(1,cpu); break;
-						case SDLK_UP: key_pressed(2,cpu);break;
-						case SDLK_DOWN: key_pressed(3,cpu); break;
-						
-
-						
-						
-						#ifdef DEBUG
-						case SDLK_p:
-						{
-							// enable the debug console by setting a breakpoint at this pc
-							cpu->breakpoint = cpu->pc;
-							break;
-						}
-
-						case SDLK_l:
-						{
-							// we are switching off 
-							// we should drop the audio
-							if(cpu->speed_up)
-							{
-								SDL_ClearQueuedAudio(1);
-							}
-							
-							cpu->speed_up = !cpu->speed_up;
-							break;
-						}
-
-						#endif	
-					}
-					break;
+					goto done;
 				}
-			
-				//else if(event.type == SDL_KEYUP)
-				case SDL_KEYUP:
+					
+					
+				fwrite(cpu->ram_banks,sizeof(uint8_t),(0x2000*cpu->rom_info.noRamBanks),fp);	
+				free(savename);
+				fclose(fp);
+				#ifdef LOGGER // close the log file
+					fclose(cpu->fp);
+				#endif				
+				done: // skip saving 
+				// should clean up our state here too 
+				SDL_DestroyRenderer(cpu->renderer);
+				SDL_DestroyWindow(cpu->window);
+				SDL_QuitSubSystem(SDL_INIT_EVERYTHING);
+				SDL_Quit();
+					
+				puts("Emulator shutting down...");
+					
+
+				// clean up
+				if(cpu->ram_banks != NULL)
 				{
-					switch(event.key.keysym.sym)
-					{
-						case SDLK_a: key_released(4,cpu); break;
-						case SDLK_s: key_released(5,cpu); break;
-						case SDLK_RETURN: key_released(7,cpu); break;
-						case SDLK_SPACE: key_released(6,cpu); break;
-						case SDLK_RIGHT: key_released(0,cpu); break;
-						case SDLK_LEFT: key_released(1,cpu); break;
-						case SDLK_UP: key_released(2,cpu); break;
-						case SDLK_DOWN: key_released(3,cpu);break;
+					free(cpu->ram_banks);
+				}
+				free(cpu->rom_mem);
+				exit(0);
+			}	
+			
+			case SDL_KEYDOWN:
+			{
+				switch(event.key.keysym.sym) // <--- could remove as repeated code
+				{
+					case SDLK_a: key_pressed(4,cpu); break;
+					case SDLK_s: key_pressed(5,cpu); break;
+					case SDLK_RETURN: key_pressed(7,cpu); break;
+					case SDLK_SPACE: key_pressed(6,cpu); break;
+					case SDLK_RIGHT: key_pressed(0,cpu); break;
+					case SDLK_LEFT: key_pressed(1,cpu); break;
+					case SDLK_UP: key_pressed(2,cpu);break;
+					case SDLK_DOWN: key_pressed(3,cpu); break;
 						
 
-						case SDLK_0: // save state
+						
+						
+					#ifdef DEBUG
+					case SDLK_p:
+					{
+						// enable the debug console by setting a breakpoint at this pc
+						cpu->breakpoint = cpu->pc;
+						break;
+					}
+
+					case SDLK_l:
+					{
+						// we are switching off 
+						// we should drop the audio
+						if(cpu->speed_up)
 						{
-							puts("Saved state!");
-							char *savestname = calloc(cpu->romname_len+5,1);
-							strcpy(savestname,cpu->rom_name);
+							SDL_ClearQueuedAudio(1);
+						}
+							
+						cpu->speed_up = !cpu->speed_up;
+						break;
+					}
+
+					#endif	
+				}
+				break;
+			}
+			
+			case SDL_KEYUP:
+			{
+				switch(event.key.keysym.sym)
+				{
+					case SDLK_a: key_released(4,cpu); break;
+					case SDLK_s: key_released(5,cpu); break;
+					case SDLK_RETURN: key_released(7,cpu); break;
+					case SDLK_SPACE: key_released(6,cpu); break;
+					case SDLK_RIGHT: key_released(0,cpu); break;
+					case SDLK_LEFT: key_released(1,cpu); break;
+					case SDLK_UP: key_released(2,cpu); break;
+					case SDLK_DOWN: key_released(3,cpu);break;
+						
+
+					case SDLK_0: // save state
+					{
+						puts("Saved state!");
+						char *savestname = calloc(cpu->romname_len+5,1);
+						strcpy(savestname,cpu->rom_name);
 		
-							strcat(savestname,"svt");
+						strcat(savestname,"svt");
 							
 
-							FILE *savstate = fopen(savestname,"wb");
-							free(savestname);
-							if(savstate == NULL)
-							{
-								puts("Failed to save state!");
-								break;
-							}
-							
-							
-							fwrite(&cpu,sizeof(Cpu),1,savstate);
-							fwrite(cpu->ram_banks,1,0x2000*cpu->rom_info.noRamBanks,savstate);
-							fclose(savstate);
+						FILE *savstate = fopen(savestname,"wb");
+						free(savestname);
+						if(savstate == NULL)
+						{
+							puts("Failed to save state!");
 							break;
 						}
+							
+							
+						fwrite(cpu,sizeof(Cpu),1,savstate);
+						fwrite(cpu->ram_banks,1,0x2000*cpu->rom_info.noRamBanks,savstate);
+						fclose(savstate);
+						break;
+					}
 						
-						// should do validation on our file so the user knows it is not compatible
-						// rather than just letting it trash the cpu state
-						case SDLK_9: // load sate
-						{
-							puts("Loaded state!");
-							char *savestname = calloc(cpu->romname_len+5,1);
-							strcpy(savestname,cpu->rom_name);
+					// should do validation on our file so the user knows it is not compatible
+					// rather than just letting it trash the cpu state
+					case SDLK_9: // load sate
+					{
+						puts("Loaded state!");
+						char *savestname = calloc(cpu->romname_len+5,1);
+						strcpy(savestname,cpu->rom_name);
 		
-							strcat(savestname,"svt");
+						strcat(savestname,"svt");
 							
 
-							FILE *savstate = fopen(savestname,"rb");
-							free(savestname);
+						FILE *savstate = fopen(savestname,"rb");
+						free(savestname);
 							
-							// free our pointer as we will have to reallocate them 
-							// as our saved struct probably contains invalid pointers
-							free(cpu->rom_mem); // loaded below
-							free(cpu->ram_banks);
+						// free our pointer as we will have to reallocate them 
+						// as our saved struct probably contains invalid pointers
+						free(cpu->rom_mem); // loaded below
+						free(cpu->ram_banks);
+						
+						struct Memory_table memory_table[MEMORY_TABLE_SIZE];
 							
-							struct Memory_table memory_table[0x10];
+						// save the memory table and recopy it in 
+						// so that function pointers aernt loaded from an untrusted source
+						memcpy(memory_table,cpu->memory_table,MEMORY_TABLE_SIZE*sizeof(struct Memory_table));
 							
-							// save the memory table and recopy it in 
-							// so that function pointers aernt loaded from an untrusted source
-							memcpy(memory_table,cpu->memory_table,0x10*sizeof(struct Memory_table));
-							fread(&cpu,sizeof(Cpu),1,savstate);
-							memcpy(cpu->memory_table,memory_table,0x10*sizeof(struct Memory_table));
-							cpu->ram_banks = calloc(0x2000 * cpu->rom_info.noRamBanks,sizeof(uint8_t)); // ram banks
+						// save our sdl pointers 
+						SDL_Window * window = cpu->window;
+						SDL_Renderer * renderer = cpu->renderer;
+						SDL_Texture * texture = cpu->texture;
 							
+						fread(cpu,sizeof(Cpu),1,savstate);
+						memcpy(cpu->memory_table,memory_table,MEMORY_TABLE_SIZE*sizeof(struct Memory_table));
+						cpu->ram_banks = calloc(0x2000 * cpu->rom_info.noRamBanks,1); // ram banks
+							
+						cpu->window = window;
+						cpu->renderer = renderer;
+						cpu->texture = texture;
 							
 				
-							fread(cpu->ram_banks,1,0x2000*cpu->rom_info.noRamBanks,savstate);
-							cpu->rom_mem = load_rom(cpu->rom_name); 
-							cache_banking_ptrs(cpu); // old bank pointers are invalid rechace them
-							fclose(savstate);
-							break;
-						}
+						fread(cpu->ram_banks,1,0x2000*cpu->rom_info.noRamBanks,savstate);
+						cpu->rom_mem = load_rom(cpu->rom_name); 
+						cache_banking_ptrs(cpu); // old bank pointers are invalid recache them
+						fclose(savstate);
+						break;
 					}
-					break;
 				}
+				break;
 			}
-		}	
-	
+		}
+	}	
 }
 
 

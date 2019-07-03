@@ -122,6 +122,7 @@ struct Memory_table
 	void (*write_memf) (struct CPU *cpu, uint16_t addr, int data);	
 };
 
+#define MEMORY_TABLE_SIZE 0x10
 
 struct CPU
 {
@@ -142,7 +143,7 @@ struct CPU
 	uint8_t io[0x100]; // hram and io registers
 
 	
-	struct Memory_table memory_table[0x10]; // table of function pointers for memory
+	struct Memory_table memory_table[MEMORY_TABLE_SIZE ]; // table of function pointers for memory
 	
 	uint8_t *rom_mem; // rom 
 	bool interrupt_enable; // affected by di and ei instr
@@ -280,7 +281,7 @@ struct CPU
 	// CGB
 	bool is_cgb;
 	int cgb_ram_bank_num;
-	uint8_t cgb_ram_bank[7][0x1000]; // switchable work ram bank 
+	uint8_t cgb_ram_bank[1][0x1000]; // switchable work ram bank 
 	int vram_bank; // what cgb vram bank are we in?
 	bool is_double; // cpu is in double speed mode!
 	uint8_t bg_pal[0x40]; // bg palette data
