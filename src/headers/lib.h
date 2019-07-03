@@ -44,8 +44,19 @@ uint16_t load_word(uint16_t pc, uint8_t *mem);
 
 
 
-bool is_set(int reg, int bit);
-uint8_t val_bit(uint8_t data, int position);
+inline bool is_set(int reg, int bit)
+{
+	return ((reg >> bit) & 1);
+}
+
+
+
+inline uint8_t val_bit(uint8_t data, int position)
+{
+	uint8_t mask = 1 << position ;
+	return ( data & mask ) ? 1 : 0 ;
+}
+
 
 #ifdef DEBUG
 void binary(int number);
@@ -73,6 +84,7 @@ typedef struct
 	int colour_num;
 	int source;
 	int cgb_pal;
+	bool scx_a; // should adjust for scx
 	
 } Pixel_Obj;
 

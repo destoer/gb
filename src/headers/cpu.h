@@ -159,7 +159,7 @@ struct CPU
 	// fetcher
 	bool hblank;
 	int x_cord; // current x cord of the ppu
-	Pixel_Obj ppu_fifo[16];
+	Pixel_Obj ppu_fifo[168]; // pixel fifo for the line
 	int pixel_idx;
 
 	uint8_t ppu_cyc; // how far for a tile fetch is

@@ -437,7 +437,7 @@ void tick_apu(Cpu *cpu, int cycles)
 		int volume = (128 *(cpu->io[IO_NR50] & 7)) / 7 ;
 		// just mix wave for now 
 	
-		for(int idx = 0; idx < 4; idx++)
+		for(int idx = 0; idx < 4 ; idx++)
 		{
 			// is square enabled?
 			if(is_set(cpu->io[IO_NR51],idx))

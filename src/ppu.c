@@ -1,11 +1,21 @@
 
-// fetcher code needs a rework as it is beyond slow
+
+// why not just have a 160 length 
+// fifo 
+// at 0 copy to start 
+// at 8 just copy above it 
+// and keep incing the index 
+// (yes this wastes memory)
+// but it is is a very simple way to do it....
+
+// fifo code needs a rework as it is beyond slow
 // constantly copying around data it ideally should not
 // (use a circular buffer)
-// as well as make the tile fetch linear
+// as well as make the tile fetch linear (done)
 // then just shift the first few pixels out of the fifo
 // also fix a error in the oracle games 
 // where the hud is the wrong palette
+// window also requires fixing for oracle games (From the badge build)
 
 // everything in here is done in terms of T cycles
 // https://github.com/sinamas/gambatte/tree/master/test/hwtests
@@ -197,8 +207,8 @@ void update_graphics(Cpu *cpu, int cycles)
 
 				cpu->x_scroll_tick = false;
 
-				// start of line wait scx % 8 T cycles
-				cpu->scx_cnt = cpu->io[IO_SCX] % 8;
+
+				cpu->scx_cnt = (cpu->io[IO_SCX] & 0x7);
 				if(cpu->scx_cnt)
 				{
 					cpu->x_scroll_tick = true;
@@ -210,43 +220,29 @@ void update_graphics(Cpu *cpu, int cycles)
 		// pixel transfer
 		case 3: 
 		{
-			if(!cpu->x_scroll_tick)
+			draw_scanline(cpu,cycles);
+			if(cpu->hblank) // if just entering hblank 
 			{
-				draw_scanline(cpu,cycles);
-				if(cpu->hblank) // if just entering hblank 
+				// switch to hblank
+				cpu->mode = 0;
+					
+				// reset our fetcher :)
+				cpu->x_cord = 0;
+				cpu->tile_ready = false;
+				cpu->pixel_count = 0;
+				cpu->ppu_cyc = 0;
+				cpu->hblank = false;
+				cpu->tile_cord = 0;
+				cpu->pixel_idx = 0;
+				cpu->window_start = false;
+				cpu->ppu_scyc = 0;						
+					
+				// on cgb do hdma
+				if(cpu->is_cgb && cpu->hdma_active)
 				{
-					// switch to hblank
-					cpu->mode = 0;
-					
-					// reset our fetcher :)
-					cpu->x_cord = 0;
-					cpu->tile_ready = false;
-					cpu->pixel_count = 0;
-					cpu->ppu_cyc = 0;
-					cpu->hblank = false;
-					cpu->tile_cord = 0;
-					cpu->window_start = false;
-					cpu->ppu_scyc = 0;						
-					
-					// on cgb do hdma
-					if(cpu->is_cgb && cpu->hdma_active)
-					{
-						do_hdma(cpu);
-					}
+					do_hdma(cpu);
 				}
 			}	
-			
-			// tick of the cycles
-			// for the x scroll
-			else if(cpu->x_scroll_tick)
-			{
-				cpu->scx_cnt -= cycles;
-				if(cpu->scx_cnt <= 0)
-				{
-					cpu->x_scroll_tick = false;
-				}
-			}
-			
 			break;
 		}
 		
@@ -309,12 +305,6 @@ void update_graphics(Cpu *cpu, int cycles)
 	cpu->io[IO_STAT] = status | 128 | cpu->mode;		
 }
 
-// awful code
-void shift_fifo(Cpu *cpu, int shift)
-{
-	memmove(cpu->ppu_fifo,&cpu->ppu_fifo[shift],cpu->pixel_count *sizeof(Pixel_Obj));
-	cpu->pixel_count -= shift;
-}
 
 
 
@@ -329,13 +319,27 @@ bool push_pixel(Cpu *cpu)
 	// cant push anymore
 	if(!(cpu->pixel_count > 8)) { return false; }
 
+	 // ignore how much we are offset into the tile
+	 // if we fetched a bg tile
+	if(cpu->x_scroll_tick && cpu->ppu_fifo[cpu->pixel_idx].scx_a)
+	{
+		cpu->pixel_idx += 1; // goto next pixel in fifo
+		cpu->pixel_count -= 1; // "shift the pixel out"
+		cpu->scx_cnt -= 1;
+		if(!cpu->scx_cnt)
+		{
+			cpu->x_scroll_tick = false;
+		}
+		return (cpu->pixel_count > 8);
+	}
 	
-	int col_num = cpu->ppu_fifo[0].colour_num; // save the pixel we will shift
+	
+	int col_num = cpu->ppu_fifo[cpu->pixel_idx].colour_num; // save the pixel we will shift
 	int scanline = cpu->current_line;
 	
 	if(!cpu->is_cgb)
 	{
-		int colour_address = cpu->ppu_fifo[0].source + 0xff47;	
+		int colour_address = cpu->ppu_fifo[cpu->pixel_idx].source + 0xff47;	
 		int col = get_colour(cpu,col_num,colour_address); 
 		int red = 0;
 		int green = 0;
@@ -360,12 +364,12 @@ bool push_pixel(Cpu *cpu)
 		
 
 		// for now we will assume tile just for arugments sake 
-		int cgb_pal = cpu->ppu_fifo[0].cgb_pal;
+		int cgb_pal = cpu->ppu_fifo[cpu->pixel_idx].cgb_pal;
 		// each  rgb value takes two bytes in the pallete for cgb
 		int offset = (cgb_pal*8) + (col_num * 2); 
 
 		int col;
-		if(cpu->ppu_fifo[0].source == TILE)
+		if(cpu->ppu_fifo[cpu->pixel_idx].source == TILE)
 		{
 			col = cpu->bg_pal[offset];
 			col |= cpu->bg_pal[offset + 1] << 8;
@@ -394,7 +398,9 @@ bool push_pixel(Cpu *cpu)
 		cpu->screen[scanline][cpu->x_cord][2] = blue;
 	}
 	
-	shift_fifo(cpu,1); // shift a pixel out by one
+	// shift out a pixel
+	cpu->pixel_count -= 1;
+	cpu->pixel_idx += 1; // goto next pixel in fifo
 	if(++cpu->x_cord == 160)
 	{
 		// done drawing enter hblank
@@ -449,7 +455,14 @@ void tick_fetcher(Cpu *cpu, int cycles)
 	// at 0 dump at start at 8 pixels dump in higher half
 	if(cpu->tile_ready && cpu->pixel_count <= 8)
 	{
-		memcpy(&cpu->ppu_fifo[cpu->pixel_count], cpu->fetcher_tile,8*sizeof(Pixel_Obj));
+		// sanity check incase it fetches an extra
+		// tile or two when pushing out the last set
+		// of pixels
+		if(cpu->tile_cord <= 160)
+		{
+			memcpy(&cpu->ppu_fifo[cpu->tile_cord],cpu->fetcher_tile,8 * sizeof(Pixel_Obj));
+		}
+		cpu->tile_cord += 8; // goto next tile fetch
 		cpu->tile_ready = false;
 		cpu->pixel_count += 8;
 	}		
@@ -505,14 +518,19 @@ void tile_fetch(Cpu *cpu)
 	
 	// is the window enabled check in lcd control
 	// and is the current scanline the window pos?
-	const bool using_window = is_set(lcd_control,5) && (window_y <= scanline); 
+	const bool using_window = is_set(lcd_control,5) && (window_y <= scanline)
+		&& (window_x < 166);
 
 	
 	// what kind of address are we using
 	const bool unsig = is_set(lcd_control,4);
 	
+	
+	// addresses are -0x8000 for vram accesses
+	// as it starts at 0x8000 in the memory map
+	
 	// what tile data are we using
-	const int tile_data = unsig ? 0x8000 : 0x8800; 
+	const int tile_data = unsig ? 0 : 0x800; 
 	
 	
 	// ypos is used to calc which of the 32 vertical tiles 
@@ -525,14 +543,14 @@ void tile_fetch(Cpu *cpu)
 	// which background mem?
 	if(!using_window)
 	{
-		background_mem = is_set(lcd_control,3) ? 0x9c00 : 0x9800;
+		background_mem = is_set(lcd_control,3) ? 0x1c00 : 0x1800;
 		y_pos = scroll_y + scanline;
 	}
 	
 	else
 	{
 		// which window mem?
-		background_mem = is_set(lcd_control,6) ? 0x9c00 : 0x9800;
+		background_mem = is_set(lcd_control,6) ? 0x1c00 : 0x1800;
 		y_pos = scanline - window_y;
 	}
 
@@ -547,138 +565,108 @@ void tile_fetch(Cpu *cpu)
 	bool y_flip = false;
 	uint8_t data1 = -1; 
 	uint8_t data2 = - 1; 
-	int tile_col_last = -1;
 	int vram_bank = 0;
-	for(int pixel = 0; pixel < 8; pixel++)
+	
+
+	int x_pos = (cpu->tile_cord/8);
+		
+	if(!using_window) // <-- dont think this is correct
 	{
-		uint8_t x_pos = pixel+cpu->tile_cord;
-		
-		if(!using_window) // <-- dont think this is correct
-		{
-			x_pos += scroll_x;
-		}
-
-		// translate the current x pos to window space
-		// if needed
-		//if(using_window)
-		else if(x_pos >= window_x)
-		{
-			x_pos = (pixel+cpu->tile_cord) - window_x;
-		}
-		
+		x_pos += (scroll_x/8);
+	}
 	
-	
-		// which of the 32 horizontal tiles does x_pos fall in
-		int tile_col = (x_pos/8);
+	// if we are using window 
+	// it starts drawing at window_x 
+	// so if we are less than it dont draw 
+	else if(x_pos < window_x/8)
+	{
+		return;
+	}
+
 		
+	x_pos &= 31;
+	y_pos &= 7;
+	// get the tile identity num it can be signed or unsigned
+	// -0x8000 to account for the vram 
+	const int tile_address = (background_mem + tile_row+x_pos);
+
+	// deduce where this tile identifier is in memory
+	int tile_location = tile_data;		
+
+	int tile_num;
+	// tile number is allways bank 0
+	if(unsig)
+	{
+		tile_num = cpu->vram[0][tile_address];
+		tile_location += (tile_num *16);
+	}
 	
+	else
+	{
+		tile_num = (int8_t)cpu->vram[0][tile_address];
+		tile_location += ((tile_num+128)*16);
+	}
 
-		// if we are still drawing the same tile 
-		// dont bother reloading the tile data
-		// it can switch to a different tile if we start drawing 
-		// a tile in the middle due to scroll x
-		if(tile_col != tile_col_last)
-		{
-			// update the "last" col
-			tile_col_last = tile_col;
-			// get the tile identity num it can be signed or unsigned
-			// -0x8000 to account for the vram 
-			int tile_address = (background_mem + tile_row+tile_col) - 0x8000;
-
-			// deduce where this tile identifier is in memory
-			int tile_location = tile_data;		
-
-			int tile_num;
-			// tile number is allways bank 0
-			if(unsig)
-			{
-				tile_num = cpu->vram[0][tile_address];
-				tile_location += (tile_num *16);
-			}
-			else
-			{
-				tile_num = (int8_t)cpu->vram[0][tile_address];
-				tile_location += ((tile_num+128)*16);
-			}
-			
-			// map to our array
-			tile_location -= 0x8000;
-			
-			// should cache these values before the loop but ignore for now
-			// x and y flip + priority needs to be implemented
-
-			if(cpu->is_cgb) // we are drawing in cgb mode 
-			{
-				// bg attributes allways in bank 1
-				uint8_t attr = cpu->vram[1][tile_address];
-				cgb_pal = attr & 0x7; // get the pal number
+	if(cpu->is_cgb) // we are drawing in cgb mode 
+	{
+		// bg attributes allways in bank 1
+		uint8_t attr = cpu->vram[1][tile_address];
+		cgb_pal = attr & 0x7; // get the pal number
 				
 				
-				// draw over sprites
-				priority = is_set(attr,7);
+		// draw over sprites
+		priority = is_set(attr,7);
 				
-				x_flip = is_set(attr,5);
-				y_flip = is_set(attr,6);
+		x_flip = is_set(attr,5);
+		y_flip = is_set(attr,6);
 
-				// decide what bank data is coming out of
-				// allready one so dont check the other condition
-				vram_bank = is_set(attr,3) ? 1 : 0;
-			}
+		// decide what bank data is coming out of
+		// allready one so dont check the other condition
+		vram_bank = is_set(attr,3) ? 1 : 0;
+	}
 			
-			// find the correct vertical line we are on of the
-			// tile to get the tile data		
-			int line = y_pos % 8;
-			
-			// read the sprite backwards in y axis
-			if(y_flip)
-			{
-				line = 7 - line;
-			}		
+	// find the correct vertical line we are on of the
+	// tile to get the tile data		
+	// read the sprite backwards in y axis if y flipped
+	const int line = y_flip? 14 - (y_pos*2) : (y_pos*2);
 		
-			line *= 2; // each line takes up two bytes of mem
-			data1 = cpu->vram[vram_bank][(tile_location+line)];
-			data2 = cpu->vram[vram_bank][(tile_location+line+1)];
-		}
+			
+	data1 = cpu->vram[vram_bank][(tile_location+line)];
+	data2 = cpu->vram[vram_bank][(tile_location+line+1)];
 	
-		// pixel 0 in the tile is bit 7 of data1 and data2
-		// pixel 1 is bit 6 etc
-		int color_bit = x_pos % 8;
-		color_bit -= 7;
-		color_bit *= -1;
+	// pixel 0 in the tile is bit 7 of data1 and data2
+	// pixel 1 is bit 6 etc
+	for(int i = 0; i < 8; i++)
+	{
+		int color_bit = x_flip? i : 7-i;
 	
-		// read backwards horizontally 
-		if(x_flip) 
-		{
-			color_bit = 7 - color_bit;
-		}
-	
+		
 	
 		// combine data 2 and data 1 to get the color id for the pixel
 		// in the tile
-		// <--- verify 
 		int colour_num = val_bit(data2,color_bit);
 		colour_num <<= 1;
 		colour_num |= val_bit(data1,color_bit);
-		
-		
-		
+			
+			
+			
 		// save the color_num to the current pos int the tile fifo		
 		if(!cpu->is_cgb)
 		{
-			cpu->fetcher_tile[pixel].colour_num = colour_num;
-			cpu->fetcher_tile[pixel].source = TILE;		
+			cpu->fetcher_tile[i].colour_num = colour_num;
+			cpu->fetcher_tile[i].source = TILE;		
 		}
-		
+			
 		else // cgb save the pallete value... 
 		{
-			cpu->fetcher_tile[pixel].colour_num = colour_num;
-			cpu->fetcher_tile[pixel].cgb_pal = cgb_pal;
+			cpu->fetcher_tile[i].colour_num = colour_num;
+			cpu->fetcher_tile[i].cgb_pal = cgb_pal;
 			// in cgb an priority bit is set it has priority over sprites
 			// unless lcdc has the master overide enabled
-			cpu->fetcher_tile[pixel].source = priority ? TILE_CGBD : TILE;		
+			cpu->fetcher_tile[i].source = priority ? TILE_CGBD : TILE;		
 		}
+		cpu->fetcher_tile[i].scx_a = !using_window;
 	}
-	cpu->tile_cord += 8; // goto next tile fetch
 }
 
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address)
@@ -861,6 +849,7 @@ bool sprite_fetch(Cpu *cpu)
 			
 			// eaiser to read in from right to left as pixel 0
 			// is bit 7 in the color data pixel 1 is bit 6 etc 
+			Pixel_Obj *fifo = &cpu->ppu_fifo[cpu->pixel_idx];
 			for(int sprite_pixel = pixel_start; sprite_pixel >= 0; sprite_pixel--)
 			{
 				int colour_bit = sprite_pixel;
@@ -903,7 +892,7 @@ bool sprite_fetch(Cpu *cpu)
 				// white is transparent even if the flag is set
 				if(is_set(attributes,7))
 				{
-					if(cpu->ppu_fifo[x_pix].colour_num != 0)
+					if(fifo[x_pix].colour_num != 0)
 					{
 						// need to test for the overide in lcdc on cgb
 						if(!draw_over_everything)
@@ -927,15 +916,19 @@ bool sprite_fetch(Cpu *cpu)
 				// if this is not set it can only draw if the tile does not have its priority 
 				// bit set in cgb mode
 				
-				if(cpu->ppu_fifo[x_pix].source != TILE_CGBD || draw_over_everything)
+				
+				if(fifo[x_pix].source != TILE_CGBD || draw_over_everything)
 				{
-					cpu->ppu_fifo[x_pix].colour_num = colour_num;
-					cpu->ppu_fifo[x_pix].source = source;
+					fifo[x_pix].colour_num = colour_num;
+					fifo[x_pix].source = source;
 					//if(cpu->is_cgb) probably faster to just write the value anyways
 					//{
-						cpu->ppu_fifo[x_pix].cgb_pal = attributes & 0x7;
+						fifo[x_pix].cgb_pal = attributes & 0x7;
 					//}
+					fifo[x_pix].scx_a = false;
 				}
+				
+				
 			}
 			did_draw = true;
 		}

@@ -14,21 +14,6 @@ uint16_t load_word(uint16_t pc, uint8_t *mem) // <--- a word in this case is 16 
 }
 
 
-
-bool is_set(int reg, int bit)
-{
-	return ((reg >> bit) & 1);
-}
-
-
-
-uint8_t val_bit(uint8_t data, int position)
-{
-	uint8_t mask = 1 << position ;
-	return ( data & mask ) ? 1 : 0 ;
-}
-
-
 void binary(int number)
 {
 	int counter = 1;

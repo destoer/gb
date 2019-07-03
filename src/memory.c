@@ -569,7 +569,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 					deset_bit(cpu->io[IO_NR52],1);
 				}
 
-				cpu->square[1].volume_load = (data >> 4) & 0x7;
+				cpu->square[1].volume_load = (data >> 4) & 0xf;
 				cpu->square[1].volume = cpu->square[1].volume_load;
 				cpu->square[1].env_load = data & 0x3;
 				cpu->io[IO_NR22] = data;
@@ -823,7 +823,7 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				{
 					deset_bit(cpu->io[IO_NR52],3);
 				}
-				cpu->square[3].volume_load = (data >> 4) & 0x7;
+				cpu->square[3].volume_load = (data >> 4) & 0xf;
 				cpu->square[3].volume = cpu->square[3].volume_load;
 				cpu->square[3].env_load = data & 0x3;
 				cpu->io[IO_NR42] = data;
