@@ -535,18 +535,22 @@ uint16_t read_stackwt(Cpu *cpu)
 void cycle_tick(Cpu *cpu,int cycles)
 {
 
+	// if in double speed oam dma
+	// should operate at double speed
+	int factor = cpu->is_double ? 2 : 1;
+
 	// timers act at constant speed
 	update_timers(cpu,cycles*4); 
 
 	if(cpu->oam_dma_active)
 	{
-		tick_dma(cpu, cycles << cpu->is_double);
+		tick_dma(cpu, cycles*factor);
 	}
 	
 
 	// in double speed mode gfx and apu should operate at half
-	update_graphics(cpu,(cycles*4) >> cpu->is_double); // handle the lcd emulation
-	tick_apu(cpu,(cycles*4) >> cpu->is_double); // advance the apu state
+	update_graphics(cpu,(cycles*4) / factor); // handle the lcd emulation
+	tick_apu(cpu,(cycles*4) / factor); // advance the apu state
 
 }
 
@@ -561,7 +565,7 @@ void cycle_tick(Cpu *cpu,int cycles)
 void update_timers(Cpu *cpu, int cycles)
 {
 	
-	int sound_bit = cpu->is_double? 14 : 12;
+	int sound_bit = cpu->is_double? 13 : 12;
 
 	bool sound_bit_set = is_set(cpu->internal_timer,sound_bit);
 				
