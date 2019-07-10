@@ -368,7 +368,8 @@ bool push_pixel(Cpu *cpu)
 		int offset = (cgb_pal*8) + (col_num * 2); 
 
 		int col;
-		if(cpu->ppu_fifo[cpu->pixel_idx].source == TILE)
+		if(cpu->ppu_fifo[cpu->pixel_idx].source == TILE ||
+			cpu->ppu_fifo[cpu->pixel_idx].source == TILE_CGBD)
 		{
 			col = cpu->bg_pal[offset];
 			col |= cpu->bg_pal[offset + 1] << 8;
