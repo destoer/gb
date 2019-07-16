@@ -636,12 +636,13 @@ void tile_fetch(Cpu *cpu)
 	
 	// pixel 0 in the tile is bit 7 of data1 and data2
 	// pixel 1 is bit 6 etc
-	for(int i = 0; i < 8; i++)
+	
+	int color_bit = x_flip? 0 : 7;
+	
+	int shift = x_flip ? 1 : -1;
+	
+	for(int i = 0; i < 8; i++, color_bit += shift)
 	{
-		int color_bit = x_flip? i : 7-i;
-	
-		
-	
 		// combine data 2 and data 1 to get the color id for the pixel
 		// in the tile
 		int colour_num = val_bit(data2,color_bit);

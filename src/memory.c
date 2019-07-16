@@ -199,7 +199,7 @@ void start_gdma(Cpu *cpu)
 
 	cycle_tick(cpu,8*(len / 0x10)); // 8 M cycles for each 10 byte block
 
-	
+	cpu->io[IO_HDMA5] = 0xff;
 }
 
 
@@ -1228,7 +1228,8 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 				cpu->hdma_active = true;
 			}
 			
-			if(is_set(data,0)) 
+			// if data is 0 and there is no active hdma
+			if(!is_set(data,7) && !cpu->hdma_active) 
 			{
 				start_gdma(cpu);
 			}
