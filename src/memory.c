@@ -1207,31 +1207,30 @@ void write_io(Cpu *cpu,uint16_t address, int data)
 		}
 	
 		// cgb dma start
-		case IO_HDMA5:
+		case IO_HDMA5: // <-- unsure on this behavior
 		{
 			cpu->io[IO_HDMA5] = data;
-			// if data is zero do a gdma
-			// bit 1 will start a hdma during hblank
+			// if bit 7	is zero do a gdma
+			// 1 will start a hdma during hblank
+			
+			// if data is 0 and there is no active hdma
+			if(!is_set(data,7) && !cpu->hdma_active) 
+			{
+				start_gdma(cpu);
+			}
 			
 			// writing 0 to bit 7 terminates a hdma transfer
-			if(!is_set(data,7))
+			else if(!is_set(data,7))
 			{
 				cpu->hdma_active = false;
 			}
 			
 			else // start a hdma
 			{
-				//puts("unhandled gdma!");
 				// number of 16 byte incremnts to transfer
 				cpu->hdma_len = (data & 0x7f)+1;
 				cpu->hdma_len_ticked = 0;
 				cpu->hdma_active = true;
-			}
-			
-			// if data is 0 and there is no active hdma
-			if(!is_set(data,7) && !cpu->hdma_active) 
-			{
-				start_gdma(cpu);
 			}
 			return;
 		}
