@@ -42,7 +42,7 @@ void init_sdl(Cpu *cpu)
 	cpu->renderer = SDL_CreateRenderer(cpu->window, -1, SDL_RENDERER_ACCELERATED);
 
 	cpu->texture = SDL_CreateTexture(cpu->renderer,
-		SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STATIC, X, Y);
+		SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, X, Y);
 	memset(cpu->screen ,255,Y * X *  4 * sizeof(uint8_t));	
 }
 
