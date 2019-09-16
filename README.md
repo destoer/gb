@@ -34,4 +34,4 @@ p to enter debugger while game is running
 l to fast word
 
 commands:
-info, break, disass, step, run
+info, break, disass, step, run, clear
