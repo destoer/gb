@@ -20,7 +20,7 @@ using sdl2 for sound and graphics output
 
 # Usage:
 
-emu.exe <path to rom>
+emu.exe \<path to rom\>
 
 Controls A,S,SPACE,ARROW KEYS,ENTER
 
