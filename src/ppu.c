@@ -44,10 +44,10 @@
 int get_colour(Cpu *cpu ,uint8_t colour_num, uint16_t address);
 
 
-#define WHITE 1
-#define LIGHT_GRAY 2
-#define DARK_GRAY 3
-#define BLACK 4
+#define WHITE 0
+#define LIGHT_GRAY 1
+#define DARK_GRAY 2
+#define BLACK 3
 
 
 void draw_scanline(Cpu *cpu, int cycles);
@@ -69,9 +69,9 @@ void do_hdma(Cpu *cpu)
 {
 
 	//puts("HDMA!");
-	uint16_t source = cpu->dma_src;
+	uint16_t source = cpu->dma_src & 0xfff0;
 
-	uint16_t dest = cpu->dma_dst | 0x8000;
+	uint16_t dest = (cpu->dma_dst & 0x1ff0) | 0x8000;
 
 	
 	source += cpu->hdma_len_ticked*0x10;
@@ -340,21 +340,11 @@ bool push_pixel(Cpu *cpu)
 	{
 		int colour_address = cpu->ppu_fifo[cpu->pixel_idx].source + 0xff47;	
 		int col = get_colour(cpu,col_num,colour_address); 
-		int red = 0;
-		int green = 0;
-		int blue = 0;
-		
-		// black is default
-		switch(col)
+		static const uint8_t col_array[4] = {[BLACK] = 0, [WHITE] = 0xff, [LIGHT_GRAY] = 0xcc, [DARK_GRAY] = 0x77};
+		for(int i = 0; i < 3; i++)
 		{
-			case WHITE: red = 255; green = 255; blue = 255; break;
-			case LIGHT_GRAY: red = 0xCC; green = 0xCC; blue = 0xCC;  break;
-			case DARK_GRAY: red = 0x77; green = 0x77; blue = 0x77;  break;
+			cpu->screen[scanline][cpu->x_cord][i] = col_array[col];
 		}
-		
-		cpu->screen[scanline][cpu->x_cord][0] = red;
-		cpu->screen[scanline][cpu->x_cord][1] = green;
-		cpu->screen[scanline][cpu->x_cord][2] = blue;
 	}
 	
 	else // gameboy color
@@ -368,6 +358,7 @@ bool push_pixel(Cpu *cpu)
 		int offset = (cgb_pal*8) + (col_num * 2); 
 
 		int col;
+		
 		if(cpu->ppu_fifo[cpu->pixel_idx].source == TILE ||
 			cpu->ppu_fifo[cpu->pixel_idx].source == TILE_CGBD)
 		{
@@ -480,8 +471,6 @@ void draw_scanline(Cpu *cpu, int cycles)
 	// push out of fifo
 	if(cpu->pixel_count > 8)
 	{
-
-
 		for(int i = 0; i < cycles; i++) // 1 pixel pushed per cycle
 		{
 			// ignore sprite timings for now
