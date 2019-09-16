@@ -8,13 +8,9 @@ using sdl2 for sound and graphics output
 
 # Building:
   
-  git clone https://github.com/destoer/gb.git
+  git clone https://github.com/destoer/gb.git && cd gb
   
-  cd gb
-  
-  mkdir obj
-  
-  mkdir "obj/src"
+  mkdir obj && mkdir "obj/src"
   
   make
 
