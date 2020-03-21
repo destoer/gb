@@ -1,3 +1,8 @@
+No longer actively worked on, 
+C++ rewrite of this code with bug improved accuracy under destoer-emu
+
+
+
 a gameboy and gameboy color emulator written in C
 using sdl2 for sound and graphics output
 
