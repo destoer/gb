@@ -1,5 +1,5 @@
 No longer actively worked on, 
-C++ rewrite of this code with bug improved accuracy under destoer-emu
+C++ rewrite of this code with improved accuracy under destoer-emu
 
 
 
